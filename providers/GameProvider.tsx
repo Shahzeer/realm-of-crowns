@@ -57,6 +57,7 @@ import {
   PERSONALITY_RUMORS,
 } from '@/mocks/gameData';
 import { getStandaloneNarrativeEvents, getFollowUpEvent } from '@/mocks/narrativeEvents';
+import { enrichBattleResult } from '@/utils/battleNarrative';
 
 interface PendingChainEvent {
   eventId: string;
@@ -137,6 +138,8 @@ function resolveBattle(
     conquered: winner === 'attacker',
     tacticUsed: attackerTacticId,
   };
+
+  return enrichBattleResult(result);
 }
 
 function checkAchievements(state: GameState): Achievement[] {

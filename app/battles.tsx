@@ -1,73 +1,153 @@
-import React, { useRef, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from "react-native";
+import React, { useRef, useEffect, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Modal } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { X, Swords, Trophy, Skull, Shield } from "lucide-react-native";
+import { X, Swords, Trophy, Skull, Shield, Crown, ChevronDown, ChevronUp } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { BattleResult } from "@/types/game";
 
+const TITLE_COLORS: Record<string, string> = {
+  'Glorious Victory': '#ffd700',
+  'Against All Odds': '#ff9500',
+  'Decisive Victory': Colors.status.success,
+  'Hard-Won Victory': '#7bc96a',
+  'Pyrrhic Victory': '#d29922',
+  'Devastating Rout': Colors.crimson.bright,
+  'Crushing Defeat': '#cc3333',
+  'Narrow Defeat': '#d4774a',
+  'Tactical Retreat': Colors.text.secondary,
+};
+
+const TITLE_ICONS: Record<string, string> = {
+  'Glorious Victory': '🏆',
+  'Against All Odds': '⚡',
+  'Decisive Victory': '🗡️',
+  'Hard-Won Victory': '⚔️',
+  'Pyrrhic Victory': '💀',
+  'Devastating Rout': '🔥',
+  'Crushing Defeat': '💔',
+  'Narrow Defeat': '🛡️',
+  'Tactical Retreat': '🏳️',
+};
+
 function BattleCard({ battle, index }: { battle: BattleResult; index: number }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
-  const shakeAnim = useRef(new Animated.Value(0)).current;
+  const [expanded, setExpanded] = useState(index === 0);
 
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 500, delay: index * 100, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 500, delay: index * 100, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, delay: index * 80, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 500, delay: index * 80, useNativeDriver: true }),
     ]).start();
-
-    if (index === 0) {
-      Animated.sequence([
-        Animated.timing(shakeAnim, { toValue: 5, duration: 50, delay: 300, useNativeDriver: true }),
-        Animated.timing(shakeAnim, { toValue: -5, duration: 50, useNativeDriver: true }),
-        Animated.timing(shakeAnim, { toValue: 3, duration: 50, useNativeDriver: true }),
-        Animated.timing(shakeAnim, { toValue: 0, duration: 50, useNativeDriver: true }),
-      ]).start();
-    }
   }, []);
 
-  const isVictory = battle.conquered;
+  const isVictory = battle.winner === 'attacker';
   const borderColor = isVictory ? Colors.status.success : Colors.crimson.bright;
+  const titleColor = battle.victoryTitle ? TITLE_COLORS[battle.victoryTitle] || Colors.text.primary : (isVictory ? Colors.status.success : Colors.crimson.bright);
+  const titleIcon = battle.victoryTitle ? TITLE_ICONS[battle.victoryTitle] || '⚔️' : '⚔️';
+  const ratio = battle.attackerTroops / Math.max(battle.defenderTroops, 1);
+  const isHeroic = isVictory && ratio <= 0.75;
 
   return (
-    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }, { translateX: shakeAnim }] }}>
-      <View style={[bt.battleCard, { borderColor: borderColor + '40' }]}>
+    <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      <TouchableOpacity
+        style={[bt.battleCard, { borderColor: borderColor + '40' }, isHeroic && bt.heroicCard]}
+        onPress={() => setExpanded(!expanded)}
+        activeOpacity={0.8}
+        testID={`battle-card-${battle.id}`}
+      >
+        {isHeroic && <LinearGradient colors={['#3a2a0a20', '#0d111700']} style={StyleSheet.absoluteFill} />}
+
         <View style={bt.battleHeader}>
-          <View style={[bt.resultBadge, { backgroundColor: isVictory ? Colors.status.success + '20' : Colors.crimson.bright + '20' }]}>
-            {isVictory ? <Trophy size={16} color={Colors.status.success} /> : <Skull size={16} color={Colors.crimson.bright} />}
-            <Text style={[bt.resultText, { color: isVictory ? Colors.status.success : Colors.crimson.bright }]}>
-              {isVictory ? 'VICTORY' : 'DEFEAT'}
-            </Text>
+          <View style={bt.titleRow}>
+            <Text style={bt.titleIcon}>{titleIcon}</Text>
+            <View style={bt.titleGroup}>
+              {battle.victoryTitle && (
+                <Text style={[bt.victoryTitle, { color: titleColor }]}>{battle.victoryTitle}</Text>
+              )}
+              <Text style={bt.locationText}>Battle of {battle.provinceName}</Text>
+            </View>
           </View>
-          <Text style={bt.turnText}>Turn {battle.turn}</Text>
+          <View style={bt.headerRight}>
+            <Text style={bt.turnText}>Turn {battle.turn}</Text>
+            {expanded ? <ChevronUp size={14} color={Colors.text.dim} /> : <ChevronDown size={14} color={Colors.text.dim} />}
+          </View>
         </View>
-        <Text style={bt.locationText}>⚔️ Battle of {battle.provinceName}</Text>
+
         <View style={bt.sidesRow}>
-          <View style={bt.sideCard}>
+          <View style={[bt.sideCard, isVictory && bt.winningSide]}>
             <Swords size={14} color={Colors.gold.bright} />
             <Text style={bt.sideName} numberOfLines={1}>{battle.attackerName}</Text>
-            <Text style={bt.sideTroops}>{battle.attackerTroops} troops</Text>
-            <Text style={bt.sideLosses}>-{battle.attackerLosses} lost</Text>
+            <Text style={bt.sideTroops}>{battle.attackerTroops.toLocaleString()}</Text>
+            <Text style={bt.sideLosses}>-{battle.attackerLosses.toLocaleString()}</Text>
           </View>
           <View style={bt.vsBox}>
             <Text style={bt.vsText}>VS</Text>
           </View>
-          <View style={bt.sideCard}>
+          <View style={[bt.sideCard, !isVictory && bt.winningSide]}>
             <Shield size={14} color={Colors.status.info} />
             <Text style={bt.sideName} numberOfLines={1}>{battle.defenderName}</Text>
-            <Text style={bt.sideTroops}>{battle.defenderTroops} troops</Text>
-            <Text style={bt.sideLosses}>-{battle.defenderLosses} lost</Text>
+            <Text style={bt.sideTroops}>{battle.defenderTroops.toLocaleString()}</Text>
+            <Text style={bt.sideLosses}>-{battle.defenderLosses.toLocaleString()}</Text>
           </View>
         </View>
+
+        {expanded && (
+          <View style={bt.expandedSection}>
+            {battle.narrative && (
+              <View style={bt.narrativeBox}>
+                <Text style={bt.narrativeText}>{battle.narrative}</Text>
+              </View>
+            )}
+
+            {(battle.attackerCommander || battle.defenderCommander) && (
+              <View style={bt.commandersSection}>
+                <Text style={bt.commandersTitle}>NOTABLE COMMANDERS</Text>
+                {battle.attackerCommander && (
+                  <View style={bt.commanderRow}>
+                    <Crown size={12} color={Colors.gold.bright} />
+                    <View style={bt.commanderInfo}>
+                      <Text style={bt.commanderName}>{battle.attackerCommander.name}</Text>
+                      <Text style={bt.commanderRole}>{battle.attackerCommander.role}</Text>
+                      {battle.attackerCommander.contribution ? (
+                        <Text style={bt.commanderContribution}>{battle.attackerCommander.contribution}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                )}
+                {battle.defenderCommander && (
+                  <View style={bt.commanderRow}>
+                    <Shield size={12} color={Colors.status.info} />
+                    <View style={bt.commanderInfo}>
+                      <Text style={bt.commanderName}>{battle.defenderCommander.name}</Text>
+                      <Text style={bt.commanderRole}>{battle.defenderCommander.role}</Text>
+                      {battle.defenderCommander.contribution ? (
+                        <Text style={bt.commanderContribution}>{battle.defenderCommander.contribution}</Text>
+                      ) : null}
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+
+            {battle.tacticUsed && (
+              <View style={bt.tacticRow}>
+                <Text style={bt.tacticLabel}>Tactic Used:</Text>
+                <Text style={bt.tacticValue}>{battle.tacticUsed}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
         {battle.conquered && (
           <View style={bt.conqueredBanner}>
             <Text style={bt.conqueredText}>🏴 Province Conquered!</Text>
           </View>
         )}
-      </View>
+      </TouchableOpacity>
     </Animated.View>
   );
 }
@@ -79,8 +159,9 @@ export default function BattlesScreen() {
   const { state } = useGame();
 
   const battles = [...state.battles].reverse();
-  const victories = battles.filter(b => b.conquered).length;
-  const defeats = battles.filter(b => !b.conquered).length;
+  const victories = battles.filter(b => b.winner === 'attacker').length;
+  const defeats = battles.filter(b => b.winner === 'defender').length;
+  const heroicVictories = battles.filter(b => b.winner === 'attacker' && (b.attackerTroops / Math.max(b.defenderTroops, 1)) <= 0.75).length;
 
   return (
     <View style={[bt.root, { paddingTop: insets.top }]}>
@@ -88,7 +169,7 @@ export default function BattlesScreen() {
       <View style={bt.header}>
         <View style={bt.headerLeft}>
           <Swords size={22} color={Colors.crimson.bright} />
-          <Text style={bt.title}>Battle History</Text>
+          <Text style={bt.title}>War Chronicle</Text>
         </View>
         <TouchableOpacity onPress={() => router.back()} style={bt.closeBtn} testID="close-battles">
           <X size={22} color={Colors.text.secondary} />
@@ -107,6 +188,12 @@ export default function BattlesScreen() {
           <Text style={[bt.summaryValue, { color: Colors.crimson.bright }]}>{defeats}</Text>
           <Text style={bt.summaryLabel}>Defeats</Text>
         </View>
+        {heroicVictories > 0 && (
+          <View style={[bt.summaryCard, { borderColor: '#ffd70030' }]}>
+            <Text style={[bt.summaryValue, { color: '#ffd700' }]}>{heroicVictories}</Text>
+            <Text style={bt.summaryLabel}>Heroic</Text>
+          </View>
+        )}
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 20 }} showsVerticalScrollIndicator={false}>
         {battles.length === 0 ? (
@@ -116,8 +203,8 @@ export default function BattlesScreen() {
             <Text style={bt.emptyDesc}>Declare war or wait for enemies to attack. History will be written in blood.</Text>
           </View>
         ) : (
-          battles.map((battle, idx) => (
-            <BattleCard key={battle.id} battle={battle} index={idx} />
+          battles.map((battle, i) => (
+            <BattleCard key={battle.id} battle={battle} index={i} />
           ))
         )}
       </ScrollView>
@@ -131,24 +218,42 @@ const bt = StyleSheet.create({
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   title: { fontSize: 20, fontWeight: "800" as const, color: Colors.text.primary },
   closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.bg.card, alignItems: "center", justifyContent: "center" },
-  summaryRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
+  summaryRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 14, gap: 8 },
   summaryCard: { flex: 1, backgroundColor: Colors.bg.card, borderRadius: 10, paddingVertical: 12, alignItems: "center", borderWidth: 1, borderColor: Colors.border.primary },
-  summaryValue: { fontSize: 20, fontWeight: "800" as const, color: Colors.text.primary },
-  summaryLabel: { fontSize: 10, color: Colors.text.secondary, textTransform: "uppercase" as const, marginTop: 2 },
-  battleCard: { marginHorizontal: 16, marginBottom: 14, backgroundColor: Colors.bg.card, borderRadius: 14, padding: 16, borderWidth: 1 },
-  battleHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
-  resultBadge: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  resultText: { fontSize: 12, fontWeight: "800" as const, letterSpacing: 1 },
+  summaryValue: { fontSize: 18, fontWeight: "800" as const, color: Colors.text.primary },
+  summaryLabel: { fontSize: 9, color: Colors.text.secondary, textTransform: "uppercase" as const, marginTop: 2, letterSpacing: 0.5 },
+  battleCard: { marginHorizontal: 16, marginBottom: 14, backgroundColor: Colors.bg.card, borderRadius: 16, padding: 16, borderWidth: 1, overflow: "hidden" as const },
+  heroicCard: { borderColor: '#ffd70040' },
+  battleHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  titleIcon: { fontSize: 24 },
+  titleGroup: { flex: 1, gap: 2 },
+  victoryTitle: { fontSize: 14, fontWeight: "800" as const, letterSpacing: 0.8 },
+  locationText: { fontSize: 12, fontWeight: "600" as const, color: Colors.text.secondary },
+  headerRight: { alignItems: "flex-end", gap: 4 },
   turnText: { fontSize: 11, color: Colors.text.dim },
-  locationText: { fontSize: 15, fontWeight: "700" as const, color: Colors.text.primary, marginBottom: 12 },
   sidesRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  sideCard: { flex: 1, backgroundColor: Colors.bg.tertiary, borderRadius: 10, padding: 10, alignItems: "center", gap: 4 },
+  sideCard: { flex: 1, backgroundColor: Colors.bg.tertiary, borderRadius: 10, padding: 10, alignItems: "center", gap: 3, borderWidth: 1, borderColor: "transparent" },
+  winningSide: { borderColor: Colors.gold.dim + '40' },
   sideName: { fontSize: 11, fontWeight: "600" as const, color: Colors.text.primary, textAlign: "center" as const },
-  sideTroops: { fontSize: 13, fontWeight: "700" as const, color: Colors.text.primary },
-  sideLosses: { fontSize: 11, color: Colors.crimson.bright },
-  vsBox: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.bg.primary, alignItems: "center", justifyContent: "center" },
-  vsText: { fontSize: 10, fontWeight: "800" as const, color: Colors.gold.dim },
-  conqueredBanner: { marginTop: 10, paddingVertical: 8, borderRadius: 8, backgroundColor: Colors.status.success + '15', alignItems: "center" },
+  sideTroops: { fontSize: 14, fontWeight: "700" as const, color: Colors.text.primary },
+  sideLosses: { fontSize: 11, color: Colors.crimson.bright, fontWeight: "600" as const },
+  vsBox: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.bg.primary, alignItems: "center", justifyContent: "center" },
+  vsText: { fontSize: 9, fontWeight: "800" as const, color: Colors.gold.dim },
+  expandedSection: { marginTop: 14, gap: 12 },
+  narrativeBox: { backgroundColor: '#1a1812', borderRadius: 12, padding: 14, borderLeftWidth: 3, borderLeftColor: Colors.gold.dim },
+  narrativeText: { fontSize: 13, color: Colors.parchment.dark, lineHeight: 20, fontStyle: "italic" as const },
+  commandersSection: { gap: 8 },
+  commandersTitle: { fontSize: 10, fontWeight: "800" as const, color: Colors.gold.dim, letterSpacing: 1.5, marginBottom: 2 },
+  commanderRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingLeft: 4 },
+  commanderInfo: { flex: 1, gap: 1 },
+  commanderName: { fontSize: 13, fontWeight: "700" as const, color: Colors.text.primary },
+  commanderRole: { fontSize: 10, fontWeight: "600" as const, color: Colors.text.dim, textTransform: "uppercase" as const, letterSpacing: 0.5 },
+  commanderContribution: { fontSize: 11, color: Colors.text.secondary, lineHeight: 16, marginTop: 2 },
+  tacticRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  tacticLabel: { fontSize: 11, color: Colors.text.dim },
+  tacticValue: { fontSize: 11, fontWeight: "700" as const, color: Colors.gold.primary, textTransform: "capitalize" as const },
+  conqueredBanner: { marginTop: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: Colors.status.success + '15', alignItems: "center" },
   conqueredText: { fontSize: 13, fontWeight: "700" as const, color: Colors.status.success },
   emptyState: { alignItems: "center", paddingTop: 80, gap: 8 },
   emptyIcon: { fontSize: 56, marginBottom: 8 },

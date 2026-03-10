@@ -7,27 +7,15 @@ import { StatusBar } from "expo-status-bar";
 import { GameProvider } from "@/providers/GameProvider";
 import Colors from "@/constants/colors";
 
-void SplashScreen.preventAutoHideAsync();
-console.log("[RealmOfCrowns] App bootstrap");
+SplashScreen.preventAutoHideAsync();
 
 const realmQueryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 60000,
-    },
-  },
+  defaultOptions: { queries: { retry: 1, staleTime: 60000 } },
 });
 
 function RootLayoutNav() {
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: Colors.bg.primary },
-        animation: "slide_from_right",
-      }}
-    >
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg.primary }, animation: "slide_from_right" }}>
       <Stack.Screen name="index" options={{ headerShown: false, animation: "none" }} />
       <Stack.Screen name="kingdom-select" options={{ headerShown: false, animation: "fade" }} />
       <Stack.Screen name="province/[id]" options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: false }} />
@@ -50,10 +38,7 @@ function RootLayoutNav() {
 }
 
 export default function RootLayout() {
-  useEffect(() => {
-    void SplashScreen.hideAsync();
-  }, []);
-
+  useEffect(() => { SplashScreen.hideAsync(); }, []);
   return (
     <QueryClientProvider client={realmQueryClient}>
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.bg.primary }}>

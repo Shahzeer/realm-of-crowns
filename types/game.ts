@@ -187,6 +187,23 @@ export interface Kingdom {
   intel?: KingdomIntel;
 }
 
+export type VictoryTitle = 
+  | 'Glorious Victory'
+  | 'Against All Odds'
+  | 'Decisive Victory'
+  | 'Hard-Won Victory'
+  | 'Pyrrhic Victory'
+  | 'Devastating Rout'
+  | 'Crushing Defeat'
+  | 'Narrow Defeat'
+  | 'Tactical Retreat';
+
+export interface BattleCommander {
+  name: string;
+  role: string;
+  contribution: string;
+}
+
 export interface BattleResult {
   id: string;
   turn: number;
@@ -201,6 +218,10 @@ export interface BattleResult {
   provinceId: string;
   conquered: boolean;
   tacticUsed?: string;
+  narrative?: string;
+  victoryTitle?: VictoryTitle;
+  attackerCommander?: BattleCommander;
+  defenderCommander?: BattleCommander;
 }
 
 export interface Technology {
