@@ -27,6 +27,9 @@ import {
   KingdomIntel,
   Rumor,
   RumorCategory,
+  KingdomPressures,
+  PlagueState,
+  NobleDispute,
 } from '@/types/game';
 import {
   INITIAL_RULER,
@@ -92,7 +95,192 @@ const defaultState: GameState = {
   tutorialSeen: false,
   difficulty: 'normal',
   rumors: [],
+  pressures: {
+    corruption: 0,
+    overstretch: 0,
+    famine: 0,
+    plague: { active: false, severity: 0, infectedProvinces: [], turnStarted: 0, contained: false },
+    nobleDisputes: [],
+  },
 };
+
+const NOBLE_NAMES = [
+  'Duke Aldhelm', 'Baron Rothgar', 'Count Edric', 'Lord Theron', 'Marquess Valdan',
+  'Earl Brynden', 'Viscount Geralt', 'Lord Oswin', 'Baron Halsted', 'Duke Fenwick',
+  'Count Alaric', 'Lord Stavros', 'Baron Isolde', 'Duke Marlowe', 'Earl Sigmund',
+];
+
+const NOBLE_DEMANDS = [
+  'demands a seat on the council',
+  'demands tax exemption for their lands',
+  'demands command of the provincial garrison',
+  'threatens to withhold military levies',
+  'demands recognition of ancient land claims',
+  'demands increased trade privileges',
+  'threatens to support a rival claimant',
+  'demands autonomy for their province',
+];
+
+function processKingdomPressures(
+  pressures: KingdomPressures,
+  provinces: Province[],
+  resources: Resources,
+  turn: number,
+  council: Array<{ role: string; skill: number; loyalty: number; task?: string }>,
+): {
+  pressures: KingdomPressures;
+  events: GameEvent[];
+  logs: string[];
+  resourcePenalties: Partial<Resources>;
+  loyaltyPenalties: Record<string, number>;
+} {
+  const playerProvinces = provinces.filter(p => p.owner === 'player');
+  const provCount = playerProvinces.length;
+  const events: GameEvent[] = [];
+  const logs: string[] = [];
+  const resourcePenalties: Partial<Resources> = {};
+  const loyaltyPenalties: Record<string, number> = {};
+
+  let corruption = pressures.corruption;
+  const corruptionGrowth = 0.5 + (provCount * 0.15);
+  const steward = council.find(c => c.role === 'steward');
+  const stewardReduction = steward && steward.task === 'fight_corruption' ? (steward.skill * 0.3) : 0;
+  corruption = Math.max(0, Math.min(100, corruption + corruptionGrowth - stewardReduction));
+  const goldPenalty = Math.floor(resources.goldPerTurn * (corruption / 200));
+  if (goldPenalty > 0) {
+    resourcePenalties.gold = -goldPenalty;
+    if (corruption > 30) logs.push(`🏛️ Corruption costs ${goldPenalty}g this turn`);
+  }
+
+  let overstretch = 0;
+  if (provCount > 10) {
+    overstretch = Math.min(100, (provCount - 10) * 8);
+    const upkeepPenalty = Math.floor((provCount - 10) * 15);
+    resourcePenalties.gold = (resourcePenalties.gold ?? 0) - upkeepPenalty;
+    if (overstretch > 0) logs.push(`⚠️ Empire overstretch! +${upkeepPenalty}g upkeep, loyalty penalties`);
+    const loyaltyHit = Math.floor(overstretch / 10);
+    playerProvinces.forEach(p => {
+      if (p.type !== 'capital') loyaltyPenalties[p.id] = (loyaltyPenalties[p.id] ?? 0) - loyaltyHit;
+    });
+  }
+
+  let famine = 0;
+  if (resources.food <= 0) {
+    famine = Math.min(100, 40 + Math.abs(resources.food));
+  } else if (resources.food < 50) {
+    famine = Math.floor((50 - resources.food) / 2);
+  }
+  if (famine > 20) {
+    const unrestBonus = Math.floor(famine / 5);
+    playerProvinces.forEach(p => {
+      loyaltyPenalties[p.id] = (loyaltyPenalties[p.id] ?? 0) - unrestBonus;
+    });
+    logs.push(`🌾 Food shortages cause unrest across ${provCount} provinces`);
+  }
+
+  let plague = { ...pressures.plague };
+  if (plague.active) {
+    const chaplain = council.find(c => c.role === 'chaplain');
+    const containChance = chaplain && chaplain.task === 'contain_plague' ? 0.15 + (chaplain.skill * 0.02) : 0.05;
+    if (plague.contained || Math.random() < containChance) {
+      plague.contained = true;
+      plague.severity = Math.max(0, plague.severity - 10);
+      if (plague.severity <= 0) {
+        plague = { active: false, severity: 0, infectedProvinces: [], turnStarted: 0, contained: false };
+        logs.push('💚 The plague has been eradicated!');
+      } else {
+        logs.push(`🩺 Plague contained, severity declining (${plague.severity}%)`);
+      }
+    } else {
+      plague.severity = Math.min(100, plague.severity + 5);
+      const spreadCandidates = playerProvinces.filter(p =>
+        !plague.infectedProvinces.includes(p.id) &&
+        p.connectedTo.some(c => plague.infectedProvinces.includes(c))
+      );
+      if (spreadCandidates.length > 0 && Math.random() < 0.4) {
+        const victim = spreadCandidates[Math.floor(Math.random() * spreadCandidates.length)];
+        plague.infectedProvinces = [...plague.infectedProvinces, victim.id];
+        logs.push(`☠️ Plague spreads to ${victim.name}!`);
+      }
+      plague.infectedProvinces.forEach(pid => {
+        loyaltyPenalties[pid] = (loyaltyPenalties[pid] ?? 0) - Math.floor(plague.severity / 8);
+      });
+      const popLoss = Math.floor(plague.severity * 2);
+      logs.push(`☠️ Plague rages (${plague.severity}%), -${popLoss} pop in infected provinces`);
+    }
+  } else if (turn > 10 && Math.random() < 0.03) {
+    const startProvince = playerProvinces[Math.floor(Math.random() * playerProvinces.length)];
+    if (startProvince) {
+      plague = {
+        active: true,
+        severity: 15 + Math.floor(Math.random() * 15),
+        infectedProvinces: [startProvince.id],
+        turnStarted: turn,
+        contained: false,
+      };
+      logs.push(`☠️ Plague outbreak in ${startProvince.name}!`);
+      events.push({
+        id: `plague_outbreak_${turn}`,
+        title: 'Plague Outbreak!',
+        description: `A terrible plague has appeared in ${startProvince.name}! Disease spreads through the streets. You must act quickly to contain it before it spreads to neighboring provinces.`,
+        type: 'economic',
+        turn,
+        seen: false,
+        choices: [
+          { id: `pq1_${turn}`, text: 'Quarantine immediately', effects: 'Contains plague, -100g', cost: { gold: 100 } },
+          { id: `pq2_${turn}`, text: 'Pray for divine intervention', effects: 'Costs faith, may help', cost: { faith: 50 } },
+          { id: `pq3_${turn}`, text: 'Ignore it', effects: 'Plague may spread unchecked' },
+        ],
+      });
+    }
+  }
+
+  let nobleDisputes = pressures.nobleDisputes.filter(d => !d.resolved);
+  if (nobleDisputes.length < 3 && provCount > 3 && Math.random() < 0.08) {
+    const targetProvince = playerProvinces.filter(p => p.type !== 'capital')[Math.floor(Math.random() * Math.max(1, playerProvinces.length - 1))];
+    if (targetProvince) {
+      const nobleName = NOBLE_NAMES[Math.floor(Math.random() * NOBLE_NAMES.length)];
+      const demand = NOBLE_DEMANDS[Math.floor(Math.random() * NOBLE_DEMANDS.length)];
+      const dispute: NobleDispute = {
+        id: `noble_${turn}_${Math.random().toString(36).slice(2, 6)}`,
+        nobleName,
+        demand,
+        province: targetProvince.id,
+        turnCreated: turn,
+        resolved: false,
+        loyaltyPenalty: 8 + Math.floor(Math.random() * 12),
+      };
+      nobleDisputes.push(dispute);
+      logs.push(`👑 ${nobleName} of ${targetProvince.name} ${demand}`);
+      events.push({
+        id: `noble_dispute_${dispute.id}`,
+        title: `Noble Demands: ${nobleName}`,
+        description: `${nobleName}, a powerful noble in ${targetProvince.name}, ${demand}. Refusing may cause unrest, but conceding sets a dangerous precedent.`,
+        type: 'political',
+        turn,
+        seen: false,
+        choices: [
+          { id: `nd_grant_${dispute.id}`, text: 'Grant their demands', effects: '+Loyalty, costs gold', cost: { gold: 150 }, reward: { food: 10 } },
+          { id: `nd_refuse_${dispute.id}`, text: 'Refuse outright', effects: '-Loyalty in province' },
+          { id: `nd_imprison_${dispute.id}`, text: 'Arrest the noble', effects: '-Loyalty but ends dispute', cost: { military: 30 } },
+        ],
+      });
+    }
+  }
+  nobleDisputes.forEach(d => {
+    if (!d.resolved && turn - d.turnCreated > 5) {
+      loyaltyPenalties[d.province] = (loyaltyPenalties[d.province] ?? 0) - d.loyaltyPenalty;
+    }
+  });
+
+  return {
+    pressures: { corruption, overstretch, famine, plague, nobleDisputes },
+    events,
+    logs,
+    resourcePenalties,
+    loyaltyPenalties,
+  };
+}
 
 function getTacticModifiers(tacticId: string): CombatTactic {
   return COMBAT_TACTICS.find(t => t.id === tacticId) || COMBAT_TACTICS[0];
@@ -756,6 +944,13 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
     tutorialSeen: false,
     difficulty,
     rumors: [],
+    pressures: {
+      corruption: 0,
+      overstretch: 0,
+      famine: 0,
+      plague: { active: false, severity: 0, infectedProvinces: [], turnStarted: 0, contained: false },
+      nobleDisputes: [],
+    },
   };
 }
 
@@ -785,6 +980,13 @@ export const [GameProvider, useGame] = createContextHook(() => {
       tutorialSeen: loaded.tutorialSeen ?? false,
       difficulty: loaded.difficulty ?? 'normal',
       rumors: loaded.rumors ?? [],
+      pressures: loaded.pressures ?? {
+        corruption: 0,
+        overstretch: 0,
+        famine: 0,
+        plague: { active: false, severity: 0, infectedProvinces: [], turnStarted: 0, contained: false },
+        nobleDisputes: [],
+      },
     };
   }
 
@@ -1510,8 +1712,32 @@ export const [GameProvider, useGame] = createContextHook(() => {
         if (val > 1) newFaithCooldowns[key] = val - 1;
       });
 
+      const pressureResult = processKingdomPressures(
+        prev.pressures,
+        newProvinces,
+        newResources,
+        nextTurn,
+        newCouncil,
+      );
+      newResources.gold = Math.max(0, newResources.gold + (pressureResult.resourcePenalties.gold ?? 0));
+      newResources.food = Math.max(0, newResources.food + (pressureResult.resourcePenalties.food ?? 0));
+      newResources.military = Math.max(0, newResources.military + (pressureResult.resourcePenalties.military ?? 0));
+      newProvinces = newProvinces.map(p => {
+        const loyaltyHit = pressureResult.loyaltyPenalties[p.id];
+        if (loyaltyHit && p.owner === 'player') {
+          return { ...p, loyalty: Math.max(0, Math.min(100, (p.loyalty ?? 80) + loyaltyHit)), unrest: Math.min(100, (p.unrest ?? 0) + Math.abs(loyaltyHit)) };
+        }
+        if (pressureResult.pressures.plague.active && pressureResult.pressures.plague.infectedProvinces.includes(p.id) && p.owner === 'player') {
+          const popLoss = Math.floor(pressureResult.pressures.plague.severity * 2);
+          return { ...p, population: Math.max(100, p.population - popLoss) };
+        }
+        return p;
+      });
+      newEvents.push(...pressureResult.events);
+
       const allBattles = [...prev.battles, ...newBattlesFromSiege, ...aiBattles].slice(-20);
       const allLogs = [
+        ...pressureResult.logs,
         ...summary.spyResults,
         ...aiResult.logs,
         ...revoltLogs,
@@ -1602,6 +1828,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         faithCooldowns: newFaithCooldowns,
         pendingChainEvents: remainingChains,
         rumors: allRumors,
+        pressures: pressureResult.pressures,
       } as GameState;
       saveMutation.mutate(newState);
       return newState;
@@ -2008,6 +2235,116 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const reduceCorruption = useCallback((method: 'gold' | 'faith') => {
+    setState(prev => {
+      if (method === 'gold') {
+        const cost = 200;
+        if (prev.resources.gold < cost) return prev;
+        const reduction = 15 + Math.floor(prev.ruler.stewardship / 3);
+        const newCorruption = Math.max(0, prev.pressures.corruption - reduction);
+        const logMsg = `🏛️ Anti-corruption measures enacted (-${reduction}% corruption, -${cost}g)`;
+        const newState: GameState = {
+          ...prev,
+          resources: { ...prev.resources, gold: prev.resources.gold - cost },
+          pressures: { ...prev.pressures, corruption: newCorruption },
+          log: [logMsg, ...prev.log].slice(0, 50),
+        };
+        saveMutation.mutate(newState);
+        return newState;
+      } else {
+        const cost = 40;
+        if (prev.resources.faith < cost) return prev;
+        const reduction = 10 + Math.floor(prev.ruler.learning / 4);
+        const newCorruption = Math.max(0, prev.pressures.corruption - reduction);
+        const logMsg = `🕯️ Religious purification reduces corruption (-${reduction}%)`;
+        const newState: GameState = {
+          ...prev,
+          resources: { ...prev.resources, faith: prev.resources.faith - cost },
+          pressures: { ...prev.pressures, corruption: newCorruption },
+          log: [logMsg, ...prev.log].slice(0, 50),
+        };
+        saveMutation.mutate(newState);
+        return newState;
+      }
+    });
+  }, [saveMutation]);
+
+  const resolveNobleDispute = useCallback((disputeId: string, action: 'grant' | 'refuse' | 'imprison') => {
+    setState(prev => {
+      const dispute = prev.pressures.nobleDisputes.find(d => d.id === disputeId);
+      if (!dispute || dispute.resolved) return prev;
+      let logMsg = '';
+      let newProvinces = [...prev.provinces];
+      let newResources = { ...prev.resources };
+      switch (action) {
+        case 'grant':
+          if (newResources.gold < 150) return prev;
+          newResources.gold -= 150;
+          newProvinces = newProvinces.map(p =>
+            p.id === dispute.province ? { ...p, loyalty: Math.min(100, (p.loyalty ?? 80) + 15) } : p
+          );
+          logMsg = `👑 Granted ${dispute.nobleName}'s demands (+loyalty, -150g)`;
+          break;
+        case 'refuse':
+          newProvinces = newProvinces.map(p =>
+            p.id === dispute.province ? { ...p, loyalty: Math.max(0, (p.loyalty ?? 80) - dispute.loyaltyPenalty), unrest: Math.min(100, (p.unrest ?? 0) + 15) } : p
+          );
+          logMsg = `👑 Refused ${dispute.nobleName}'s demands (-loyalty)`;
+          break;
+        case 'imprison':
+          if (newResources.military < 30) return prev;
+          newResources.military -= 30;
+          newProvinces = newProvinces.map(p =>
+            p.id === dispute.province ? { ...p, loyalty: Math.max(0, (p.loyalty ?? 80) - 10), unrest: Math.min(100, (p.unrest ?? 0) + 10) } : p
+          );
+          logMsg = `⛓️ Imprisoned ${dispute.nobleName}! Order restored.`;
+          break;
+      }
+      const updatedDisputes = prev.pressures.nobleDisputes.map(d =>
+        d.id === disputeId ? { ...d, resolved: true } : d
+      );
+      const newState: GameState = {
+        ...prev,
+        resources: newResources,
+        provinces: newProvinces,
+        pressures: { ...prev.pressures, nobleDisputes: updatedDisputes },
+        log: [logMsg, ...prev.log].slice(0, 50),
+      };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
+  const containPlague = useCallback(() => {
+    setState(prev => {
+      if (!prev.pressures.plague.active) return prev;
+      const cost = 150;
+      if (prev.resources.gold < cost) return prev;
+      const newPlague = { ...prev.pressures.plague, contained: true, severity: Math.max(0, prev.pressures.plague.severity - 15) };
+      let logMsg = '🩺 Quarantine measures enacted! Plague containment efforts underway.';
+      if (newPlague.severity <= 0) {
+        const clearedPlague = { active: false, severity: 0, infectedProvinces: [] as string[], turnStarted: 0, contained: false };
+        logMsg = '💚 Plague successfully eradicated through quarantine!';
+        const newState: GameState = {
+          ...prev,
+          resources: { ...prev.resources, gold: prev.resources.gold - cost },
+          pressures: { ...prev.pressures, plague: clearedPlague },
+          log: [logMsg, ...prev.log].slice(0, 50),
+        };
+        saveMutation.mutate(newState);
+        return newState;
+      }
+      const newState: GameState = {
+        ...prev,
+        resources: { ...prev.resources, gold: prev.resources.gold - cost },
+        pressures: { ...prev.pressures, plague: newPlague },
+        log: [logMsg, ...prev.log].slice(0, 50),
+      };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const resetGame = useCallback(async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
     if (deviceIdRef.current) {
@@ -2053,6 +2390,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
     arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
+    reduceCorruption, resolveNobleDispute, containPlague,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -2063,5 +2401,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
     arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
+    reduceCorruption, resolveNobleDispute, containPlague,
   ]);
 });

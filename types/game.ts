@@ -380,6 +380,32 @@ export interface TurnSummary {
   spyResults: string[];
 }
 
+export interface KingdomPressures {
+  corruption: number;
+  overstretch: number;
+  famine: number;
+  plague: PlagueState;
+  nobleDisputes: NobleDispute[];
+}
+
+export interface PlagueState {
+  active: boolean;
+  severity: number;
+  infectedProvinces: string[];
+  turnStarted: number;
+  contained: boolean;
+}
+
+export interface NobleDispute {
+  id: string;
+  nobleName: string;
+  demand: string;
+  province: string;
+  turnCreated: number;
+  resolved: boolean;
+  loyaltyPenalty: number;
+}
+
 export interface GameState {
   turn: number;
   year: number;
@@ -410,4 +436,5 @@ export interface GameState {
   tutorialSeen: boolean;
   difficulty: 'easy' | 'normal' | 'hard';
   rumors: Rumor[];
+  pressures: KingdomPressures;
 }

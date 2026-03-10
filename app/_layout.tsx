@@ -33,6 +33,7 @@ function RootLayoutNav() {
       <Stack.Screen name="faith" options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: false }} />
       <Stack.Screen name="rankings" options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: false }} />
       <Stack.Screen name="settings" options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: false }} />
+      <Stack.Screen name="pressures" options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: false }} />
     </Stack>
   );
 }
