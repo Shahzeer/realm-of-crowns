@@ -24,8 +24,8 @@ export default function TerritoryNotFoundScreen() {
 const nf = StyleSheet.create({
   container: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: Colors.bg.primary },
   icon: { fontSize: 56, marginBottom: 20 },
-  title: { fontSize: 20, fontWeight: "700", color: Colors.text.primary, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: Colors.text.secondary, textAlign: "center", marginBottom: 28, lineHeight: 20, maxWidth: 280 },
+  title: { fontSize: 20, fontWeight: "700" as const, color: Colors.text.primary, marginBottom: 8 },
+  subtitle: { fontSize: 14, color: Colors.text.secondary, textAlign: "center" as const, marginBottom: 28, lineHeight: 20, maxWidth: 280 },
   link: { paddingVertical: 14, paddingHorizontal: 28, backgroundColor: Colors.bg.card, borderRadius: 12, borderWidth: 1, borderColor: Colors.border.gold },
-  linkText: { fontSize: 15, color: Colors.gold.primary, fontWeight: "700" },
+  linkText: { fontSize: 15, color: Colors.gold.primary, fontWeight: "700" as const },
 });

@@ -1,4 +1,4 @@
-import { Ruler, Resources, Province, Army, Kingdom, GameEvent, Building, Trait, Technology, Councilor, Heir, BuildingBlueprint, CombatTactic, KingdomChoice, SpyMission, FaithAction, Achievement } from '@/types/game';
+import { Ruler, Resources, Province, Army, Kingdom, GameEvent, Building, Trait, Technology, Councilor, Heir, BuildingBlueprint, CombatTactic, KingdomChoice, SpyMission, FaithAction, Achievement, AIPersonality, AIPersonalityProfile } from '@/types/game';
 
 export const TRAITS: Trait[] = [
   { id: 'brave', name: 'Brave', icon: '⚔️', effect: '+3 Martial, +10 Army Morale', modifier: { martial: 3 } },
@@ -477,6 +477,119 @@ export const MARRIAGE_CANDIDATES = [
   { name: 'Lady Vivienne of Emerald Court', kingdom: 'emeraldleague', learningBonus: 3, faithBonus: 20, description: 'A scholar and patron of the arts.' },
   { name: 'Lady Morgana of the Wildlands', kingdom: 'crimsonhorde', intrigueBonus: 3, militaryBonus: 30, description: 'A cunning woman with ties to shadowy networks.' },
 ];
+
+export const AI_PERSONALITY_PROFILES: Record<AIPersonality, AIPersonalityProfile> = {
+  expansionist: {
+    type: 'expansionist',
+    warLikelihood: 0.8,
+    allianceLikelihood: 0.2,
+    tradePriority: 0.3,
+    buildPreference: 'military',
+    techPreference: 'military',
+    diplomacyResponseModifier: -15,
+    expansionAggression: 0.9,
+    spyActivity: 0.4,
+  },
+  diplomatic: {
+    type: 'diplomatic',
+    warLikelihood: 0.15,
+    allianceLikelihood: 0.85,
+    tradePriority: 0.7,
+    buildPreference: 'economy',
+    techPreference: 'governance',
+    diplomacyResponseModifier: 25,
+    expansionAggression: 0.2,
+    spyActivity: 0.2,
+  },
+  religious: {
+    type: 'religious',
+    warLikelihood: 0.45,
+    allianceLikelihood: 0.5,
+    tradePriority: 0.4,
+    buildPreference: 'faith',
+    techPreference: 'culture',
+    diplomacyResponseModifier: 10,
+    expansionAggression: 0.5,
+    spyActivity: 0.3,
+  },
+  trade_focused: {
+    type: 'trade_focused',
+    warLikelihood: 0.1,
+    allianceLikelihood: 0.7,
+    tradePriority: 0.95,
+    buildPreference: 'economy',
+    techPreference: 'economy',
+    diplomacyResponseModifier: 20,
+    expansionAggression: 0.15,
+    spyActivity: 0.25,
+  },
+  espionage_focused: {
+    type: 'espionage_focused',
+    warLikelihood: 0.35,
+    allianceLikelihood: 0.4,
+    tradePriority: 0.5,
+    buildPreference: 'balanced',
+    techPreference: 'governance',
+    diplomacyResponseModifier: -5,
+    expansionAggression: 0.5,
+    spyActivity: 0.9,
+  },
+};
+
+export const DEFAULT_KINGDOM_PERSONALITIES: Record<string, AIPersonality> = {
+  valkorian: 'expansionist',
+  solarian: 'trade_focused',
+  nordheim: 'religious',
+  crimsonhorde: 'expansionist',
+  emeraldleague: 'diplomatic',
+  ironforge: 'diplomatic',
+};
+
+export const PERSONALITY_RUMORS: Record<AIPersonality, string[]> = {
+  expansionist: [
+    'Their generals are seen studying maps of neighboring lands.',
+    'Massive troop recruitments have been reported near the border.',
+    'Their ruler speaks openly of manifest destiny.',
+    'War banners are being sewn in great quantities.',
+    'Foreign envoys are turned away at their gates.',
+  ],
+  diplomatic: [
+    'Their court hosts lavish feasts for foreign dignitaries.',
+    'Trade agreements are being drafted with multiple kingdoms.',
+    'Their chancellor travels frequently to foreign courts.',
+    'They maintain embassies in every known capital.',
+    'Their ruler prefers the pen over the sword.',
+  ],
+  religious: [
+    'Grand temples are rising across their lands.',
+    'Holy processions march through their cities daily.',
+    'Their ruler consults with priests before every decision.',
+    'Pilgrims flock to their sacred sites from distant lands.',
+    'They speak of a divine mandate to rule.',
+  ],
+  trade_focused: [
+    'Merchant caravans flow endlessly through their roads.',
+    'Their markets overflow with exotic foreign goods.',
+    'Gold seems to matter more than glory in their court.',
+    'Their treasury grows fatter with each passing season.',
+    'They invest heavily in roads and trade infrastructure.',
+  ],
+  espionage_focused: [
+    'Shadowy figures have been spotted near your court.',
+    'Their spymaster is said to know every secret in the realm.',
+    'Mysterious disappearances occur around their enemies.',
+    'They maintain a vast network of informants and agents.',
+    'No secret is safe from their watchful eyes.',
+  ],
+};
+
+export const PERSONALITY_LABELS: Record<AIPersonality, { name: string; icon: string; color: string }> = {
+  expansionist: { name: 'Expansionist', icon: '⚔️', color: '#ff4444' },
+  diplomatic: { name: 'Diplomatic', icon: '🤝', color: '#58a6ff' },
+  religious: { name: 'Zealous', icon: '🙏', color: '#d4a574' },
+  trade_focused: { name: 'Mercantile', icon: '💰', color: '#e8b94a' },
+  espionage_focused: { name: 'Shadowy', icon: '🕵️', color: '#8b5cf6' },
+};
 
 export const TRADE_TEMPLATES = [
   { give: { gold: 100 }, receive: { food: 80 }, label: 'Buy Food' },

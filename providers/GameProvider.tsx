@@ -23,6 +23,8 @@ import {
   ActiveSpyMission,
   TurnSummary,
   Achievement,
+  AIPersonality,
+  KingdomIntel,
 } from '@/types/game';
 import {
   INITIAL_RULER,
@@ -48,6 +50,9 @@ import {
   SPY_MISSIONS,
   INITIAL_ACHIEVEMENTS,
   MARRIAGE_CANDIDATES,
+  AI_PERSONALITY_PROFILES,
+  DEFAULT_KINGDOM_PERSONALITIES,
+  PERSONALITY_RUMORS,
 } from '@/mocks/gameData';
 import { getStandaloneNarrativeEvents, getFollowUpEvent } from '@/mocks/narrativeEvents';
 
@@ -207,6 +212,74 @@ function processProvinceUnrest(provinces: Province[], turn: number): { provinces
   return { provinces: updated, revoltLogs, revoltEvents };
 }
 
+function getPersonalityProfile(kingdom: Kingdom) {
+  const personality = kingdom.personality ?? DEFAULT_KINGDOM_PERSONALITIES[kingdom.id] ?? 'diplomatic';
+  return AI_PERSONALITY_PROFILES[personality];
+}
+
+function getPersonalityBuildingPool(profile: ReturnType<typeof getPersonalityProfile>) {
+  const pool = [...AI_BUILDING_POOL];
+  switch (profile.buildPreference) {
+    case 'military':
+      return pool.sort((a, b) => (b.production.militaryPerTurn ?? 0) - (a.production.militaryPerTurn ?? 0));
+    case 'economy':
+      return pool.sort((a, b) => (b.production.goldPerTurn ?? 0) - (a.production.goldPerTurn ?? 0));
+    case 'faith':
+      return pool.sort((a, b) => (b.production.faithPerTurn ?? 0) - (a.production.faithPerTurn ?? 0));
+    default:
+      return pool;
+  }
+}
+
+function generateIntelRumor(kingdom: Kingdom, turn: number): string | null {
+  const personality = kingdom.personality ?? DEFAULT_KINGDOM_PERSONALITIES[kingdom.id];
+  if (!personality) return null;
+  if (Math.random() > 0.25) return null;
+  const rumors = PERSONALITY_RUMORS[personality];
+  if (!rumors || rumors.length === 0) return null;
+  const rumor = rumors[Math.floor(Math.random() * rumors.length)];
+  return `🔍 Rumors from ${kingdom.name}: ${rumor}`;
+}
+
+function updateKingdomIntel(kingdom: Kingdom, turn: number): Kingdom {
+  const personality = kingdom.personality ?? DEFAULT_KINGDOM_PERSONALITIES[kingdom.id];
+  if (!personality) return kingdom;
+  const currentIntel = kingdom.intel ?? { personalityGuesses: [], confidence: 0, rumors: [], lastUpdatedTurn: 0 };
+  if (turn - currentIntel.lastUpdatedTurn < 3) return kingdom;
+  if (Math.random() > 0.35) return kingdom;
+
+  const allTypes: AIPersonality[] = ['expansionist', 'diplomatic', 'religious', 'trade_focused', 'espionage_focused'];
+  let guesses = [...currentIntel.personalityGuesses];
+  let confidence = currentIntel.confidence;
+
+  if (Math.random() < 0.6 && !guesses.includes(personality)) {
+    guesses.push(personality);
+    confidence = Math.min(100, confidence + 15 + Math.floor(Math.random() * 10));
+  } else if (Math.random() < 0.3) {
+    const wrongGuess = allTypes.filter(t => t !== personality && !guesses.includes(t));
+    if (wrongGuess.length > 0) {
+      guesses.push(wrongGuess[Math.floor(Math.random() * wrongGuess.length)]);
+      confidence = Math.min(100, confidence + 5);
+    }
+  } else {
+    confidence = Math.min(100, confidence + 8);
+  }
+
+  if (guesses.length > 3) guesses = guesses.slice(-3);
+
+  const newRumors = [...currentIntel.rumors];
+  const rumor = generateIntelRumor(kingdom, turn);
+  if (rumor) {
+    newRumors.push(rumor);
+    if (newRumors.length > 5) newRumors.shift();
+  }
+
+  return {
+    ...kingdom,
+    intel: { personalityGuesses: guesses, confidence, rumors: newRumors, lastUpdatedTurn: turn },
+  };
+}
+
 function processAIKingdomGrowth(kingdom: Kingdom, provinces: Province[], turn: number, difficulty: string): {
   kingdom: Kingdom;
   provinces: Province[];
@@ -216,14 +289,17 @@ function processAIKingdomGrowth(kingdom: Kingdom, provinces: Province[], turn: n
   let updatedProvinces = [...provinces];
   const logs: string[] = [];
   const ownedProvinces = updatedProvinces.filter(p => p.owner === kingdom.id);
+  const profile = getPersonalityProfile(kingdom);
 
   const diffMod = difficulty === 'hard' ? 1.4 : difficulty === 'easy' ? 0.7 : 1.0;
   const scaleMod = 1 + (turn / 100) * diffMod;
 
-  if (updatedKingdom.treasury >= 200 * (1 / diffMod) && Math.random() > 0.4) {
+  const buildChance = profile.buildPreference === 'military' ? 0.3 : profile.buildPreference === 'economy' ? 0.25 : 0.4;
+  if (updatedKingdom.treasury >= 200 * (1 / diffMod) && Math.random() > buildChance) {
     const buildTarget = ownedProvinces.find(p => p.buildings.length < 4);
     if (buildTarget) {
-      const bp = AI_BUILDING_POOL[Math.floor(Math.random() * AI_BUILDING_POOL.length)];
+      const sortedPool = getPersonalityBuildingPool(profile);
+      const bp = sortedPool[Math.floor(Math.random() * Math.min(2, sortedPool.length))];
       if (!buildTarget.buildings.some(b => b.name === bp.name)) {
         const newBuilding: Building = {
           id: `ai_b_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
@@ -259,7 +335,8 @@ function processAIKingdomGrowth(kingdom: Kingdom, provinces: Province[], turn: n
     }
   }
 
-  const recruitChance = difficulty === 'hard' ? 0.5 : difficulty === 'easy' ? 0.8 : 0.65;
+  const personalityRecruitMod = profile.type === 'expansionist' ? -0.15 : profile.type === 'trade_focused' ? 0.15 : 0;
+  const recruitChance = (difficulty === 'hard' ? 0.5 : difficulty === 'easy' ? 0.8 : 0.65) + personalityRecruitMod;
   if (updatedKingdom.treasury >= 300 && Math.random() > recruitChance) {
     const maxTroopsArmy = updatedKingdom.armies.find(a => a.troops < a.maxTroops - 100);
     if (maxTroopsArmy) {
@@ -274,7 +351,8 @@ function processAIKingdomGrowth(kingdom: Kingdom, provinces: Province[], turn: n
     }
   }
 
-  if (updatedKingdom.treasury >= 500 && updatedKingdom.armies.length < 3 && Math.random() > 0.75) {
+  const raiseArmyChance = profile.type === 'expansionist' ? 0.55 : profile.type === 'diplomatic' ? 0.85 : 0.75;
+  if (updatedKingdom.treasury >= 500 && updatedKingdom.armies.length < 3 && Math.random() > raiseArmyChance) {
     const capitalProvince = ownedProvinces[0];
     if (capitalProvince) {
       const newArmy: Army = {
@@ -329,7 +407,9 @@ function processAITurn(kingdoms: Kingdom[], provinces: Province[], playerArmies:
     updatedProvinces = growthResult.provinces;
     logs.push(...growthResult.logs);
 
-    const drift = Math.floor(Math.random() * 7) - 3;
+    const profile = getPersonalityProfile(growthResult.kingdom);
+    const dipMod = Math.floor(profile.diplomacyResponseModifier / 10);
+    const drift = Math.floor(Math.random() * 7) - 3 + dipMod;
     const newRelation = Math.max(-100, Math.min(100, growthResult.kingdom.relation + drift));
     let newAttitude = growthResult.kingdom.attitude;
     if (growthResult.kingdom.attitude !== 'war' && growthResult.kingdom.attitude !== 'allied') {
@@ -356,8 +436,13 @@ function processAITurn(kingdoms: Kingdom[], provinces: Province[], playerArmies:
     return { ...growthResult.kingdom, relation: newRelation, attitude: newAttitude, armies: updatedArmies, treasury: newTreasury };
   });
 
-  // AI alliances
-  if (Math.random() > 0.85) {
+  updatedKingdoms = updatedKingdoms.map(k => updateKingdomIntel(k, turn));
+
+  const allianceRolls = updatedKingdoms.filter(k => {
+    const p = getPersonalityProfile(k);
+    return Math.random() < p.allianceLikelihood * 0.15;
+  });
+  if (allianceRolls.length > 0 || Math.random() > 0.85) {
     const candidates = updatedKingdoms.filter(k => k.attitude !== 'war' && !k.allyOf?.length);
     if (candidates.length >= 2) {
       const k1 = candidates[Math.floor(Math.random() * candidates.length)];
@@ -384,7 +469,9 @@ function processAITurn(kingdoms: Kingdom[], provinces: Province[], playerArmies:
         })
       );
 
-      if (playerBorderProvinces.length > 0 && Math.random() > 0.5) {
+      const warProfile = getPersonalityProfile(kingdom);
+      const attackChance = 0.5 - (warProfile.expansionAggression * 0.2);
+      if (playerBorderProvinces.length > 0 && Math.random() > attackChance) {
         const target = playerBorderProvinces[Math.floor(Math.random() * playerBorderProvinces.length)];
         const attackingArmy = kingdom.armies.find(a => a.troops > 200 && a.status === 'idle');
 
@@ -443,7 +530,9 @@ function processAITurn(kingdoms: Kingdom[], provinces: Province[], playerArmies:
       }
     }
 
-    if (kingdom.attitude !== 'war' && Math.random() > 0.92) {
+    const expansionProfile = getPersonalityProfile(kingdom);
+    const aiWarChance = 0.92 - (expansionProfile.expansionAggression * 0.15);
+    if (kingdom.attitude !== 'war' && Math.random() > aiWarChance) {
       const otherKingdoms = updatedKingdoms.filter(k => k.id !== kingdom.id && k.id !== 'player');
       const enemyCandidate = otherKingdoms.find(k => {
         const kProvinces = updatedProvinces.filter(p => p.owner === k.id);
@@ -485,7 +574,9 @@ function processAITurn(kingdoms: Kingdom[], provinces: Province[], playerArmies:
       }
     }
 
-    const warThreshold = difficulty === 'hard' ? 0.6 : difficulty === 'easy' ? 0.85 : 0.7;
+    const declareProfile = getPersonalityProfile(kingdom);
+    const personalityWarMod = declareProfile.warLikelihood * 0.15;
+    const warThreshold = (difficulty === 'hard' ? 0.6 : difficulty === 'easy' ? 0.85 : 0.7) - personalityWarMod;
     if (kingdom.attitude === 'hostile' && kingdom.relation < -70 && Math.random() > warThreshold) {
       const kIdx = updatedKingdoms.findIndex(k => k.id === kingdom.id);
       if (kIdx >= 0) {
@@ -535,8 +626,8 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
   }
 
   const kingdoms = INITIAL_KINGDOMS.filter(k => k.id !== choice.id).map(k => {
-    if (choice.id !== 'ironforge' && k.id === 'ironforge') return k;
-    return { ...k, provinces: provinces.filter(p => p.owner === k.id).map(p => p.id) };
+    if (choice.id !== 'ironforge' && k.id === 'ironforge') return { ...k, personality: DEFAULT_KINGDOM_PERSONALITIES[k.id] };
+    return { ...k, provinces: provinces.filter(p => p.owner === k.id).map(p => p.id), personality: DEFAULT_KINGDOM_PERSONALITIES[k.id] };
   });
 
   if (choice.id !== 'ironforge') {
@@ -550,6 +641,7 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
         { id: 'iron_army2', name: 'Northern Vanguard', owner: 'ironforge', troops: 450, maxTroops: 800, morale: 75, commander: 'Lord Cedric', location: 'stormwatch', status: 'idle' },
       ],
       treasury: 800, crest: '⚔️', description: 'A balanced kingdom with strong military tradition.',
+      personality: DEFAULT_KINGDOM_PERSONALITIES['ironforge'],
     };
     kingdoms.push(ironforgeKingdom);
   }

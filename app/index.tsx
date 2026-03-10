@@ -171,7 +171,7 @@ function TutorialOverlay({ visible, onDismiss }: { visible: boolean; onDismiss: 
 }
 
 export default function KingdomScreen() {
-  console.log("[RealmOfCrowns] Kingdom render");
+  console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { state, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, visibilityMap } = useGame();
@@ -336,22 +336,10 @@ export default function KingdomScreen() {
     <View style={[idx.root, { paddingTop: insets.top }]}>
       <LinearGradient colors={[Colors.bg.primary, Colors.bg.secondary, Colors.bg.primary]} style={StyleSheet.absoluteFill} />
 
-      <GameToast
-        visible={toast.visible}
-        message={toast.message}
-        type={toast.type}
-        onDismiss={() => setToast(prev => ({ ...prev, visible: false }))}
-      />
+      <GameToast visible={toast.visible} message={toast.message} type={toast.type} onDismiss={() => setToast(prev => ({ ...prev, visible: false }))} />
       <TutorialOverlay visible={showTutorial} onDismiss={handleDismissTutorial} />
-      <TurnSummaryModal
-        visible={showTurnSummary}
-        onClose={() => setShowTurnSummary(false)}
-        summary={state.lastTurnSummary}
-      />
-      <AchievementPopup
-        achievements={pendingAchievements}
-        onDismiss={() => setPendingAchievements([])}
-      />
+      <TurnSummaryModal visible={showTurnSummary} onClose={() => setShowTurnSummary(false)} summary={state.lastTurnSummary} />
+      <AchievementPopup achievements={pendingAchievements} onDismiss={() => setPendingAchievements([])} />
 
       <Modal visible={showEndTurnConfirm} transparent animationType="fade">
         <View style={idx.confirmOverlay}>
@@ -381,10 +369,7 @@ export default function KingdomScreen() {
         <View style={idx.modalOverlay}>
           <ScrollView contentContainerStyle={idx.modalScrollContent} showsVerticalScrollIndicator={false}>
             <View style={idx.modalCard}>
-              <LinearGradient
-                colors={state.victory ? ['#1a3a1a', '#0d1117'] : ['#3a1a1a', '#0d1117']}
-                style={StyleSheet.absoluteFill}
-              />
+              <LinearGradient colors={state.victory ? ['#1a3a1a', '#0d1117'] : ['#3a1a1a', '#0d1117']} style={StyleSheet.absoluteFill} />
               <Text style={idx.modalIcon}>{state.victory ? '👑' : '💀'}</Text>
               <Text style={idx.modalTitle}>{state.victory ? 'VICTORY!' : 'GAME OVER'}</Text>
               <Text style={idx.modalDesc}>{state.victory ? state.victoryType : state.gameOverReason}</Text>
@@ -394,35 +379,15 @@ export default function KingdomScreen() {
                 <View style={idx.modalStatItem}><Text style={idx.modalStatValue}>{playerProvinces.length}</Text><Text style={idx.modalStatLabel}>Provinces</Text></View>
                 <View style={idx.modalStatItem}><Text style={idx.modalStatValue}>{state.battles.length}</Text><Text style={idx.modalStatLabel}>Battles</Text></View>
               </View>
-
               <View style={idx.modalDetailStats}>
                 <Text style={idx.modalDetailTitle}>Reign Summary</Text>
-                <View style={idx.modalDetailRow}>
-                  <Text style={idx.modalDetailLabel}>Battles Won</Text>
-                  <Text style={idx.modalDetailValue}>{state.battles.filter(b => b.conquered).length}</Text>
-                </View>
-                <View style={idx.modalDetailRow}>
-                  <Text style={idx.modalDetailLabel}>Battles Lost</Text>
-                  <Text style={idx.modalDetailValue}>{state.battles.filter(b => !b.conquered).length}</Text>
-                </View>
-                <View style={idx.modalDetailRow}>
-                  <Text style={idx.modalDetailLabel}>Total Troops</Text>
-                  <Text style={idx.modalDetailValue}>{totalTroops.toLocaleString()}</Text>
-                </View>
-                <View style={idx.modalDetailRow}>
-                  <Text style={idx.modalDetailLabel}>Tech Researched</Text>
-                  <Text style={idx.modalDetailValue}>{state.technologies.filter(t => t.researched).length}/{state.technologies.length}</Text>
-                </View>
-                <View style={idx.modalDetailRow}>
-                  <Text style={idx.modalDetailLabel}>Active Alliances</Text>
-                  <Text style={idx.modalDetailValue}>{state.kingdoms.filter(k => k.attitude === 'allied').length}</Text>
-                </View>
-                <View style={idx.modalDetailRow}>
-                  <Text style={idx.modalDetailLabel}>Gold in Treasury</Text>
-                  <Text style={idx.modalDetailValue}>{state.resources.gold.toLocaleString()}</Text>
-                </View>
+                <View style={idx.modalDetailRow}><Text style={idx.modalDetailLabel}>Battles Won</Text><Text style={idx.modalDetailValue}>{state.battles.filter(b => b.conquered).length}</Text></View>
+                <View style={idx.modalDetailRow}><Text style={idx.modalDetailLabel}>Battles Lost</Text><Text style={idx.modalDetailValue}>{state.battles.filter(b => !b.conquered).length}</Text></View>
+                <View style={idx.modalDetailRow}><Text style={idx.modalDetailLabel}>Total Troops</Text><Text style={idx.modalDetailValue}>{totalTroops.toLocaleString()}</Text></View>
+                <View style={idx.modalDetailRow}><Text style={idx.modalDetailLabel}>Tech Researched</Text><Text style={idx.modalDetailValue}>{state.technologies.filter(t => t.researched).length}/{state.technologies.length}</Text></View>
+                <View style={idx.modalDetailRow}><Text style={idx.modalDetailLabel}>Active Alliances</Text><Text style={idx.modalDetailValue}>{state.kingdoms.filter(k => k.attitude === 'allied').length}</Text></View>
+                <View style={idx.modalDetailRow}><Text style={idx.modalDetailLabel}>Gold in Treasury</Text><Text style={idx.modalDetailValue}>{state.resources.gold.toLocaleString()}</Text></View>
               </View>
-
               <Text style={idx.modalAch}>{unlockedAchievements}/{state.achievements.length} Achievements Unlocked</Text>
               <TouchableOpacity style={idx.modalBtn} onPress={handleReset} activeOpacity={0.7}>
                 <RotateCcw size={18} color={Colors.bg.primary} />
@@ -484,44 +449,27 @@ export default function KingdomScreen() {
           )}
 
           {state.activeSpyMission && (
-            <View style={idx.spyBar}>
-              <Text style={idx.spyBarIcon}>🕵️</Text>
-              <Text style={idx.spyBarText}>Spy mission active</Text>
-              <Text style={idx.spyBarTurns}>{state.activeSpyMission.turnsRemaining}t</Text>
-            </View>
+            <View style={idx.spyBar}><Text style={idx.spyBarIcon}>🕵️</Text><Text style={idx.spyBarText}>Spy mission active</Text><Text style={idx.spyBarTurns}>{state.activeSpyMission.turnsRemaining}t</Text></View>
           )}
 
           {state.activeTrades.length > 0 && (
-            <View style={idx.tradeBar}>
-              <Text style={idx.tradeBarIcon}>🤝</Text>
-              <Text style={idx.tradeBarText}>{state.activeTrades.length} active trade{state.activeTrades.length > 1 ? 's' : ''}</Text>
-            </View>
+            <View style={idx.tradeBar}><Text style={idx.tradeBarIcon}>🤝</Text><Text style={idx.tradeBarText}>{state.activeTrades.length} active trade{state.activeTrades.length > 1 ? 's' : ''}</Text></View>
           )}
 
           {recentBattles.length > 0 && (
             <TouchableOpacity style={idx.battleAlert} onPress={() => navigateTo("/battles")} activeOpacity={0.7}>
-              <Swords size={16} color={Colors.crimson.bright} />
-              <Text style={idx.battleAlertText}>{recentBattles.length} recent battle{recentBattles.length > 1 ? 's' : ''}</Text>
-              <ChevronRight size={14} color={Colors.text.dim} />
+              <Swords size={16} color={Colors.crimson.bright} /><Text style={idx.battleAlertText}>{recentBattles.length} recent battle{recentBattles.length > 1 ? 's' : ''}</Text><ChevronRight size={14} color={Colors.text.dim} />
             </TouchableOpacity>
           )}
 
           {newAchievements.length > 0 && (
             <TouchableOpacity style={idx.achievementAlert} onPress={() => navigateTo("/achievements")} activeOpacity={0.7}>
-              <Trophy size={16} color={Colors.gold.bright} />
-              <Text style={idx.achievementAlertText}>{newAchievements.length} achievement{newAchievements.length > 1 ? 's' : ''} unlocked!</Text>
-              <ChevronRight size={14} color={Colors.text.dim} />
+              <Trophy size={16} color={Colors.gold.bright} /><Text style={idx.achievementAlertText}>{newAchievements.length} achievement{newAchievements.length > 1 ? 's' : ''} unlocked!</Text><ChevronRight size={14} color={Colors.text.dim} />
             </TouchableOpacity>
           )}
 
           <Text style={idx.sectionTitle}>Realm Map</Text>
-          <MapView
-            provinces={state.provinces}
-            armies={state.armies}
-            onProvincePress={handleProvincePress}
-            selectedProvinceId={selectedProvince?.id ?? null}
-            visibilityMap={visibilityMap}
-          />
+          <MapView provinces={state.provinces} armies={state.armies} onProvincePress={handleProvincePress} selectedProvinceId={selectedProvince?.id ?? null} visibilityMap={visibilityMap} />
 
           <Text style={idx.sectionTitle}>Command</Text>
           <View style={idx.commandGrid}>
@@ -530,25 +478,21 @@ export default function KingdomScreen() {
               <View style={idx.commandInfo}><Text style={idx.commandTitle}>Armies</Text><Text style={idx.commandSub}>{state.armies.length} forces • {totalTroops} troops</Text></View>
               <ChevronRight size={16} color={Colors.text.dim} />
             </TouchableOpacity>
-
             <TouchableOpacity style={idx.commandCard} onPress={() => navigateTo("/diplomacy")} activeOpacity={0.7} testID="diplomacy-button">
               <View style={[idx.commandIcon, { backgroundColor: Colors.gold.dim + "30" }]}><Globe size={22} color={Colors.gold.primary} /></View>
               <View style={idx.commandInfo}><Text style={idx.commandTitle}>Diplomacy</Text><Text style={idx.commandSub}>{activeWars.length > 0 ? `${activeWars.length} active war${activeWars.length > 1 ? 's' : ''}` : `${state.kingdoms.length} kingdoms`}</Text></View>
               <ChevronRight size={16} color={Colors.text.dim} />
             </TouchableOpacity>
-
             <TouchableOpacity style={idx.commandCard} onPress={() => navigateTo("/trade")} activeOpacity={0.7} testID="trade-button">
               <View style={[idx.commandIcon, { backgroundColor: Colors.gold.bright + "15" }]}><ArrowRightLeft size={22} color={Colors.gold.bright} /></View>
               <View style={idx.commandInfo}><Text style={idx.commandTitle}>Trade</Text><Text style={idx.commandSub}>{state.activeTrades.length} active deals</Text></View>
               <ChevronRight size={16} color={Colors.text.dim} />
             </TouchableOpacity>
-
             <TouchableOpacity style={idx.commandCard} onPress={() => navigateTo("/espionage")} activeOpacity={0.7} testID="espionage-button">
               <View style={[idx.commandIcon, { backgroundColor: '#8b5cf620' }]}><Eye size={22} color="#8b5cf6" /></View>
               <View style={idx.commandInfo}><Text style={idx.commandTitle}>Espionage</Text><Text style={idx.commandSub}>{state.activeSpyMission ? 'Mission active' : 'Send spies'}</Text></View>
               <ChevronRight size={16} color={Colors.text.dim} />
             </TouchableOpacity>
-
             <Animated.View style={{ transform: [{ scale: unseenEvents.length > 0 ? pulseAnim : 1 }] }}>
               <TouchableOpacity style={[idx.commandCard, unseenEvents.length > 0 && idx.commandCardHighlight]} onPress={() => navigateTo("/events")} activeOpacity={0.7} testID="events-button">
                 <View style={[idx.commandIcon, { backgroundColor: Colors.faith.purple + "30" }]}>
@@ -559,49 +503,41 @@ export default function KingdomScreen() {
                 <ChevronRight size={16} color={Colors.text.dim} />
               </TouchableOpacity>
             </Animated.View>
-
             <TouchableOpacity style={idx.commandCard} onPress={() => navigateTo("/faith")} activeOpacity={0.7} testID="faith-button">
               <View style={[idx.commandIcon, { backgroundColor: Colors.faith.purple + "20" }]}><Sparkles size={22} color={Colors.faith.light} /></View>
               <View style={idx.commandInfo}><Text style={idx.commandTitle}>Faith</Text><Text style={idx.commandSub}>{state.resources.faith} faith points</Text></View>
               <ChevronRight size={16} color={Colors.text.dim} />
             </TouchableOpacity>
-
             <TouchableOpacity style={idx.commandCard} onPress={() => navigateTo("/technology")} activeOpacity={0.7} testID="tech-button">
               <View style={[idx.commandIcon, { backgroundColor: Colors.status.info + "20" }]}><BookOpen size={22} color={Colors.status.info} /></View>
               <View style={idx.commandInfo}><Text style={idx.commandTitle}>Research</Text><Text style={idx.commandSub}>{currentResearch ? `Researching: ${currentResearch.name}` : 'Choose research'}</Text></View>
               <ChevronRight size={16} color={Colors.text.dim} />
             </TouchableOpacity>
-
             <TouchableOpacity style={idx.commandCard} onPress={() => navigateTo("/council")} activeOpacity={0.7} testID="council-button">
               <View style={[idx.commandIcon, { backgroundColor: '#8b5cf620' }]}><Users size={22} color="#8b5cf6" /></View>
               <View style={idx.commandInfo}><Text style={idx.commandTitle}>Council</Text><Text style={idx.commandSub}>{state.council.length} advisors</Text></View>
               <ChevronRight size={16} color={Colors.text.dim} />
             </TouchableOpacity>
-
             <TouchableOpacity style={idx.commandCard} onPress={() => navigateTo("/battles")} activeOpacity={0.7} testID="battles-button">
               <View style={[idx.commandIcon, { backgroundColor: Colors.crimson.dark + "30" }]}><Shield size={22} color={Colors.crimson.bright} /></View>
               <View style={idx.commandInfo}><Text style={idx.commandTitle}>Battles</Text><Text style={idx.commandSub}>{state.battles.length} fought</Text></View>
               <ChevronRight size={16} color={Colors.text.dim} />
             </TouchableOpacity>
-
             <TouchableOpacity style={idx.commandCard} onPress={() => navigateTo("/achievements")} activeOpacity={0.7} testID="achievements-button">
               <View style={[idx.commandIcon, { backgroundColor: Colors.gold.dim + "20" }]}><Trophy size={22} color={Colors.gold.bright} /></View>
               <View style={idx.commandInfo}><Text style={idx.commandTitle}>Achievements</Text><Text style={idx.commandSub}>{unlockedAchievements}/{state.achievements.length} unlocked</Text></View>
               <ChevronRight size={16} color={Colors.text.dim} />
             </TouchableOpacity>
-
             <TouchableOpacity style={idx.commandCard} onPress={() => navigateTo("/rankings")} activeOpacity={0.7} testID="rankings-button">
               <View style={[idx.commandIcon, { backgroundColor: Colors.status.info + "15" }]}><TrendingUp size={22} color={Colors.status.info} /></View>
               <View style={idx.commandInfo}><Text style={idx.commandTitle}>Rankings</Text><Text style={idx.commandSub}>Realm power standings</Text></View>
               <ChevronRight size={16} color={Colors.text.dim} />
             </TouchableOpacity>
-
             <TouchableOpacity style={idx.commandCard} onPress={() => navigateTo("/chronicle")} activeOpacity={0.7} testID="chronicle-button">
               <View style={[idx.commandIcon, { backgroundColor: Colors.food.green + "20" }]}><BookOpen size={22} color={Colors.food.light} /></View>
               <View style={idx.commandInfo}><Text style={idx.commandTitle}>Chronicle</Text><Text style={idx.commandSub}>{state.log.length} entries</Text></View>
               <ChevronRight size={16} color={Colors.text.dim} />
             </TouchableOpacity>
-
             <TouchableOpacity style={idx.commandCard} onPress={() => navigateTo("/settings")} activeOpacity={0.7} testID="settings-button">
               <View style={[idx.commandIcon, { backgroundColor: Colors.text.dim + "20" }]}><Settings size={22} color={Colors.text.secondary} /></View>
               <View style={idx.commandInfo}><Text style={idx.commandTitle}>Settings</Text><Text style={idx.commandSub}>Game info & options</Text></View>
@@ -611,14 +547,7 @@ export default function KingdomScreen() {
         </Animated.View>
       </ScrollView>
 
-      <ProvinceActionPopup
-        province={selectedProvince}
-        armies={state.armies}
-        kingdoms={state.kingdoms}
-        onAction={handlePopupAction}
-        onClose={handlePopupClose}
-        visibilityMap={visibilityMap}
-      />
+      <ProvinceActionPopup province={selectedProvince} armies={state.armies} kingdoms={state.kingdoms} onAction={handlePopupAction} onClose={handlePopupClose} visibilityMap={visibilityMap} />
 
       <View style={[idx.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <TouchableOpacity style={idx.endTurnButton} onPress={handleAdvanceTurn} activeOpacity={0.8} testID="advance-turn-button" disabled={state.gameOver || state.victory}>

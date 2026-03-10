@@ -4,10 +4,11 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, Gift, AlertTriangle, Handshake, Flame, Flag, DollarSign } from "lucide-react-native";
+import { X, Gift, AlertTriangle, Handshake, Flame, Flag, DollarSign, Eye } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
-import { Kingdom } from "@/types/game";
+import { Kingdom, AIPersonality } from "@/types/game";
+import { PERSONALITY_LABELS } from "@/mocks/gameData";
 
 function KingdomCard({ kingdom, onAction, index }: {
   kingdom: Kingdom;
@@ -84,6 +85,30 @@ function KingdomCard({ kingdom, onAction, index }: {
         {kingdom.allyOf && kingdom.allyOf.length > 0 && (
           <View style={d.allyInfo}>
             <Text style={d.allyLabel}>Allied with other kingdoms</Text>
+          </View>
+        )}
+        {kingdom.intel && kingdom.intel.confidence > 0 && (
+          <View style={d.intelSection}>
+            <View style={d.intelHeader}>
+              <Eye size={12} color="#8b5cf6" />
+              <Text style={d.intelTitle}>Intelligence ({kingdom.intel.confidence}% confidence)</Text>
+            </View>
+            {kingdom.intel.personalityGuesses.length > 0 && (
+              <View style={d.intelGuesses}>
+                {kingdom.intel.personalityGuesses.map((guess: AIPersonality, i: number) => {
+                  const label = PERSONALITY_LABELS[guess];
+                  return (
+                    <View key={i} style={[d.intelChip, { backgroundColor: label.color + '15', borderColor: label.color + '40' }]}>
+                      <Text style={d.intelChipIcon}>{label.icon}</Text>
+                      <Text style={[d.intelChipText, { color: label.color }]}>{label.name}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+            {kingdom.intel.rumors.length > 0 && (
+              <Text style={d.intelRumor}>{kingdom.intel.rumors[kingdom.intel.rumors.length - 1]}</Text>
+            )}
           </View>
         )}
         <View style={d.rulerStats}>
@@ -222,6 +247,14 @@ const d = StyleSheet.create({
   detailValue: { fontSize: 16, fontWeight: "700" as const, color: Colors.text.primary },
   allyInfo: { marginTop: 8, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6, backgroundColor: Colors.status.success + '10' },
   allyLabel: { fontSize: 10, color: Colors.status.success, fontWeight: "600" as const },
+  intelSection: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border.primary },
+  intelHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, marginBottom: 6 },
+  intelTitle: { fontSize: 10, fontWeight: "700" as const, color: '#8b5cf6', letterSpacing: 0.5, textTransform: "uppercase" as const },
+  intelGuesses: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6, marginBottom: 6 },
+  intelChip: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
+  intelChipIcon: { fontSize: 12 },
+  intelChipText: { fontSize: 10, fontWeight: "700" as const },
+  intelRumor: { fontSize: 11, color: Colors.text.secondary, fontStyle: "italic" as const, lineHeight: 16 },
   rulerStats: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.border.primary },
   rulerStatsLabel: { fontSize: 10, color: Colors.text.dim, marginBottom: 4 },
   rulerStatRow: { flexDirection: "row", gap: 12 },

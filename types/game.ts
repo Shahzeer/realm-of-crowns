@@ -146,6 +146,27 @@ export interface Army {
   tactic?: string;
 }
 
+export type AIPersonality = 'expansionist' | 'diplomatic' | 'religious' | 'trade_focused' | 'espionage_focused';
+
+export interface AIPersonalityProfile {
+  type: AIPersonality;
+  warLikelihood: number;
+  allianceLikelihood: number;
+  tradePriority: number;
+  buildPreference: 'military' | 'economy' | 'faith' | 'balanced';
+  techPreference: 'military' | 'economy' | 'culture' | 'governance';
+  diplomacyResponseModifier: number;
+  expansionAggression: number;
+  spyActivity: number;
+}
+
+export interface KingdomIntel {
+  personalityGuesses: AIPersonality[];
+  confidence: number;
+  rumors: string[];
+  lastUpdatedTurn: number;
+}
+
 export interface Kingdom {
   id: string;
   name: string;
@@ -162,6 +183,8 @@ export interface Kingdom {
   tradeOpen?: boolean;
   warScore?: number;
   allyOf?: string[];
+  personality?: AIPersonality;
+  intel?: KingdomIntel;
 }
 
 export interface BattleResult {
