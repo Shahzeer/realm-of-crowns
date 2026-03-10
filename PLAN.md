@@ -1,57 +1,21 @@
-# Complete the Game — Core Missing Features
+# Cloud Saves with Supabase
 
-## What's Already Working Well
+**What changes**
 
-Kingdom selection, turn system, resources, provinces, armies, combat tactics, diplomacy, trade, espionage, tech, council, faith, events, AI, achievements, save/load, tutorial, and victory/defeat.
+- Connect the game to your Supabase project so game state is saved and loaded from the cloud instead of local storage
+- Every time you end a turn or the game auto-saves, it writes to Supabase
+- When you open the app, it loads your latest cloud save
 
-## What's Missing to Make It Feel Complete
+**How it works**
 
-### 1. Army Reinforcement & Disband ✅
+- A new Supabase helper is added that talks to your "Realm of Crowns" project using the anon key you provided
+- Game saves are stored in a Supabase table (created via the app on first use if needed, using Supabase's REST API)
+- Each device gets a unique device ID so saves are tied to it (no sign-in required for now)
+- Local AsyncStorage is no longer used for game saves — everything goes through Supabase
+- If the cloud is unreachable, the game still works and retries saving when connection returns
 
-- [x] **Reinforce**: Add troops to an existing army (costs gold + military resources)
-- [x] **Disband**: Remove a weak army to free up resources
-- [x] Both options added to each army card on the Armies screen
+**What stays the same**
 
-### 2. Manual Garrison Management ✅
+- All gameplay, screens, and visuals remain unchanged
+- The save/load flow feels identical to the player — just backed by the cloud now
 
-- [x] On the province detail screen, add a "Reinforce Garrison" button
-- [x] Spend military resources to boost a province's garrison (important for defense)
-
-### 3. Kingdom Power Rankings Screen ✅
-
-- [x] New "Realm Rankings" screen accessible from the main dashboard
-- [x] Shows all kingdoms ranked by total power (troops + provinces + treasury)
-- [x] Visual bars comparing each kingdom's military, economic, and territorial strength
-- [x] Your kingdom highlighted with a gold border
-- [x] Animated entry with staggered cards
-
-### 4. Enhanced Victory & Game Over ✅
-
-- [x] Add a **Cultural Victory** condition (all tech researched + 50 turns survived)
-- [x] Add a **Faith Victory** condition (accumulate 1000+ faith)
-- [x] Show detailed end-game statistics: total gold earned, provinces conquered, battles fought, longest alliance, peak army size
-- [x] "Play Again" and "Choose New Kingdom" buttons
-
-### 5. Settings & Game Info Screen ✅
-
-- [x] Accessible from the main screen header (gear icon)
-- [x] Shows current difficulty, kingdom name, total playtime (turns)
-- [x] "New Game" button with confirmation
-- [x] Game rules / help reference
-- [x] Dark themed to match the game aesthetic
-
-### 6. Polish & Completeness Features ✅
-
-- [x] **Marriage System**: Arrange royal marriages for diplomacy bonuses, resource income, and relation boosts
-- [x] **Loyalty/Unrest Display**: Province detail shows loyalty and unrest bars with revolt warnings
-- [x] **Resource Breakdown**: Tappable resource bar shows income details per resource type
-- [x] **Map Garrison Indicators**: Map shows garrison strength badges on player provinces
-- [x] **Toast Notifications**: In-game toast alerts for conquered/lost provinces and revolts
-
-### Design ✅
-
-- [x] All new screens follow the existing dark medieval aesthetic with gold accents
-- [x] Staggered fade-in animations on list items
-- [x] Cards with subtle gradient backgrounds and gold borders
-- [x] Haptic feedback on all interactive elements
-- [x] Rankings use colored progress bars per kingdom
