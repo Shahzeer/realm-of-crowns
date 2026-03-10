@@ -133,6 +133,12 @@ export default function KingdomScreen() {
     prevTurn.current = state.turn;
   }, [state.turn, state.lastTurnSummary, newAchievements]);
 
+  useEffect(() => {
+    if (state.latestReignChronicle) {
+      setTimeout(() => router.push('/reign-summary' as any), 1200);
+    }
+  }, [state.latestReignChronicle]);
+
   const handleAdvanceTurn = useCallback(() => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowEndTurnConfirm(true);

@@ -33,6 +33,8 @@ import {
   PlagueState,
   NobleDispute,
   Councilor,
+  ReignChronicle,
+  ReignEvent,
 } from '@/types/game';
 import {
   INITIAL_RULER,
@@ -105,6 +107,18 @@ const defaultState: GameState = {
     plague: { active: false, severity: 0, infectedProvinces: [], turnStarted: 0, contained: false },
     nobleDisputes: [],
   },
+  reignChronicles: [],
+  rulerStartTurn: 1,
+  rulerStartYear: 1066,
+  rulerPeakProvinces: 0,
+  rulerPeakGold: 0,
+  rulerBuildingsConstructed: 0,
+  rulerTechResearched: 0,
+  rulerWarsFought: 0,
+  rulerBattlesWon: 0,
+  rulerBattlesLost: 0,
+  rulerProvincesConquered: 0,
+  rulerProvincesLost: 0,
 };
 
 const NOBLE_NAMES = [
@@ -330,6 +344,116 @@ function computeLegacyTitles(state: GameState): LegacyTitle[] {
   if (hasCruelTrait && avgLoyalty < 40 && playerProvCount >= 8) titles.push('The Feared');
 
   return titles;
+}
+
+function generateReignNarrative(chronicle: Omit<ReignChronicle, 'narrative'>): string {
+  const { rulerName, legacyTitle, yearsRuled, warsFought, battlesWon, provincesConquered, provincesLost, buildingsConstructed, technologiesResearched, peakProvinces, traits } = chronicle;
+  const displayName = legacyTitle !== rulerName ? legacyTitle : rulerName;
+  let narrative = `${displayName} ruled for ${yearsRuled} year${yearsRuled !== 1 ? 's' : ''}`;
+
+  if (warsFought > 0) {
+    narrative += `, fighting in ${warsFought} war${warsFought !== 1 ? 's' : ''}`;
+    if (battlesWon > 0) narrative += ` and winning ${battlesWon} battle${battlesWon !== 1 ? 's' : ''}`;
+    narrative += '.';
+  } else {
+    narrative += ' in relative peace.';
+  }
+
+  if (provincesConquered > 0) {
+    narrative += ` Under their banner, ${provincesConquered} province${provincesConquered !== 1 ? 's were' : ' was'} conquered`;
+    if (provincesLost > 0) narrative += `, though ${provincesLost} ${provincesLost !== 1 ? 'were' : 'was'} lost`;
+    narrative += '.';
+  } else if (provincesLost > 0) {
+    narrative += ` Sadly, ${provincesLost} province${provincesLost !== 1 ? 's were' : ' was'} lost during this reign.`;
+  }
+
+  if (buildingsConstructed > 0) {
+    narrative += ` ${buildingsConstructed} building${buildingsConstructed !== 1 ? 's were' : ' was'} erected across the realm.`;
+  }
+  if (technologiesResearched > 0) {
+    narrative += ` ${technologiesResearched} technolog${technologiesResearched !== 1 ? 'ies were' : 'y was'} discovered by the realm's scholars.`;
+  }
+  if (peakProvinces >= 10) {
+    narrative += ` At its zenith, the realm encompassed ${peakProvinces} provinces.`;
+  }
+
+  const traitNames = traits.map(t => t.name.toLowerCase());
+  if (traitNames.includes('cruel')) {
+    narrative += ' The people lived in fear of their sovereign\'s wrath.';
+  } else if (traitNames.includes('genius')) {
+    narrative += ' The court flourished with learning and invention.';
+  } else if (traitNames.includes('pious')) {
+    narrative += ' Faith was the cornerstone of this reign.';
+  } else if (traitNames.includes('charismatic')) {
+    narrative += ' The ruler\'s charm won hearts across the realm.';
+  }
+
+  return narrative;
+}
+
+function buildReignChronicle(
+  prev: GameState,
+  endTurn: number,
+  endYear: number,
+  causeOfDeath: string,
+): ReignChronicle {
+  const startTurn = prev.rulerStartTurn ?? 1;
+  const startYear = prev.rulerStartYear ?? prev.year;
+  const yearsRuled = endYear - startYear;
+  const legacyTitles = prev.ruler.legacyTitles ?? computeLegacyTitles(prev);
+  const primaryTitle = legacyTitles.length > 0 ? `${prev.ruler.name} ${legacyTitles[0]}` : prev.ruler.name;
+
+  const keyEvents: ReignEvent[] = [];
+  const logEntries = prev.log.slice().reverse();
+  for (const entry of logEntries) {
+    if (keyEvents.length >= 5) break;
+    let evtType: ReignEvent['type'] = 'dynasty';
+    if (entry.includes('⚔️') || entry.includes('Conquered') || entry.includes('siege')) evtType = 'military';
+    else if (entry.includes('🤝') || entry.includes('alliance') || entry.includes('☮️') || entry.includes('Trade')) evtType = 'diplomacy';
+    else if (entry.includes('🏗️') || entry.includes('Built') || entry.includes('💰')) evtType = 'economy';
+    else if (entry.includes('⛪') || entry.includes('faith') || entry.includes('Faith')) evtType = 'religion';
+    else if (entry.includes('👑') || entry.includes('heir') || entry.includes('married') || entry.includes('💍')) evtType = 'dynasty';
+    else continue;
+
+    const turnMatch = entry.match(/Turn (\d+)/);
+    const yearMatch = entry.match(/Year (\d+)/);
+    keyEvents.push({
+      turn: turnMatch ? parseInt(turnMatch[1], 10) : startTurn,
+      year: yearMatch ? parseInt(yearMatch[1], 10) : startYear,
+      description: entry.replace(/^[^a-zA-Z]+/, '').substring(0, 120),
+      type: evtType,
+    });
+  }
+
+  const partialChronicle = {
+    rulerId: prev.ruler.id,
+    rulerName: prev.ruler.name,
+    dynasty: prev.ruler.dynasty,
+    legacyTitle: primaryTitle,
+    startYear,
+    endYear,
+    startTurn,
+    endTurn,
+    yearsRuled,
+    warsFought: prev.rulerWarsFought ?? 0,
+    battlesWon: prev.rulerBattlesWon ?? 0,
+    battlesLost: prev.rulerBattlesLost ?? 0,
+    provincesConquered: prev.rulerProvincesConquered ?? 0,
+    provincesLost: prev.rulerProvincesLost ?? 0,
+    buildingsConstructed: prev.rulerBuildingsConstructed ?? 0,
+    technologiesResearched: prev.rulerTechResearched ?? 0,
+    peakProvinces: prev.rulerPeakProvinces ?? prev.provinces.filter(p => p.owner === 'player').length,
+    peakGold: prev.rulerPeakGold ?? prev.resources.gold,
+    traits: prev.ruler.traits,
+    legacyTitles,
+    keyEvents,
+    causeOfDeath,
+  };
+
+  return {
+    ...partialChronicle,
+    narrative: generateReignNarrative(partialChronicle),
+  };
 }
 
 function generateTraitEvent(ruler: { traits: Array<{ id: string }> }, existingEvents: GameEvent[], turn: number): GameEvent | null {
@@ -1919,7 +2043,38 @@ export const [GameProvider, useGame] = createContextHook(() => {
         gameOverReason = 'All your provinces have been conquered. Your dynasty has fallen.';
       }
 
+      let newReignChronicles = prev.reignChronicles ?? [];
+      let latestReignChronicle: ReignChronicle | undefined;
+      let rulerStartTurn = prev.rulerStartTurn ?? 1;
+      let rulerStartYear = prev.rulerStartYear ?? 1066;
+      let rulerPeakProvinces = Math.max(prev.rulerPeakProvinces ?? 0, playerProvCount);
+      let rulerPeakGold = Math.max(prev.rulerPeakGold ?? 0, newResources.gold);
+      let rulerBuildingsConstructed = prev.rulerBuildingsConstructed ?? 0;
+      let rulerTechResearched = prev.rulerTechResearched ?? 0;
+      let rulerWarsFought = prev.rulerWarsFought ?? 0;
+      let rulerBattlesWon = (prev.rulerBattlesWon ?? 0) + summary.battlesWon;
+      let rulerBattlesLost = (prev.rulerBattlesLost ?? 0) + summary.battlesLost;
+      let rulerProvincesConquered = (prev.rulerProvincesConquered ?? 0) + summary.provincesConquered.length;
+      let rulerProvincesLost = (prev.rulerProvincesLost ?? 0) + summary.provincesLost.length;
+
+      const newWarsThisTurn = prev.kingdoms.filter(k => k.attitude !== 'war').filter(k2 => {
+        const updated = newKingdoms.find(nk => nk.id === k2.id);
+        return updated && updated.attitude === 'war';
+      }).length;
+      rulerWarsFought += newWarsThisTurn;
+
+      if (summary.techCompleted) rulerTechResearched += 1;
+
       if (newRuler.health <= 0) {
+        const chronicle = buildReignChronicle(
+          { ...prev, rulerPeakProvinces, rulerPeakGold, rulerBuildingsConstructed, rulerTechResearched, rulerWarsFought, rulerBattlesWon, rulerBattlesLost, rulerProvincesConquered, rulerProvincesLost },
+          nextTurn, nextYear,
+          prev.ruler.age >= 65 ? 'old age' : prev.ruler.health <= 10 ? 'illness' : 'natural causes',
+        );
+        newReignChronicles = [...newReignChronicles, chronicle];
+        latestReignChronicle = chronicle;
+        console.log(`[Game] Reign chronicle generated for ${chronicle.legacyTitle}`);
+
         if (newHeir && newHeir.age >= 16 && newHeir.claimStrength > 40) {
           const heirName = newHeir.name;
           newRuler = {
@@ -1940,6 +2095,17 @@ export const [GameProvider, useGame] = createContextHook(() => {
               { id: `suc2_${nextTurn}`, text: 'A quiet ceremony', effects: 'Save gold, less prestige' },
             ],
           });
+          rulerStartTurn = nextTurn;
+          rulerStartYear = nextYear;
+          rulerPeakProvinces = playerProvCount;
+          rulerPeakGold = newResources.gold;
+          rulerBuildingsConstructed = 0;
+          rulerTechResearched = 0;
+          rulerWarsFought = 0;
+          rulerBattlesWon = 0;
+          rulerBattlesLost = 0;
+          rulerProvincesConquered = 0;
+          rulerProvincesLost = 0;
         } else {
           gameOver = true;
           gameOverReason = `${prev.ruler.name} has died with no suitable heir. Your dynasty has ended.`;
@@ -2003,6 +2169,19 @@ export const [GameProvider, useGame] = createContextHook(() => {
         pendingChainEvents: remainingChains,
         rumors: allRumors,
         pressures: pressureResult.pressures,
+        reignChronicles: newReignChronicles,
+        latestReignChronicle: latestReignChronicle,
+        rulerStartTurn,
+        rulerStartYear,
+        rulerPeakProvinces,
+        rulerPeakGold,
+        rulerBuildingsConstructed,
+        rulerTechResearched,
+        rulerWarsFought,
+        rulerBattlesWon,
+        rulerBattlesLost,
+        rulerProvincesConquered,
+        rulerProvincesLost,
       } as GameState;
       saveMutation.mutate(newState);
       return newState;
@@ -2253,6 +2432,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const newState: GameState = {
         ...prev, resources: { ...prev.resources, gold: prev.resources.gold - blueprint.baseCost },
         provinces: newProvinces, log: [logEntry, ...prev.log].slice(0, 50),
+        rulerBuildingsConstructed: (prev.rulerBuildingsConstructed ?? 0) + 1,
       };
       saveMutation.mutate(newState);
       return newState;
@@ -2595,6 +2775,15 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const dismissReignChronicle = useCallback(() => {
+    setState(prev => {
+      if (!prev.latestReignChronicle) return prev;
+      const newState: GameState = { ...prev, latestReignChronicle: undefined };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const resetGame = useCallback(async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
     if (deviceIdRef.current) {
@@ -2641,6 +2830,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
+    dismissReignChronicle,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -2652,5 +2842,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
+    dismissReignChronicle,
   ]);
 });

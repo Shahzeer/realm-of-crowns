@@ -423,6 +423,39 @@ export interface NobleDispute {
   loyaltyPenalty: number;
 }
 
+export interface ReignEvent {
+  turn: number;
+  year: number;
+  description: string;
+  type: 'military' | 'diplomacy' | 'economy' | 'dynasty' | 'religion' | 'conquest';
+}
+
+export interface ReignChronicle {
+  rulerId: string;
+  rulerName: string;
+  dynasty: string;
+  legacyTitle: string;
+  startYear: number;
+  endYear: number;
+  startTurn: number;
+  endTurn: number;
+  yearsRuled: number;
+  warsFought: number;
+  battlesWon: number;
+  battlesLost: number;
+  provincesConquered: number;
+  provincesLost: number;
+  buildingsConstructed: number;
+  technologiesResearched: number;
+  peakProvinces: number;
+  peakGold: number;
+  traits: Trait[];
+  legacyTitles: LegacyTitle[];
+  narrative: string;
+  keyEvents: ReignEvent[];
+  causeOfDeath: string;
+}
+
 export interface GameState {
   turn: number;
   year: number;
@@ -454,4 +487,17 @@ export interface GameState {
   difficulty: 'easy' | 'normal' | 'hard';
   rumors: Rumor[];
   pressures: KingdomPressures;
+  reignChronicles: ReignChronicle[];
+  rulerStartTurn?: number;
+  rulerStartYear?: number;
+  rulerPeakProvinces?: number;
+  rulerPeakGold?: number;
+  rulerBuildingsConstructed?: number;
+  rulerTechResearched?: number;
+  rulerWarsFought?: number;
+  rulerBattlesWon?: number;
+  rulerBattlesLost?: number;
+  rulerProvincesConquered?: number;
+  rulerProvincesLost?: number;
+  latestReignChronicle?: ReignChronicle;
 }
