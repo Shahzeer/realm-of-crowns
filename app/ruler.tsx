@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, Heart, RotateCcw, Baby, Crown, Clock, ArrowUpCircle, Gem, HeartHandshake } from "lucide-react-native";
+import { X, Heart, RotateCcw, Baby, Crown, Clock, ArrowUpCircle, Gem, HeartHandshake, Award, Swords, BookOpen, Handshake } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { MARRIAGE_CANDIDATES } from "@/mocks/gameData";
@@ -13,7 +13,7 @@ export default function RulerScreen() {
   console.log("[RealmOfCrowns] Ruler render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, resetGame, startRulerUpgrade, arrangeMarriage, educateHeir } = useGame();
+  const { state, resetGame, startRulerUpgrade, arrangeMarriage, educateHeir, setHeirPath } = useGame();
   const [showMarriage, setShowMarriage] = useState(false);
   const ruler = state.ruler;
   const heir = state.heir;
@@ -94,6 +94,16 @@ export default function RulerScreen() {
               <View style={r.avatarContainer}><Text style={r.avatarText}>👑</Text></View>
               <Text style={r.rulerName}>{ruler.name}</Text>
               <Text style={r.dynasty}>{ruler.dynasty}</Text>
+              {ruler.legacyTitles && ruler.legacyTitles.length > 0 && (
+                <View style={r.legacyRow}>
+                  {ruler.legacyTitles.map((title, idx) => (
+                    <View key={idx} style={r.legacyBadge}>
+                      <Award size={10} color={Colors.gold.bright} />
+                      <Text style={r.legacyBadgeText}>{title}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
               <Text style={r.age}>Age {ruler.age} {ruler.age > 60 ? '(Elderly)' : ruler.age > 45 ? '(Middle-aged)' : ''}</Text>
             </LinearGradient>
           </View>
@@ -247,6 +257,16 @@ export default function RulerScreen() {
                 <View style={r.heirInfo}>
                   <Text style={r.heirName}>{heir.name}</Text>
                   <Text style={r.heirAge}>Age {heir.age} {heir.age < 16 ? '(Minor — cannot rule yet)' : '(Ready to rule)'}</Text>
+                  {heir.path && (
+                    <View style={r.heirPathBadge}>
+                      {heir.path === 'warrior' && <Swords size={10} color={Colors.crimson.bright} />}
+                      {heir.path === 'scholar' && <BookOpen size={10} color={Colors.status.info} />}
+                      {heir.path === 'diplomat' && <Handshake size={10} color={Colors.gold.bright} />}
+                      <Text style={[r.heirPathText, {
+                        color: heir.path === 'warrior' ? Colors.crimson.bright : heir.path === 'scholar' ? Colors.status.info : Colors.gold.bright
+                      }]}>{heir.path === 'warrior' ? 'Warrior' : heir.path === 'scholar' ? 'Scholar' : 'Diplomat'}</Text>
+                    </View>
+                  )}
                 </View>
               </View>
               <View style={r.heirClaimRow}>
@@ -270,6 +290,59 @@ export default function RulerScreen() {
                       <Text style={r.heirTraitText}>{t.icon} {t.name}</Text>
                     </View>
                   ))}
+                </View>
+              )}
+
+              {!heir.path && heir.age >= 16 && !heir.comingOfAgeTriggered && (
+                <View style={r.heirPathSection}>
+                  <Text style={r.heirPathSectionTitle}>🎂 Choose Path (Coming of Age)</Text>
+                  <View style={r.heirPathGrid}>
+                    <TouchableOpacity
+                      style={[r.heirPathBtn, { borderColor: Colors.crimson.bright + '60' }]}
+                      onPress={() => {
+                        if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }
+                        Alert.alert('Path of the Warrior', `${heir.name} will focus on martial training.\n\n+5 Martial, +3 Claim Strength`, [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Choose', onPress: () => setHeirPath('warrior') },
+                        ]);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Swords size={16} color={Colors.crimson.bright} />
+                      <Text style={[r.heirPathBtnLabel, { color: Colors.crimson.bright }]}>Warrior</Text>
+                      <Text style={r.heirPathBtnDesc}>+5 Martial</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[r.heirPathBtn, { borderColor: Colors.status.info + '60' }]}
+                      onPress={() => {
+                        if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }
+                        Alert.alert('Path of the Scholar', `${heir.name} will pursue knowledge.\n\n+5 Learning, +2 Stewardship`, [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Choose', onPress: () => setHeirPath('scholar') },
+                        ]);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <BookOpen size={16} color={Colors.status.info} />
+                      <Text style={[r.heirPathBtnLabel, { color: Colors.status.info }]}>Scholar</Text>
+                      <Text style={r.heirPathBtnDesc}>+5 Learning</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[r.heirPathBtn, { borderColor: Colors.gold.bright + '60' }]}
+                      onPress={() => {
+                        if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }
+                        Alert.alert('Path of the Diplomat', `${heir.name} will master court politics.\n\n+5 Diplomacy, +2 Intrigue`, [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Choose', onPress: () => setHeirPath('diplomat') },
+                        ]);
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <Handshake size={16} color={Colors.gold.bright} />
+                      <Text style={[r.heirPathBtnLabel, { color: Colors.gold.bright }]}>Diplomat</Text>
+                      <Text style={r.heirPathBtnDesc}>+5 Diplomacy</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               )}
 
@@ -417,6 +490,17 @@ const r = StyleSheet.create({
   noHeirIcon: { fontSize: 32 },
   noHeirTitle: { fontSize: 16, fontWeight: "700" as const, color: Colors.crimson.bright },
   noHeirDesc: { fontSize: 12, color: Colors.text.secondary, textAlign: "center" as const, lineHeight: 17 },
+  legacyRow: { flexDirection: "row" as const, flexWrap: "wrap" as const, justifyContent: "center" as const, gap: 6, marginTop: 6 },
+  legacyBadge: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, backgroundColor: Colors.gold.dim + '25', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10, borderWidth: 1, borderColor: Colors.gold.dim + '40' },
+  legacyBadgeText: { fontSize: 10, fontWeight: "700" as const, color: Colors.gold.bright },
+  heirPathBadge: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, marginTop: 2, backgroundColor: Colors.bg.tertiary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, alignSelf: "flex-start" as const },
+  heirPathText: { fontSize: 10, fontWeight: "700" as const },
+  heirPathSection: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border.primary },
+  heirPathSectionTitle: { fontSize: 11, fontWeight: "600" as const, color: Colors.gold.bright, marginBottom: 8 },
+  heirPathGrid: { flexDirection: "row" as const, gap: 8 },
+  heirPathBtn: { flex: 1, alignItems: "center" as const, gap: 4, paddingVertical: 10, paddingHorizontal: 6, borderRadius: 10, backgroundColor: Colors.bg.tertiary, borderWidth: 1 },
+  heirPathBtnLabel: { fontSize: 12, fontWeight: "700" as const },
+  heirPathBtnDesc: { fontSize: 9, color: Colors.text.dim },
   realmSummary: { marginHorizontal: 16, backgroundColor: Colors.bg.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.border.primary, gap: 10 },
   realmRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   realmLabel: { fontSize: 13, color: Colors.text.secondary },

@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, Users, Heart, Briefcase, Clock, ArrowUpCircle } from "lucide-react-native";
+import { X, Users, Heart, Briefcase, Clock, ArrowUpCircle, AlertTriangle } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { Councilor } from "@/types/game";
@@ -52,6 +52,7 @@ function CouncilorCard({ councilor, onAssignTask, onUpgrade, canUpgrade, index }
 
   const roleColor = ROLE_COLORS[councilor.role] || Colors.text.secondary;
   const loyaltyColor = councilor.loyalty > 70 ? Colors.status.success : councilor.loyalty > 40 ? Colors.status.warning : Colors.status.danger;
+  const betrayalRisk = councilor.loyalty < 20;
   const tasks = TASKS[councilor.role] || [];
   const isTraining = !!councilor.activeUpgrade;
 
@@ -87,6 +88,13 @@ function CouncilorCard({ councilor, onAssignTask, onUpgrade, canUpgrade, index }
         <View style={cc.loyaltyBarBg}>
           <View style={[cc.loyaltyBarFill, { width: `${councilor.loyalty}%`, backgroundColor: loyaltyColor }]} />
         </View>
+
+        {betrayalRisk && (
+          <View style={cc.betrayalWarning}>
+            <AlertTriangle size={12} color={Colors.crimson.bright} />
+            <Text style={cc.betrayalText}>Betrayal risk! Loyalty dangerously low.</Text>
+          </View>
+        )}
 
         {isTraining && councilor.activeUpgrade && (
           <View style={[cc.trainingBar, { borderColor: roleColor + '40' }]}>
@@ -263,4 +271,6 @@ const cc = StyleSheet.create({
   taskBtn: { paddingVertical: 8, paddingHorizontal: 12, backgroundColor: Colors.bg.tertiary, borderRadius: 8, marginBottom: 4, borderWidth: 1, borderColor: Colors.border.primary },
   taskBtnActive: { borderColor: Colors.gold.dim, backgroundColor: Colors.gold.dim + '10' },
   taskBtnText: { fontSize: 12, color: Colors.text.secondary },
+  betrayalWarning: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: Colors.crimson.dark + '25', borderWidth: 1, borderColor: Colors.crimson.bright + '40' },
+  betrayalText: { fontSize: 11, fontWeight: "600" as const, color: Colors.crimson.bright, flex: 1 },
 });

@@ -44,6 +44,7 @@ export interface Ruler {
   traits: Trait[];
   avatar: string;
   activeUpgrade?: StatUpgrade;
+  legacyTitles?: LegacyTitle[];
   spouse?: string;
   spouseBonuses?: {
     diplomacy?: number;
@@ -64,6 +65,20 @@ export interface HeirEducation {
   bonus: number;
 }
 
+export type HeirPath = 'warrior' | 'scholar' | 'diplomat';
+
+export type LegacyTitle = 
+  | 'The Conqueror'
+  | 'The Wise'
+  | 'The Cruel'
+  | 'The Diplomat'
+  | 'The Pious'
+  | 'The Builder'
+  | 'The Wealthy'
+  | 'The Survivor'
+  | 'The Beloved'
+  | 'The Feared';
+
 export interface Heir {
   id: string;
   name: string;
@@ -76,6 +91,8 @@ export interface Heir {
   traits: Trait[];
   claimStrength: number;
   activeEducation?: HeirEducation;
+  path?: HeirPath;
+  comingOfAgeTriggered?: boolean;
 }
 
 export interface Resources {

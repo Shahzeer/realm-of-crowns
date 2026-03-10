@@ -15,6 +15,8 @@ import {
   BattleResult,
   Heir,
   HeirEducation,
+  HeirPath,
+  LegacyTitle,
   Building,
   StatUpgrade,
   CombatTactic,
@@ -30,6 +32,7 @@ import {
   KingdomPressures,
   PlagueState,
   NobleDispute,
+  Councilor,
 } from '@/types/game';
 import {
   INITIAL_RULER,
@@ -280,6 +283,103 @@ function processKingdomPressures(
     resourcePenalties,
     loyaltyPenalties,
   };
+}
+
+const TRAIT_EVENT_MAP: Record<string, string[]> = {
+  cruel: ['narr_trait_cruel_peasant_fear', 'narr_trait_cruel_torture_chamber'],
+  genius: ['narr_trait_genius_research_breakthrough', 'narr_trait_genius_invention'],
+  brave: ['narr_trait_brave_duel_challenge'],
+  pious: ['narr_trait_pious_divine_vision'],
+  ambitious: ['narr_trait_ambitious_power_play'],
+  paranoid: ['narr_trait_paranoid_shadow_conspiracy'],
+  charismatic: ['narr_trait_charismatic_grand_speech'],
+  strong: ['narr_trait_strong_feats_of_strength'],
+  cunning: ['narr_trait_cunning_blackmail'],
+  greedy: ['narr_trait_greedy_hidden_treasure'],
+};
+
+const COUNCIL_BETRAYAL_MAP: Record<string, string> = {
+  marshal: 'narr_council_betrayal_marshal',
+  steward: 'narr_council_betrayal_steward',
+  spymaster: 'narr_council_betrayal_spymaster',
+  chaplain: 'narr_council_betrayal_chaplain',
+  chancellor: 'narr_council_betrayal_chancellor',
+};
+
+function computeLegacyTitles(state: GameState): LegacyTitle[] {
+  const titles: LegacyTitle[] = [];
+  const playerProvCount = state.provinces.filter(p => p.owner === 'player').length;
+  const battlesWon = state.battles.filter(b => b.conquered).length;
+  const hasCruelTrait = state.ruler.traits.some(t => t.id === 'cruel');
+  const hasGeniusTrait = state.ruler.traits.some(t => t.id === 'genius');
+  const hasPiousTrait = state.ruler.traits.some(t => t.id === 'pious');
+  const totalBuildings = state.provinces.filter(p => p.owner === 'player').reduce((s, p) => s + p.buildings.length, 0);
+  const avgLoyalty = state.provinces.filter(p => p.owner === 'player').length > 0
+    ? state.provinces.filter(p => p.owner === 'player').reduce((s, p) => s + (p.loyalty ?? 80), 0) / state.provinces.filter(p => p.owner === 'player').length
+    : 0;
+
+  if (battlesWon >= 5 && playerProvCount >= 10) titles.push('The Conqueror');
+  if ((hasGeniusTrait || state.ruler.learning >= 18) && state.technologies.filter(t => t.researched).length >= 8) titles.push('The Wise');
+  if (hasCruelTrait && battlesWon >= 3) titles.push('The Cruel');
+  if (state.ruler.diplomacy >= 16 && state.kingdoms.filter(k => k.attitude === 'allied').length >= 2) titles.push('The Diplomat');
+  if (hasPiousTrait && state.resources.faith >= 300) titles.push('The Pious');
+  if (totalBuildings >= 15) titles.push('The Builder');
+  if (state.resources.gold >= 3000) titles.push('The Wealthy');
+  if (state.turn >= 80) titles.push('The Survivor');
+  if (avgLoyalty >= 85 && playerProvCount >= 5) titles.push('The Beloved');
+  if (hasCruelTrait && avgLoyalty < 40 && playerProvCount >= 8) titles.push('The Feared');
+
+  return titles;
+}
+
+function generateTraitEvent(ruler: { traits: Array<{ id: string }> }, existingEvents: GameEvent[], turn: number): GameEvent | null {
+  if (Math.random() > 0.15) return null;
+
+  for (const trait of ruler.traits) {
+    const eventIds = TRAIT_EVENT_MAP[trait.id];
+    if (!eventIds) continue;
+    const available = eventIds.filter(eid => !existingEvents.some(e => e.id.startsWith(eid)));
+    if (available.length === 0) continue;
+    if (Math.random() > 0.4) continue;
+
+    const eventId = available[Math.floor(Math.random() * available.length)];
+    const template = getFollowUpEvent(eventId);
+    if (!template) continue;
+
+    return {
+      ...template,
+      id: `${eventId}_${turn}`,
+      turn,
+      seen: false,
+    };
+  }
+  return null;
+}
+
+function checkCouncilBetrayal(council: Councilor[], existingEvents: GameEvent[], turn: number): { event: GameEvent | null; betrayerId: string | null } {
+  for (const c of council) {
+    if (c.loyalty < 20 && Math.random() < 0.25) {
+      const eventId = COUNCIL_BETRAYAL_MAP[c.role];
+      if (!eventId) continue;
+      if (existingEvents.some(e => e.id.startsWith(eventId))) continue;
+
+      const template = getFollowUpEvent(eventId);
+      if (!template) continue;
+
+      console.log(`[Game] Council betrayal triggered: ${c.name} (loyalty: ${c.loyalty})`);
+      return {
+        event: {
+          ...template,
+          id: `${eventId}_${turn}`,
+          turn,
+          seen: false,
+          description: template.description.replace(/Your (marshal|steward|spymaster|chaplain|chancellor)/, `${c.name}, your ${c.role},`),
+        },
+        betrayerId: c.id,
+      };
+    }
+  }
+  return { event: null, betrayerId: null };
 }
 
 function getTacticModifiers(tacticId: string): CombatTactic {
@@ -1426,12 +1526,20 @@ export const [GameProvider, useGame] = createContextHook(() => {
         }
       }
 
+      let heirComingOfAge = false;
+      if (newHeir && newHeir.age >= 16 && !newHeir.comingOfAgeTriggered && !newHeir.path) {
+        newHeir = { ...newHeir, comingOfAgeTriggered: true };
+        heirComingOfAge = true;
+        console.log(`[Game] Heir coming-of-age triggered for ${newHeir.name}`);
+      }
+
+      let heirEduCompleteLog: string | null = null;
       if (newHeir?.activeEducation) {
         const edu = { ...newHeir.activeEducation };
         edu.turnsRemaining -= 1;
         if (edu.turnsRemaining <= 0) {
           newHeir = { ...newHeir, [edu.stat]: newHeir[edu.stat] + edu.bonus, activeEducation: undefined };
-          allLogs.unshift(`📖 Heir ${newHeir.name} completed ${edu.stat} education (+${edu.bonus})`);
+          heirEduCompleteLog = `📖 Heir ${newHeir.name} completed ${edu.stat} education (+${edu.bonus})`;
         } else {
           newHeir = { ...newHeir, activeEducation: edu };
         }
@@ -1636,6 +1744,34 @@ export const [GameProvider, useGame] = createContextHook(() => {
         }
       }
 
+      const traitEvent = generateTraitEvent(newRuler, newEvents, nextTurn);
+      if (traitEvent) {
+        newEvents.push(traitEvent);
+        summary.eventsTriggered.push(traitEvent.title);
+        console.log(`[Game] Trait event triggered: ${traitEvent.title}`);
+      }
+
+      const betrayalResult = checkCouncilBetrayal(newCouncil, newEvents, nextTurn);
+      if (betrayalResult.event) {
+        newEvents.push(betrayalResult.event);
+        summary.eventsTriggered.push(betrayalResult.event.title);
+        console.log(`[Game] Council betrayal event triggered`);
+      }
+
+      if (heirComingOfAge && newHeir) {
+        const coaTemplate = getFollowUpEvent('narr_heir_coming_of_age');
+        if (coaTemplate) {
+          newEvents.push({
+            ...coaTemplate,
+            id: `narr_heir_coming_of_age_${nextTurn}`,
+            turn: nextTurn,
+            seen: false,
+            description: `${newHeir.name} has reached their sixteenth nameday. The realm watches with anticipation as the young royal must choose their path in life. This decision will shape their future and your dynasty.`,
+          });
+          summary.eventsTriggered.push('Coming of Age');
+        }
+      }
+
       if (newResources.food <= 0) {
         newEvents.push({
           id: `famine_${nextTurn}`, title: 'Famine!', description: 'Your people are starving! Food reserves have been depleted.',
@@ -1760,6 +1896,9 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       const allBattles = [...prev.battles, ...newBattlesFromSiege, ...aiBattles].slice(-20);
       const allLogs = [
+        ...(heirEduCompleteLog ? [heirEduCompleteLog] : []),
+        ...(heirComingOfAge && newHeir ? [`🎂 ${newHeir.name} has come of age! Choose their path.`] : []),
+        ...(betrayalResult.event ? [`⚠️ A councilor has betrayed you!`] : []),
         ...pressureResult.logs,
         ...summary.spyResults,
         ...aiResult.logs,
@@ -1841,6 +1980,14 @@ export const [GameProvider, useGame] = createContextHook(() => {
         : newRumors;
       const allRumors = [...boostedRumors, ...prev.rumors].slice(0, 15);
 
+      const legacyState: GameState = {
+        ...prev,
+        turn: nextTurn, ruler: newRuler, provinces: newProvinces,
+        resources: newResources, kingdoms: newKingdoms, battles: allBattles,
+        technologies: newTechnologies, armies: newArmies,
+      } as GameState;
+      newRuler = { ...newRuler, legacyTitles: computeLegacyTitles(legacyState) };
+
       const newState = {
         ...prev,
         turn: nextTurn, year: nextYear, season: nextSeason,
@@ -1881,6 +2028,52 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const evt = prev.events.find(e => e.id === eventId);
       const logEntry = `Event: ${evt?.title ?? 'Unknown'} — chose "${choice.text}"`;
 
+      let newHeir = prev.heir ? { ...prev.heir } : null;
+      let newRuler = { ...prev.ruler };
+      let newCouncil = [...prev.council];
+      let newProvinces = [...prev.provinces];
+
+      if (choice.id === 'hcoa_warrior' && newHeir) {
+        newHeir = { ...newHeir, path: 'warrior' as HeirPath, martial: newHeir.martial + 5, claimStrength: Math.min(100, newHeir.claimStrength + 3) };
+      } else if (choice.id === 'hcoa_scholar' && newHeir) {
+        newHeir = { ...newHeir, path: 'scholar' as HeirPath, learning: newHeir.learning + 5, stewardship: newHeir.stewardship + 2 };
+      } else if (choice.id === 'hcoa_diplomat' && newHeir) {
+        newHeir = { ...newHeir, path: 'diplomat' as HeirPath, diplomacy: newHeir.diplomacy + 5, intrigue: newHeir.intrigue + 2 };
+      }
+
+      if (choice.id.startsWith('cbm_') || choice.id.startsWith('cbs_') || choice.id.startsWith('cbspy_') || choice.id.startsWith('cbc_') || choice.id.startsWith('cbch_')) {
+        const roleMap: Record<string, string> = { cbm: 'marshal', cbs: 'steward', cbspy: 'spymaster', cbc: 'chaplain', cbch: 'chancellor' };
+        const prefix = choice.id.split('_')[0];
+        const targetRole = roleMap[prefix];
+        if (targetRole) {
+          if (choice.id.includes('execute') || choice.id.includes('arrest') || choice.id.includes('eliminate') || choice.id.includes('trial') || choice.id.includes('dismiss') || choice.id.includes('punish') || choice.id.includes('replace')) {
+            const betrayer = newCouncil.find(c => c.role === targetRole);
+            if (betrayer) {
+              const replacementNames: Record<string, string> = {
+                marshal: 'Sir Roland', steward: 'Lord Ambrose', spymaster: 'Shadow Kael',
+                chaplain: 'Father Benedict', chancellor: 'Lady Meridia',
+              };
+              newCouncil = newCouncil.map(c =>
+                c.id === betrayer.id
+                  ? { ...c, name: replacementNames[targetRole] ?? 'New Councilor', skill: Math.max(5, c.skill - 4), loyalty: 60 + Math.floor(Math.random() * 30), activeUpgrade: undefined, task: undefined }
+                  : c
+              );
+            }
+          } else if (choice.id.includes('forgive') || choice.id.includes('deal') || choice.id.includes('turn') || choice.id.includes('confront') || choice.id.includes('reform') || choice.id.includes('demote') || choice.id.includes('leverage')) {
+            const betrayer = newCouncil.find(c => c.role === targetRole);
+            if (betrayer) {
+              const newLoyalty = choice.id.includes('demote') ? 40 : choice.id.includes('confront') ? 35 : 50;
+              const skillPenalty = choice.id.includes('demote') ? Math.floor(betrayer.skill / 2) : choice.id.includes('confront') ? 3 : 0;
+              newCouncil = newCouncil.map(c =>
+                c.id === betrayer.id
+                  ? { ...c, loyalty: newLoyalty, skill: Math.max(3, c.skill - skillPenalty) }
+                  : c
+              );
+            }
+          }
+        }
+      }
+
       const prevExtended = prev as GameState & { pendingChainEvents?: PendingChainEvent[] };
       let pendingChains: PendingChainEvent[] = [...(prevExtended.pendingChainEvents ?? [])];
       if (choice.followUpEventId && choice.followUpDelay) {
@@ -1893,6 +2086,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       const newState = {
         ...prev, resources: newResources, events: newEvents,
+        heir: newHeir, ruler: newRuler, council: newCouncil, provinces: newProvinces,
         log: [logEntry, ...prev.log].slice(0, 50),
         pendingChainEvents: pendingChains,
       } as GameState;
@@ -2342,6 +2536,35 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const setHeirPath = useCallback((path: HeirPath) => {
+    setState(prev => {
+      if (!prev.heir) return prev;
+      let newHeir = { ...prev.heir, path };
+      let logMsg = '';
+      switch (path) {
+        case 'warrior':
+          newHeir = { ...newHeir, martial: newHeir.martial + 5, claimStrength: Math.min(100, newHeir.claimStrength + 3) };
+          logMsg = `⚔️ ${newHeir.name} chose the Path of the Warrior! (+5 Martial, +3 claim)`;
+          break;
+        case 'scholar':
+          newHeir = { ...newHeir, learning: newHeir.learning + 5, stewardship: newHeir.stewardship + 2 };
+          logMsg = `📖 ${newHeir.name} chose the Path of the Scholar! (+5 Learning, +2 Stewardship)`;
+          break;
+        case 'diplomat':
+          newHeir = { ...newHeir, diplomacy: newHeir.diplomacy + 5, intrigue: newHeir.intrigue + 2 };
+          logMsg = `🤝 ${newHeir.name} chose the Path of the Diplomat! (+5 Diplomacy, +2 Intrigue)`;
+          break;
+      }
+      const newState: GameState = {
+        ...prev,
+        heir: newHeir,
+        log: [logMsg, ...prev.log].slice(0, 50),
+      };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const containPlague = useCallback(() => {
     setState(prev => {
       if (!prev.pressures.plague.active) return prev;
@@ -2417,7 +2640,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
     arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
-    reduceCorruption, resolveNobleDispute, containPlague,
+    reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -2428,6 +2651,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
     arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
-    reduceCorruption, resolveNobleDispute, containPlague,
+    reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
   ]);
 });

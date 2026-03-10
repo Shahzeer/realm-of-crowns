@@ -596,6 +596,225 @@ const EXTRA_EVENTS: EventTemplate[] = [
   },
 ];
 
+// ============================================================
+// TRAIT-TRIGGERED EVENTS
+// ============================================================
+
+const TRAIT_EVENTS: EventTemplate[] = [
+  {
+    id: 'narr_trait_cruel_peasant_fear',
+    title: 'Peasant Fear',
+    description: 'Your cruelty is legendary. Peasants cower when your banner approaches, but whispers of rebellion grow louder in the shadows. The common folk fear you — for now.',
+    type: 'political',
+    choices: [
+      { id: 'tcpf_embrace', text: 'Good. Let them tremble.', effects: '+15 loyalty through fear, -20 faith', reward: { military: 30 } },
+      { id: 'tcpf_soften', text: 'Perhaps mercy would serve us better', effects: '+10 faith, +5 loyalty', cost: { gold: 100 }, reward: { faith: 10 } },
+      { id: 'tcpf_exploit', text: 'Use fear to extract more taxes', effects: '+200 gold, -10 loyalty', reward: { gold: 200 } },
+    ],
+  },
+  {
+    id: 'narr_trait_cruel_torture_chamber',
+    title: 'The Torture Chamber',
+    description: 'Your dungeons are said to be the most feared in the realm. A captured spy begs for mercy. Your cruel nature suggests otherwise.',
+    type: 'political',
+    choices: [
+      { id: 'tctc_torture', text: 'Extract every secret through pain', effects: '+3 Intrigue, gain intelligence', reward: { military: 20 } },
+      { id: 'tctc_ransom', text: 'Ransom the spy back', effects: '+250 gold, learn nothing', reward: { gold: 250 } },
+      { id: 'tctc_public', text: 'Execute publicly as a warning', effects: '-15 enemy spy activity, -10 faith' },
+    ],
+  },
+  {
+    id: 'narr_trait_genius_research_breakthrough',
+    title: 'Research Breakthrough',
+    description: 'Your brilliant mind has made a connection that eluded your scholars for years. A new insight could accelerate your kingdom\'s advancement dramatically.',
+    type: 'personal',
+    choices: [
+      { id: 'tgrb_tech', text: 'Apply it to current research', effects: 'Current research advances 2 turns', reward: { faith: 15 } },
+      { id: 'tgrb_economy', text: 'Use it to optimize the treasury', effects: '+10 gold/turn permanently', reward: { gold: 100 } },
+      { id: 'tgrb_share', text: 'Share the knowledge with scholars', effects: '+2 Learning, +30 faith', reward: { faith: 30 } },
+    ],
+  },
+  {
+    id: 'narr_trait_genius_invention',
+    title: 'A Stroke of Genius',
+    description: 'While studying ancient texts, you conceive a revolutionary new device. Your court is amazed at the prototype — it could change warfare or commerce forever.',
+    type: 'economic',
+    choices: [
+      { id: 'tgi_military', text: 'Apply it to siege warfare', effects: '+15% siege speed, +2 Martial', cost: { gold: 150 } },
+      { id: 'tgi_commerce', text: 'Use it to improve trade', effects: '+8 gold/turn, +2 Stewardship', cost: { gold: 100 } },
+      { id: 'tgi_sell', text: 'Sell the design to foreign powers', effects: '+500 gold', reward: { gold: 500 } },
+    ],
+  },
+  {
+    id: 'narr_trait_brave_duel_challenge',
+    title: 'A Challenge of Honor',
+    description: 'A foreign champion has arrived at your court demanding a duel. Your brave nature calls you to accept — your advisors urge caution.',
+    type: 'military',
+    choices: [
+      { id: 'ttbd_accept', text: 'I accept! Bring me my sword!', effects: '+3 Martial on victory, risk of injury', reward: { military: 40 } },
+      { id: 'ttbd_champion', text: 'Send our best knight instead', effects: '+20 morale, safe outcome', cost: { gold: 50 } },
+      { id: 'ttbd_refuse', text: 'We do not entertain such barbarism', effects: '-5 morale, seen as cowardly' },
+    ],
+  },
+  {
+    id: 'narr_trait_pious_divine_vision',
+    title: 'Divine Vision',
+    description: 'During prayer, you experience a powerful vision of golden light and celestial guidance. The clergy declare it a divine message — the faithful are awed.',
+    type: 'religious',
+    choices: [
+      { id: 'ttpv_crusade', text: 'Declare a holy mandate', effects: '+50 faith, +20 morale', reward: { faith: 50 } },
+      { id: 'ttpv_temple', text: 'Build a shrine to commemorate', effects: '+30 faith, +15 loyalty', cost: { gold: 200 }, reward: { faith: 30 } },
+      { id: 'ttpv_quiet', text: 'Meditate on it privately', effects: '+2 Learning, +15 faith', reward: { faith: 15 } },
+    ],
+  },
+  {
+    id: 'narr_trait_ambitious_power_play',
+    title: 'A Bold Power Play',
+    description: 'Your ambition knows no bounds. An opportunity arises to claim authority over a disputed border region. It\'s risky, but the reward could be immense.',
+    type: 'political',
+    choices: [
+      { id: 'ttap_seize', text: 'Seize the territory boldly', effects: '+garrison in border, -20 relations', cost: { military: 100 } },
+      { id: 'ttap_negotiate', text: 'Negotiate from a position of strength', effects: '+10 relations, +50 gold', cost: { gold: 50 }, reward: { gold: 100 } },
+      { id: 'ttap_wait', text: 'Bide our time for a better moment', effects: '+1 Intrigue, patience noted' },
+    ],
+  },
+  {
+    id: 'narr_trait_paranoid_shadow_conspiracy',
+    title: 'Shadows Everywhere',
+    description: 'Your paranoia reaches new heights. You see plots in every shadow, treachery behind every smile. Your court grows fearful of your suspicions.',
+    type: 'political',
+    choices: [
+      { id: 'ttp_purge', text: 'Purge suspected traitors', effects: '-20 loyalty, +3 Intrigue, threats eliminated', cost: { gold: 100 } },
+      { id: 'ttp_spies', text: 'Double the spy network', effects: '+2 Intrigue, better counter-espionage', cost: { gold: 200 } },
+      { id: 'ttp_calm', text: 'Try to calm your suspicions', effects: '+10 loyalty, -1 Intrigue' },
+    ],
+  },
+  {
+    id: 'narr_trait_charismatic_grand_speech',
+    title: 'The Grand Speech',
+    description: 'Your natural charisma inspires you to address the realm. Thousands gather to hear your words. What message will you deliver?',
+    type: 'political',
+    choices: [
+      { id: 'ttcgs_unity', text: 'Speak of unity and prosperity', effects: '+25 loyalty all provinces, +15 faith', reward: { faith: 15 } },
+      { id: 'ttcgs_war', text: 'Rally them for war', effects: '+30 morale all armies, +50 military', reward: { military: 50 } },
+      { id: 'ttcgs_trade', text: 'Promote trade and cooperation', effects: '+10 gold/turn for 3 turns, +10 relations', reward: { gold: 50 } },
+    ],
+  },
+  {
+    id: 'narr_trait_strong_feats_of_strength',
+    title: 'Feats of Strength',
+    description: 'Your legendary physical prowess inspires your soldiers. During a training exercise, you outperform every warrior in the yard. Tales of your strength spread.',
+    type: 'military',
+    choices: [
+      { id: 'ttsf_train', text: 'Lead intensive military training', effects: '+25 morale, +2 Martial', reward: { military: 30 } },
+      { id: 'ttsf_tournament', text: 'Host a tournament of champions', effects: '+20 faith, +15 morale', cost: { gold: 100 }, reward: { faith: 20 } },
+      { id: 'ttsf_intimidate', text: 'Use your reputation to intimidate rivals', effects: '-10 enemy morale, +10 fear', reward: { military: 20 } },
+    ],
+  },
+  {
+    id: 'narr_trait_cunning_blackmail',
+    title: 'Leverage Discovered',
+    description: 'Your cunning nature leads you to discover compromising secrets about a powerful noble. This leverage could be used in many ways.',
+    type: 'political',
+    choices: [
+      { id: 'ttcb_blackmail', text: 'Blackmail them for gold', effects: '+300 gold, noble becomes enemy', reward: { gold: 300 } },
+      { id: 'ttcb_loyalty', text: 'Demand their eternal loyalty', effects: '+20 loyalty in their province, +2 Intrigue' },
+      { id: 'ttcb_secret', text: 'Keep the secret for later', effects: '+3 Intrigue, future advantage' },
+    ],
+  },
+  {
+    id: 'narr_trait_greedy_hidden_treasure',
+    title: 'Hidden Treasure',
+    description: 'Your keen eye for wealth spots an opportunity others missed. An old map suggests a forgotten treasury beneath your castle. Your greed drives you to excavate.',
+    type: 'economic',
+    choices: [
+      { id: 'ttght_dig', text: 'Excavate immediately', effects: '+400 gold, possible structural damage', cost: { gold: 50 }, reward: { gold: 400 } },
+      { id: 'ttght_careful', text: 'Careful, methodical excavation', effects: '+250 gold, safe', cost: { gold: 100 }, reward: { gold: 250 } },
+      { id: 'ttght_share', text: 'Share findings with scholars', effects: '+150 gold, +2 Learning', cost: { gold: 30 }, reward: { gold: 150 } },
+    ],
+  },
+];
+
+// ============================================================
+// HEIR COMING-OF-AGE EVENTS
+// ============================================================
+
+const HEIR_COMING_OF_AGE_EVENTS: EventTemplate[] = [
+  {
+    id: 'narr_heir_coming_of_age',
+    title: 'Coming of Age',
+    description: 'Your heir has reached their sixteenth nameday. The realm watches with anticipation as the young royal must choose their path in life. This decision will shape their future and your dynasty.',
+    type: 'dynasty',
+    choices: [
+      { id: 'hcoa_warrior', text: '⚔️ The Path of the Warrior', effects: '+5 Martial, +3 claim strength, "Warrior" path' },
+      { id: 'hcoa_scholar', text: '📖 The Path of the Scholar', effects: '+5 Learning, +2 Stewardship, "Scholar" path' },
+      { id: 'hcoa_diplomat', text: '🤝 The Path of the Diplomat', effects: '+5 Diplomacy, +2 Intrigue, "Diplomat" path' },
+    ],
+  },
+];
+
+// ============================================================
+// COUNCIL BETRAYAL EVENTS
+// ============================================================
+
+const COUNCIL_BETRAYAL_EVENTS: EventTemplate[] = [
+  {
+    id: 'narr_council_betrayal_marshal',
+    title: 'The Marshal\'s Betrayal',
+    description: 'Your marshal has been secretly conspiring with a rival kingdom! Soldiers loyal to them have been redirecting supplies and sharing battle plans with the enemy.',
+    type: 'political',
+    choices: [
+      { id: 'cbm_execute', text: 'Execute the traitor publicly', effects: 'Lose marshal, +20 fear, -10 loyalty', cost: { military: 50 } },
+      { id: 'cbm_exile', text: 'Strip their rank and exile them', effects: 'Lose marshal, -5 loyalty' },
+      { id: 'cbm_forgive', text: 'Offer clemency for their service', effects: 'Marshal stays, loyalty rises to 50, risk remains' },
+    ],
+  },
+  {
+    id: 'narr_council_betrayal_steward',
+    title: 'The Steward\'s Treachery',
+    description: 'Your steward has been embezzling funds for years! The treasury records were forged to cover massive theft. Gold meant for your armies lines their personal coffers.',
+    type: 'economic',
+    choices: [
+      { id: 'cbs_arrest', text: 'Arrest and seize their assets', effects: 'Lose steward, recover +300 gold', reward: { gold: 300 } },
+      { id: 'cbs_demote', text: 'Demote them publicly', effects: 'Steward skill halved, loyalty rises to 40' },
+      { id: 'cbs_deal', text: 'Cut a deal — they repay and stay', effects: '+200 gold, steward loyalty 50', reward: { gold: 200 } },
+    ],
+  },
+  {
+    id: 'narr_council_betrayal_spymaster',
+    title: 'The Spymaster\'s Double Game',
+    description: 'Your spymaster has been selling secrets to every kingdom willing to pay. Your spy network is compromised. Enemy agents know your every move.',
+    type: 'political',
+    choices: [
+      { id: 'cbspy_eliminate', text: 'Have them silenced permanently', effects: 'Lose spymaster, spy network secure', cost: { gold: 100 } },
+      { id: 'cbspy_turn', text: 'Feed them false intelligence', effects: '+3 Intrigue, spymaster loyalty 45, enemies misled' },
+      { id: 'cbspy_confront', text: 'Confront and demand loyalty', effects: 'Spymaster loyalty 35, skill -3' },
+    ],
+  },
+  {
+    id: 'narr_council_betrayal_chaplain',
+    title: 'The Chaplain\'s Heresy',
+    description: 'Your chaplain has been secretly undermining your faith, preaching against your rule in the shadows. Peasants question your divine mandate.',
+    type: 'religious',
+    choices: [
+      { id: 'cbc_trial', text: 'Put them on trial for heresy', effects: 'Lose chaplain, +30 faith', reward: { faith: 30 } },
+      { id: 'cbc_reform', text: 'Force them to recant publicly', effects: 'Chaplain loyalty 50, -15 faith, +10 loyalty' },
+      { id: 'cbc_replace', text: 'Quietly replace them', effects: 'New chaplain, smooth transition' },
+    ],
+  },
+  {
+    id: 'narr_council_betrayal_chancellor',
+    title: 'The Chancellor\'s Conspiracy',
+    description: 'Your chancellor has been negotiating secret deals with foreign powers behind your back, promising concessions you never authorized. Alliances hang by a thread.',
+    type: 'political',
+    choices: [
+      { id: 'cbch_dismiss', text: 'Dismiss and denounce them', effects: 'Lose chancellor, -10 relations with all, reputation saved' },
+      { id: 'cbch_leverage', text: 'Use the situation as leverage', effects: '+15 relations with one kingdom, chancellor loyalty 45' },
+      { id: 'cbch_punish', text: 'Imprison and fine them', effects: 'Lose chancellor, +200 gold, -5 loyalty', cost: { military: 20 }, reward: { gold: 200 } },
+    ],
+  },
+];
+
 export const ALL_NARRATIVE_EVENTS: EventTemplate[] = [
   ...POLITICAL_EVENTS,
   ...MILITARY_EVENTS,
@@ -604,6 +823,9 @@ export const ALL_NARRATIVE_EVENTS: EventTemplate[] = [
   ...DYNASTY_EVENTS,
   ...PLAGUE_CHAIN,
   ...EXTRA_EVENTS,
+  ...TRAIT_EVENTS,
+  ...HEIR_COMING_OF_AGE_EVENTS,
+  ...COUNCIL_BETRAYAL_EVENTS,
 ];
 
 export const CHAIN_FOLLOW_UPS: Record<string, EventTemplate> = {};
