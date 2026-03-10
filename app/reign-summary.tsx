@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Dimensi
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { X, Crown, Sword, Shield, Building2, BookOpen, Skull, Calendar, TrendingUp, ScrollText } from "lucide-react-native";
+import { X, Crown, Swords, Shield, Building2, BookOpen, Skull, Calendar, TrendingUp, ScrollText } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { ReignChronicle, ReignEvent } from "@/types/game";
@@ -94,7 +94,7 @@ export default function ReignSummaryScreen() {
 
   const stats = [
     { icon: Calendar, label: "Years Ruled", value: chronicle.yearsRuled, color: Colors.gold.bright },
-    { icon: Sword, label: "Wars Fought", value: chronicle.warsFought, color: Colors.crimson.bright },
+    { icon: Swords, label: "Wars Fought", value: chronicle.warsFought, color: Colors.crimson.bright },
     { icon: Shield, label: "Battles Won", value: chronicle.battlesWon, color: Colors.status.success },
     { icon: Skull, label: "Battles Lost", value: chronicle.battlesLost, color: Colors.status.danger },
     { icon: TrendingUp, label: "Provinces Won", value: chronicle.provincesConquered, color: Colors.food.green },
