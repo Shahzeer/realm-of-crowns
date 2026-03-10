@@ -1374,6 +1374,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
       summary.faithGained = prev.resources.faithPerTurn;
 
       let activeTrades = prev.activeTrades.map(t => ({ ...t, turnsRemaining: t.turnsRemaining - 1 }));
+      const hasBankingGuild = prev.technologies.find(t => t.id === 'tech_banking_guild')?.researched ?? false;
+      const tradeIncomeMultiplier = hasBankingGuild ? 1.25 : 1.0;
       activeTrades.forEach(trade => {
         if (trade.turnsRemaining >= 0) {
           const receiveGold = trade.receive.gold ?? 0;
@@ -1383,11 +1385,12 @@ export const [GameProvider, useGame] = createContextHook(() => {
           const giveGold = trade.give.gold ?? 0;
           const giveFood = trade.give.food ?? 0;
           const giveMilitary = trade.give.military ?? 0;
-          newResources.gold += receiveGold - giveGold;
+          const goldFromTrade = Math.floor((receiveGold - giveGold) * tradeIncomeMultiplier);
+          newResources.gold += goldFromTrade;
           newResources.food += receiveFood - giveFood;
           newResources.military += receiveMilitary - giveMilitary;
           newResources.faith += receiveFaith;
-          summary.tradeIncome += receiveGold - giveGold;
+          summary.tradeIncome += goldFromTrade;
         }
       });
       activeTrades = activeTrades.filter(t => t.turnsRemaining > 0);
@@ -1470,13 +1473,17 @@ export const [GameProvider, useGame] = createContextHook(() => {
       newResources.military += (techBonuses.militaryPerTurn || 0);
       newResources.faith += (techBonuses.faithPerTurn || 0);
 
+      const hasProfessionalArmy = newTechnologies.find(t => t.id === 'tech_professional_army')?.researched ?? false;
       let newArmies = prev.armies.map(army => {
         if (army.status === 'marching' && army.destination && army.marchTurnsLeft !== undefined) {
           const turnsLeft = army.marchTurnsLeft - 1;
           if (turnsLeft <= 0) {
             return { ...army, location: army.destination, status: 'idle' as const, destination: undefined, marchTurnsLeft: undefined };
           }
-          return { ...army, marchTurnsLeft: turnsLeft };
+          if (hasProfessionalArmy && army.owner === 'player') {
+            return { ...army, marchTurnsLeft: turnsLeft };
+          }
+          return { ...army, marchTurnsLeft: turnsLeft, morale: Math.max(10, army.morale - 3) };
         }
         if (army.status === 'idle') {
           return { ...army, morale: Math.min(100, army.morale + 3), troops: Math.min(army.maxTroops, army.troops + 5) };
@@ -1497,7 +1504,10 @@ export const [GameProvider, useGame] = createContextHook(() => {
       siegingArmies.forEach(army => {
         const targetProvince = newProvinces.find(p => p.id === army.location && p.owner !== 'player');
         if (targetProvince) {
-          const newSiegeProgress = (targetProvince.siegeProgress || 0) + 20 + Math.floor(army.troops / 100);
+          const hasSiegeEngineering = newTechnologies.find(t => t.id === 'tech_siege_engineering')?.researched ?? false;
+          const baseSiegeGain = 20 + Math.floor(army.troops / 100);
+          const siegeGain = hasSiegeEngineering ? Math.floor(baseSiegeGain * 1.5) : baseSiegeGain;
+          const newSiegeProgress = (targetProvince.siegeProgress || 0) + siegeGain;
           if (newSiegeProgress >= 100) {
             const defenderArmy: Army = {
               id: 'garrison_def', name: `Garrison of ${targetProvince.name}`, owner: targetProvince.owner,
@@ -1536,6 +1546,19 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       newArmies = newArmies.map(a => a.status === 'retreating' ? { ...a, status: 'idle' as const } : a);
 
+      const hasDivineRight = newTechnologies.find(t => t.id === 'tech_divine_right')?.researched ?? false;
+      if (hasDivineRight) {
+        newProvinces = newProvinces.map(p => {
+          if (p.owner === 'player') {
+            return {
+              ...p,
+              loyalty: Math.min(100, (p.loyalty ?? 80) + 2),
+              unrest: Math.max(0, (p.unrest ?? 0) - 2),
+            };
+          }
+          return p;
+        });
+      }
       const { provinces: unrestProvinces, revoltLogs, revoltEvents } = processProvinceUnrest(newProvinces, nextTurn);
       newProvinces = unrestProvinces;
       summary.revolts = revoltLogs;
@@ -1807,12 +1830,16 @@ export const [GameProvider, useGame] = createContextHook(() => {
       };
       newAchievements = checkAchievements(tempState);
 
+      const hasRoyalArchives = newTechnologies.find(t => t.id === 'tech_royal_archives')?.researched ?? false;
       const newRumors = generateRumors(
         newKingdoms, newProvinces, nextTurn,
         !!prev.activeSpyMission,
         prev.activeSpyMission?.targetId
       );
-      const allRumors = [...newRumors, ...prev.rumors].slice(0, 15);
+      const boostedRumors = hasRoyalArchives
+        ? newRumors.map(r => ({ ...r, accuracy: Math.min(100, r.accuracy + 20) }))
+        : newRumors;
+      const allRumors = [...boostedRumors, ...prev.rumors].slice(0, 15);
 
       const newState = {
         ...prev,
