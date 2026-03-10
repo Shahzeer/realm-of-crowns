@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import { getDeviceId, loadCloudSave, saveToCloud, deleteCloudSave } from '@/utils/supabase';
+import { computeVisibility, VisibilityMap } from '@/utils/fogOfWar';
 import {
   GameState,
   Resources,
@@ -1800,6 +1801,10 @@ export const [GameProvider, useGame] = createContextHook(() => {
     return Math.max(5, Math.min(95, Math.round(baseWinRate + attackBonus + defBonus)));
   }, [state.activeTactic]);
 
+  const visibilityMap = useMemo<VisibilityMap>(() => {
+    return computeVisibility(state.provinces, state.armies, state.activeSpyMission);
+  }, [state.provinces, state.armies, state.activeSpyMission]);
+
   return useMemo(() => ({
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -1809,6 +1814,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     winProbability, startSpyMission, proposeTrade, useFaithAction,
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
     arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
+    visibilityMap,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -1818,5 +1824,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     winProbability, startSpyMission, proposeTrade, useFaithAction,
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
     arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
+    visibilityMap,
   ]);
 });

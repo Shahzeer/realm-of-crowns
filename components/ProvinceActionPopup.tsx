@@ -12,9 +12,10 @@ import * as Haptics from 'expo-haptics';
 import { X, Hammer, Users, Shield, Eye, Swords, Globe, ArrowRightLeft, Info } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { Province, Army, Kingdom } from '@/types/game';
+import { VisibilityMap } from '@/utils/fogOfWar';
 import { PROVINCE_TYPE_ICONS } from '@/mocks/gameData';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type ProvinceAction =
   | 'build'
@@ -33,6 +34,7 @@ interface ProvinceActionPopupProps {
   kingdoms: Kingdom[];
   onAction: (action: ProvinceAction, province: Province) => void;
   onClose: () => void;
+  visibilityMap: VisibilityMap;
 }
 
 interface ActionButtonConfig {
@@ -49,6 +51,25 @@ function getOwnershipType(province: Province, kingdoms: Kingdom[]): 'player' | '
   if (!kingdom) return 'neutral';
   if (kingdom.attitude === 'war' || kingdom.attitude === 'hostile') return 'enemy';
   return 'neutral';
+}
+
+function getActionsForFoggedProvince(): ActionButtonConfig[] {
+  return [
+    {
+      id: 'spy',
+      label: 'Send Spy',
+      icon: <Eye size={18} color="#8b5cf6" />,
+      color: '#8b5cf6',
+      bgColor: '#8b5cf620',
+    },
+    {
+      id: 'info',
+      label: 'Limited Intel',
+      icon: <Info size={18} color={Colors.text.dim} />,
+      color: Colors.text.dim,
+      bgColor: Colors.bg.tertiary,
+    },
+  ];
 }
 
 function getActionsForProvince(
@@ -154,6 +175,7 @@ export default React.memo(function ProvinceActionPopup({
   kingdoms,
   onAction,
   onClose,
+  visibilityMap,
 }: ProvinceActionPopupProps) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.85)).current;
@@ -193,33 +215,40 @@ export default React.memo(function ProvinceActionPopup({
 
   if (!province) return null;
 
+  const isFogged = !visibilityMap[province.id];
   const armiesHere = armies.filter(a => a.location === province.id && a.owner === 'player');
   const allArmiesHere = armies.filter(a => a.location === province.id);
   const totalTroops = allArmiesHere.reduce((sum, a) => sum + a.troops, 0);
-  const actions = getActionsForProvince(province, kingdoms, armiesHere);
+  const actions = isFogged ? getActionsForFoggedProvince() : getActionsForProvince(province, kingdoms, armiesHere);
   const ownership = getOwnershipType(province, kingdoms);
   const ownerKingdom = kingdoms.find(k => k.id === province.owner);
 
   const ownerLabel =
-    ownership === 'player'
-      ? 'Your Territory'
-      : ownerKingdom
-        ? ownerKingdom.name
-        : 'Unclaimed';
+    isFogged
+      ? 'Unknown Territory'
+      : ownership === 'player'
+        ? 'Your Territory'
+        : ownerKingdom
+          ? ownerKingdom.name
+          : 'Unclaimed';
 
   const ownerColor =
-    ownership === 'player'
-      ? Colors.gold.primary
-      : ownership === 'enemy'
-        ? Colors.crimson.bright
-        : Colors.text.secondary;
+    isFogged
+      ? '#4a4d58'
+      : ownership === 'player'
+        ? Colors.gold.primary
+        : ownership === 'enemy'
+          ? Colors.crimson.bright
+          : Colors.text.secondary;
 
   const borderAccent =
-    ownership === 'player'
-      ? Colors.gold.dim
-      : ownership === 'enemy'
-        ? Colors.crimson.dark
-        : Colors.border.primary;
+    isFogged
+      ? '#1a1d28'
+      : ownership === 'player'
+        ? Colors.gold.dim
+        : ownership === 'enemy'
+          ? Colors.crimson.dark
+          : Colors.border.primary;
 
   return (
     <Animated.View
@@ -245,21 +274,26 @@ export default React.memo(function ProvinceActionPopup({
       >
         <View style={styles.cardHeader}>
           <View style={styles.provinceInfo}>
-            <Text style={styles.provinceIcon}>
-              {PROVINCE_TYPE_ICONS[province.type] ?? '🏠'}
+            <Text style={[styles.provinceIcon, isFogged && { opacity: 0.3 }]}>
+              {isFogged ? '👁️' : (PROVINCE_TYPE_ICONS[province.type] ?? '🏠')}
             </Text>
             <View style={styles.provinceTextGroup}>
-              <Text style={styles.provinceName} numberOfLines={1}>
-                {province.name}
+              <Text style={[styles.provinceName, isFogged && { color: '#4a4d58' }]} numberOfLines={1}>
+                {isFogged ? 'Shrouded Territory' : province.name}
               </Text>
               <View style={styles.ownerRow}>
                 <View style={[styles.ownerDot, { backgroundColor: ownerColor }]} />
                 <Text style={[styles.ownerLabel, { color: ownerColor }]}>
                   {ownerLabel}
                 </Text>
-                {province.underSiege && (
+                {!isFogged && province.underSiege && (
                   <View style={styles.siegeTag}>
                     <Text style={styles.siegeTagText}>SIEGE</Text>
+                  </View>
+                )}
+                {isFogged && (
+                  <View style={styles.fogTag}>
+                    <Text style={styles.fogTagText}>FOG</Text>
                   </View>
                 )}
               </View>
@@ -277,27 +311,34 @@ export default React.memo(function ProvinceActionPopup({
 
         <View style={styles.quickStats}>
           <View style={styles.quickStat}>
-            <Text style={styles.quickStatValue}>{(province.population / 1000).toFixed(1)}k</Text>
+            <Text style={[styles.quickStatValue, isFogged && styles.foggedStatValue]}>{isFogged ? '?' : (province.population / 1000).toFixed(1) + 'k'}</Text>
             <Text style={styles.quickStatLabel}>Pop</Text>
           </View>
           <View style={styles.quickStatDivider} />
           <View style={styles.quickStat}>
-            <Text style={styles.quickStatValue}>{province.garrison}</Text>
+            <Text style={[styles.quickStatValue, isFogged && styles.foggedStatValue]}>{isFogged ? '?' : province.garrison}</Text>
             <Text style={styles.quickStatLabel}>Garrison</Text>
           </View>
           <View style={styles.quickStatDivider} />
           <View style={styles.quickStat}>
-            <Text style={styles.quickStatValue}>{totalTroops || '—'}</Text>
+            <Text style={[styles.quickStatValue, isFogged && styles.foggedStatValue]}>{isFogged ? '?' : (totalTroops || '—')}</Text>
             <Text style={styles.quickStatLabel}>Troops</Text>
           </View>
           <View style={styles.quickStatDivider} />
           <View style={styles.quickStat}>
-            <Text style={styles.quickStatValue}>{province.development}%</Text>
+            <Text style={[styles.quickStatValue, isFogged && styles.foggedStatValue]}>{isFogged ? '?' : province.development + '%'}</Text>
             <Text style={styles.quickStatLabel}>Dev</Text>
           </View>
         </View>
 
-        {province.underSiege && (
+        {isFogged && (
+          <View style={styles.fogWarning}>
+            <Text style={styles.fogWarningIcon}>👁️</Text>
+            <Text style={styles.fogWarningText}>Hidden by Fog of War — Send spies for intel</Text>
+          </View>
+        )}
+
+        {!isFogged && province.underSiege && (
           <View style={styles.siegeBar}>
             <View style={styles.siegeBarHeader}>
               <Swords size={12} color="#ff4444" />
@@ -409,6 +450,19 @@ const styles = StyleSheet.create({
     color: '#ff4444',
     letterSpacing: 1,
   },
+  fogTag: {
+    backgroundColor: '#1a1d2880',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    marginLeft: 4,
+  },
+  fogTagText: {
+    fontSize: 8,
+    fontWeight: '800' as const,
+    color: '#4a4d58',
+    letterSpacing: 1,
+  },
   closeBtn: {
     width: 30,
     height: 30,
@@ -436,6 +490,10 @@ const styles = StyleSheet.create({
     fontWeight: '800' as const,
     color: Colors.text.primary,
   },
+  foggedStatValue: {
+    color: '#3a3d48',
+    fontSize: 16,
+  },
   quickStatLabel: {
     fontSize: 9,
     fontWeight: '600' as const,
@@ -448,6 +506,28 @@ const styles = StyleSheet.create({
     height: 24,
     backgroundColor: Colors.border.primary,
     alignSelf: 'center' as const,
+  },
+  fogWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#0a0c14',
+    borderWidth: 1,
+    borderColor: '#1a1d28',
+  },
+  fogWarningIcon: {
+    fontSize: 14,
+  },
+  fogWarningText: {
+    fontSize: 11,
+    fontWeight: '600' as const,
+    color: '#4a4d58',
+    flex: 1,
   },
   siegeBar: {
     marginHorizontal: 16,

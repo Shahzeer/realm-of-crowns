@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Animated, Dimensions, ScrollView } from 'react-native';
 import { Province, Army } from '@/types/game';
+import { VisibilityMap } from '@/utils/fogOfWar';
 import Colors from '@/constants/colors';
 import { PROVINCE_TYPE_ICONS } from '@/mocks/gameData';
 
@@ -15,6 +16,7 @@ interface MapViewProps {
   armies: Army[];
   onProvincePress: (province: Province) => void;
   selectedProvinceId?: string | null;
+  visibilityMap: VisibilityMap;
 }
 
 const OWNER_COLORS: Record<string, string> = {
@@ -37,15 +39,19 @@ const OWNER_LABELS: Record<string, string> = {
   emeraldleague: 'Emerald League',
 };
 
-function TerritoryGlow({ provinces }: { provinces: Province[] }) {
+const FOG_COLOR = '#080a10';
+const FOG_BORDER = '#1a1d28';
+
+function TerritoryGlow({ provinces, visibilityMap }: { provinces: Province[]; visibilityMap: VisibilityMap }) {
   const ownerGroups = useMemo(() => {
     const groups: Record<string, Province[]> = {};
     provinces.forEach(p => {
+      if (!visibilityMap[p.id]) return;
       if (!groups[p.owner]) groups[p.owner] = [];
       groups[p.owner].push(p);
     });
     return groups;
-  }, [provinces]);
+  }, [provinces, visibilityMap]);
 
   return (
     <>
@@ -79,7 +85,7 @@ function TerritoryGlow({ provinces }: { provinces: Province[] }) {
   );
 }
 
-function ConnectionLine({ from, to }: { from: Province; to: Province }) {
+function ConnectionLine({ from, to, fogged }: { from: Province; to: Province; fogged: boolean }) {
   const x1 = from.x * (MAP_WIDTH - 20);
   const y1 = from.y * MAP_HEIGHT;
   const x2 = to.x * (MAP_WIDTH - 20);
@@ -92,6 +98,14 @@ function ConnectionLine({ from, to }: { from: Province; to: Province }) {
   const isWarZone = from.owner !== to.owner && from.owner !== '' && to.owner !== '';
   const ownerColor = sameOwner ? (OWNER_COLORS[from.owner] || Colors.border.primary) : null;
 
+  const bgColor = fogged
+    ? FOG_BORDER + '30'
+    : isWarZone
+      ? Colors.crimson.bright + '40'
+      : sameOwner
+        ? ownerColor + '50'
+        : Colors.border.primary + '40';
+
   return (
     <View
       style={[
@@ -101,12 +115,8 @@ function ConnectionLine({ from, to }: { from: Province; to: Province }) {
           left: x1,
           top: y1,
           transform: [{ rotate: `${angle}deg` }],
-          backgroundColor: isWarZone
-            ? Colors.crimson.bright + '40'
-            : sameOwner
-              ? ownerColor + '50'
-              : Colors.border.primary + '40',
-          height: isWarZone ? 2 : sameOwner ? 1.5 : 1,
+          backgroundColor: bgColor,
+          height: fogged ? 0.5 : isWarZone ? 2 : sameOwner ? 1.5 : 1,
         },
       ]}
     />
@@ -150,6 +160,7 @@ function SiegeProgressBar({ province }: { province: Province }) {
   const cx = province.x * (MAP_WIDTH - 20);
   const cy = province.y * MAP_HEIGHT;
   const isCapital = province.type === 'capital';
+  const nodeOffset = isCapital ? 34 : 28;
   const barWidth = 40;
   const progress = province.siegeProgress ?? 0;
 
@@ -187,7 +198,6 @@ function TroopCountLabel({ province, troops }: { province: Province; troops: num
   const cx = province.x * (MAP_WIDTH - 20);
   const cy = province.y * MAP_HEIGHT;
   const isCapital = province.type === 'capital';
-  const nodeOffset = isCapital ? 34 : 28;
 
   return (
     <View
@@ -205,7 +215,40 @@ function TroopCountLabel({ province, troops }: { province: Province; troops: num
   );
 }
 
-function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _totalTroops, isSelected }: {
+function FogOverlay({ province }: { province: Province }) {
+  const cx = province.x * (MAP_WIDTH - 20);
+  const cy = province.y * MAP_HEIGHT;
+  const isCapital = province.type === 'capital';
+  const radius = isCapital ? 36 : 30;
+
+  const fogPulse = useRef(new Animated.Value(0.55)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(fogPulse, { toValue: 0.7, duration: 3000, useNativeDriver: true }),
+        Animated.timing(fogPulse, { toValue: 0.55, duration: 3000, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        styles.fogOverlay,
+        {
+          left: cx - radius,
+          top: cy - radius,
+          width: radius * 2,
+          height: radius * 2,
+          borderRadius: radius,
+          opacity: fogPulse,
+        },
+      ]}
+    />
+  );
+}
+
+function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _totalTroops, isSelected, isFogged }: {
   province: Province;
   onPress: () => void;
   index: number;
@@ -213,6 +256,7 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
   isUnderSiege: boolean;
   _totalTroops: number;
   isSelected: boolean;
+  isFogged: boolean;
 }) {
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const siegePulse = useRef(new Animated.Value(1)).current;
@@ -230,7 +274,7 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
   }, []);
 
   useEffect(() => {
-    if (isUnderSiege) {
+    if (isUnderSiege && !isFogged) {
       Animated.loop(
         Animated.sequence([
           Animated.timing(siegePulse, { toValue: 1.15, duration: 600, useNativeDriver: true }),
@@ -238,7 +282,7 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
         ])
       ).start();
     }
-  }, [isUnderSiege]);
+  }, [isUnderSiege, isFogged]);
 
   useEffect(() => {
     Animated.timing(selectGlow, {
@@ -248,8 +292,8 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
     }).start();
   }, [isSelected]);
 
-  const borderColor = OWNER_COLORS[province.owner] || '#666';
-  const bgColor = (OWNER_COLORS[province.owner] || '#444') + '33';
+  const borderColor = isFogged ? FOG_BORDER : (OWNER_COLORS[province.owner] || '#666');
+  const bgColor = isFogged ? FOG_COLOR + 'cc' : (OWNER_COLORS[province.owner] || '#444') + '33';
   const isCapital = province.type === 'capital';
 
   return (
@@ -259,11 +303,11 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
         {
           left: province.x * (MAP_WIDTH - 20) - (isCapital ? 30 : 24),
           top: province.y * MAP_HEIGHT - (isCapital ? 30 : 24),
-          transform: [{ scale: Animated.multiply(scaleAnim, isUnderSiege ? siegePulse : new Animated.Value(1)) }],
+          transform: [{ scale: Animated.multiply(scaleAnim, (isUnderSiege && !isFogged) ? siegePulse : new Animated.Value(1)) }],
         },
       ]}
     >
-      {isSelected && (
+      {isSelected && !isFogged && (
         <Animated.View
           style={[
             styles.selectedRing,
@@ -281,48 +325,69 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
         style={[
           styles.provinceNode,
           {
-            backgroundColor: isSelected ? (OWNER_COLORS[province.owner] || '#444') + '55' : bgColor,
-            borderColor: isSelected ? Colors.gold.bright : isUnderSiege ? '#ff4444' : borderColor,
+            backgroundColor: isFogged
+              ? FOG_COLOR + 'ee'
+              : isSelected
+                ? (OWNER_COLORS[province.owner] || '#444') + '55'
+                : bgColor,
+            borderColor: isFogged
+              ? FOG_BORDER
+              : isSelected
+                ? Colors.gold.bright
+                : isUnderSiege
+                  ? '#ff4444'
+                  : borderColor,
             width: isCapital ? 60 : 48,
             height: isCapital ? 60 : 48,
             borderRadius: isCapital ? 30 : 24,
-            borderWidth: isSelected ? 3 : isCapital ? 3 : 2,
+            borderWidth: isFogged ? 1 : isSelected ? 3 : isCapital ? 3 : 2,
           },
         ]}
         onPress={onPress}
         activeOpacity={0.7}
         testID={`province-${province.id}`}
       >
-        <Text style={[styles.provinceIcon, { fontSize: isCapital ? 16 : 13 }]}>
-          {PROVINCE_TYPE_ICONS[province.type] ?? '🏠'}
+        <Text style={[
+          styles.provinceIcon,
+          { fontSize: isCapital ? 16 : 13, opacity: isFogged ? 0.25 : 1 },
+        ]}>
+          {isFogged ? '❓' : (PROVINCE_TYPE_ICONS[province.type] ?? '🏠')}
         </Text>
         <Text
           style={[
             styles.provinceName,
-            { color: isPlayer ? Colors.text.primary : Colors.text.dim, fontSize: isCapital ? 8 : 7 },
+            {
+              color: isFogged ? '#2a2d38' : isPlayer ? Colors.text.primary : Colors.text.dim,
+              fontSize: isCapital ? 8 : 7,
+            },
           ]}
           numberOfLines={1}
         >
-          {province.name}
+          {isFogged ? '???' : province.name}
         </Text>
-        {isPlayer && !isSelected && (
+        {!isFogged && isPlayer && !isSelected && (
           <View style={[styles.ownerDot, { backgroundColor: Colors.gold.primary }]} />
         )}
-        {armyCount > 0 && (
+        {!isFogged && armyCount > 0 && (
           <View style={[styles.armyBadge, isPlayer ? { backgroundColor: Colors.status.info } : { backgroundColor: Colors.crimson.bright }]}>
             <Text style={styles.armyBadgeText}>{armyCount}</Text>
           </View>
         )}
-        {isPlayer && province.garrison > 0 && (
+        {!isFogged && isPlayer && province.garrison > 0 && (
           <View style={[styles.garrisonBadge, {
             backgroundColor: province.garrison >= 400 ? Colors.status.success + '90' : province.garrison >= 200 ? Colors.status.warning + '90' : Colors.status.danger + '90'
           }]}>
             <Text style={styles.garrisonBadgeText}>{province.garrison}</Text>
           </View>
         )}
-        {isUnderSiege && (
+        {!isFogged && isUnderSiege && (
           <View style={styles.siegeIndicator}>
             <Text style={styles.siegeIndicatorText}>⚔️</Text>
+          </View>
+        )}
+        {isFogged && (
+          <View style={styles.fogBadge}>
+            <Text style={styles.fogBadgeText}>👁️</Text>
           </View>
         )}
       </TouchableOpacity>
@@ -330,7 +395,7 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
   );
 }
 
-export default React.memo(function MapView({ provinces, armies, onProvincePress, selectedProvinceId }: MapViewProps) {
+export default React.memo(function MapView({ provinces, armies, onProvincePress, selectedProvinceId, visibilityMap }: MapViewProps) {
   const connections = useMemo(() => {
     const result: Array<{ from: Province; to: Province; key: string }> = [];
     const drawn = new Set<string>();
@@ -367,27 +432,43 @@ export default React.memo(function MapView({ provinces, armies, onProvincePress,
   }, [armies]);
 
   const siegeProvinces = useMemo(() => {
-    return provinces.filter(p => p.underSiege === true);
-  }, [provinces]);
+    return provinces.filter(p => p.underSiege === true && visibilityMap[p.id]);
+  }, [provinces, visibilityMap]);
 
   const provincesWithTroops = useMemo(() => {
-    return provinces.filter(p => (troopCounts[p.id] || 0) > 0);
-  }, [provinces, troopCounts]);
+    return provinces.filter(p => (troopCounts[p.id] || 0) > 0 && visibilityMap[p.id]);
+  }, [provinces, troopCounts, visibilityMap]);
+
+  const foggedProvinces = useMemo(() => {
+    return provinces.filter(p => !visibilityMap[p.id]);
+  }, [provinces, visibilityMap]);
+
+  const fogCount = foggedProvinces.length;
+  const totalCount = provinces.length;
 
   const legendOwners = useMemo(() => {
     const owners = new Set<string>();
-    provinces.forEach(p => owners.add(p.owner));
+    provinces.forEach(p => {
+      if (visibilityMap[p.id]) owners.add(p.owner);
+    });
     return Array.from(owners).filter(o => OWNER_COLORS[o]);
-  }, [provinces]);
+  }, [provinces, visibilityMap]);
 
   return (
     <View style={styles.mapContainer}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={styles.mapBg}>
-          <TerritoryGlow provinces={provinces} />
-          {connections.map(c => (
-            <ConnectionLine key={c.key} from={c.from} to={c.to} />
+          <TerritoryGlow provinces={provinces} visibilityMap={visibilityMap} />
+          {foggedProvinces.map(p => (
+            <FogOverlay key={`fog-${p.id}`} province={p} />
           ))}
+          {connections.map(c => {
+            const bothFogged = !visibilityMap[c.from.id] && !visibilityMap[c.to.id];
+            const anyFogged = !visibilityMap[c.from.id] || !visibilityMap[c.to.id];
+            return (
+              <ConnectionLine key={c.key} from={c.from} to={c.to} fogged={bothFogged || anyFogged} />
+            );
+          })}
           {provinces.map((province, index) => (
             <ProvinceNode
               key={province.id}
@@ -398,6 +479,7 @@ export default React.memo(function MapView({ provinces, armies, onProvincePress,
               isUnderSiege={province.underSiege === true}
               _totalTroops={troopCounts[province.id] || 0}
               isSelected={selectedProvinceId === province.id}
+              isFogged={!visibilityMap[province.id]}
             />
           ))}
           {provincesWithTroops.map(p => (
@@ -410,7 +492,7 @@ export default React.memo(function MapView({ provinces, armies, onProvincePress,
           {siegeProvinces.map(p => (
             <SiegeProgressBar key={`siege-${p.id}`} province={p} />
           ))}
-          {armies.filter(a => a.status === 'marching' && a.destination).map(army => {
+          {armies.filter(a => a.owner === 'player' && a.status === 'marching' && a.destination).map(army => {
             const fromProv = provinces.find(p => p.id === army.location);
             const toProv = provinces.find(p => p.id === army.destination);
             if (!fromProv || !toProv) return null;
@@ -419,6 +501,10 @@ export default React.memo(function MapView({ provinces, armies, onProvincePress,
         </View>
       </ScrollView>
       <View style={styles.legendRow}>
+        <View style={styles.legendItem}>
+          <Text style={styles.fogLegendIcon}>👁️</Text>
+          <Text style={styles.legendText}>Fog: {fogCount}/{totalCount}</Text>
+        </View>
         {legendOwners.map(owner => (
           <View key={owner} style={styles.legendItem}>
             <View style={[styles.legendDot, { backgroundColor: OWNER_COLORS[owner] }]} />
@@ -460,6 +546,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 10,
   },
   selectedRing: {
     position: 'absolute',
@@ -578,6 +665,29 @@ const styles = StyleSheet.create({
     fontWeight: '800' as const,
     color: Colors.text.primary,
   },
+  fogOverlay: {
+    position: 'absolute',
+    backgroundColor: FOG_COLOR,
+    borderWidth: 1,
+    borderColor: FOG_BORDER,
+    zIndex: 5,
+  },
+  fogBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: FOG_COLOR,
+    borderWidth: 0.5,
+    borderColor: FOG_BORDER,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fogBadgeText: {
+    fontSize: 6,
+  },
   legendRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -601,6 +711,9 @@ const styles = StyleSheet.create({
   legendText: {
     fontSize: 9,
     color: Colors.text.secondary,
+  },
+  fogLegendIcon: {
+    fontSize: 9,
   },
   marchIndicator: {
     position: 'absolute',

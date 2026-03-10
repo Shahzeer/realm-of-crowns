@@ -174,7 +174,7 @@ export default function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison } = useGame();
+  const { state, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, visibilityMap } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -520,6 +520,7 @@ export default function KingdomScreen() {
             armies={state.armies}
             onProvincePress={handleProvincePress}
             selectedProvinceId={selectedProvince?.id ?? null}
+            visibilityMap={visibilityMap}
           />
 
           <Text style={idx.sectionTitle}>Command</Text>
@@ -616,6 +617,7 @@ export default function KingdomScreen() {
         kingdoms={state.kingdoms}
         onAction={handlePopupAction}
         onClose={handlePopupClose}
+        visibilityMap={visibilityMap}
       />
 
       <View style={[idx.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>

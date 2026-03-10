@@ -8,15 +8,17 @@ import { X, ArrowUpCircle, Shield, Users, TrendingUp, Swords, Hammer, ChevronDow
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { PROVINCE_TYPE_ICONS, BUILDING_BLUEPRINTS } from "@/mocks/gameData";
+import { Eye } from "lucide-react-native";
 
 export default function ProvinceDetailScreen() {
   console.log("[RealmOfCrowns] Province detail render");
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, upgradeBuilding, recruitArmy, constructBuilding, reinforceGarrison } = useGame();
+  const { state, upgradeBuilding, recruitArmy, constructBuilding, reinforceGarrison, visibilityMap } = useGame();
   const province = state.provinces.find(p => p.id === id);
   const isOwned = province?.owner === 'player';
+  const isFogged = province ? !visibilityMap[province.id] : false;
   const [showBuildMenu, setShowBuildMenu] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -85,7 +87,17 @@ export default function ProvinceDetailScreen() {
 
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 20 }} showsVerticalScrollIndicator={false}>
         <Animated.View style={{ opacity: fadeAnim }}>
-          {province.underSiege && (
+          {isFogged && (
+            <View style={ps.fogBanner}>
+              <Eye size={18} color="#4a4d58" />
+              <View style={ps.fogBannerText}>
+                <Text style={ps.fogTitle}>Fog of War</Text>
+                <Text style={ps.fogDesc}>This territory is shrouded. Send spies or move armies nearby to reveal intel.</Text>
+              </View>
+            </View>
+          )}
+
+          {!isFogged && province.underSiege && (
             <View style={ps.siegeBanner}>
               <Swords size={16} color="#ff4444" />
               <Text style={ps.siegeText}>UNDER SIEGE — {province.siegeProgress ?? 0}% complete</Text>
@@ -97,23 +109,23 @@ export default function ProvinceDetailScreen() {
 
           <View style={ps.statsGrid}>
             <View style={ps.statItem}>
-              <Users size={16} color={Colors.gold.primary} />
-              <Text style={ps.statNum}>{(province.population / 1000).toFixed(1)}k</Text>
+              <Users size={16} color={isFogged ? '#2a2d38' : Colors.gold.primary} />
+              <Text style={[ps.statNum, isFogged && ps.foggedNum]}>{isFogged ? '?' : (province.population / 1000).toFixed(1) + 'k'}</Text>
               <Text style={ps.statLbl}>Population</Text>
             </View>
             <View style={ps.statItem}>
-              <TrendingUp size={16} color={Colors.food.light} />
-              <Text style={ps.statNum}>{province.development}%</Text>
+              <TrendingUp size={16} color={isFogged ? '#2a2d38' : Colors.food.light} />
+              <Text style={[ps.statNum, isFogged && ps.foggedNum]}>{isFogged ? '?' : province.development + '%'}</Text>
               <Text style={ps.statLbl}>Development</Text>
             </View>
             <View style={ps.statItem}>
-              <Shield size={16} color={Colors.military.steel} />
-              <Text style={ps.statNum}>{province.garrison}</Text>
+              <Shield size={16} color={isFogged ? '#2a2d38' : Colors.military.steel} />
+              <Text style={[ps.statNum, isFogged && ps.foggedNum]}>{isFogged ? '?' : province.garrison}</Text>
               <Text style={ps.statLbl}>Garrison</Text>
             </View>
           </View>
 
-          {isOwned && (
+          {isOwned && !isFogged && (
             <View style={ps.loyaltySection}>
               <View style={ps.loyaltyRow}>
                 <View style={ps.loyaltyItem}>
@@ -154,7 +166,7 @@ export default function ProvinceDetailScreen() {
             </View>
           )}
 
-          {isOwned && province.buildings.length > 0 && (
+          {isOwned && !isFogged && province.buildings.length > 0 && (
             <>
               <Text style={ps.sectionTitle}>Buildings ({province.buildings.length}/5)</Text>
               {province.buildings.map(building => {
@@ -190,7 +202,7 @@ export default function ProvinceDetailScreen() {
             </>
           )}
 
-          {canBuild && availableBlueprints.length > 0 && (
+          {!isFogged && canBuild && availableBlueprints.length > 0 && (
             <>
               <TouchableOpacity style={ps.buildToggle} onPress={() => setShowBuildMenu(!showBuildMenu)} activeOpacity={0.7}>
                 <Hammer size={16} color={Colors.gold.bright} />
@@ -223,7 +235,7 @@ export default function ProvinceDetailScreen() {
             </>
           )}
 
-          {armiesHere.length > 0 && (
+          {!isFogged && armiesHere.length > 0 && (
             <>
               <Text style={ps.sectionTitle}>Armies Stationed</Text>
               {armiesHere.map(army => {
@@ -248,7 +260,7 @@ export default function ProvinceDetailScreen() {
             </>
           )}
 
-          {isOwned && (
+          {isOwned && !isFogged && (
             <View style={ps.actionSection}>
               <Text style={ps.sectionTitle}>Actions</Text>
               <TouchableOpacity style={ps.recruitBtn} onPress={handleRecruit} activeOpacity={0.7} testID="recruit-army">
@@ -283,7 +295,7 @@ export default function ProvinceDetailScreen() {
             </View>
           )}
 
-          {!isOwned && ownerKingdom && (
+          {!isFogged && !isOwned && ownerKingdom && (
             <View style={ps.foreignInfo}>
               <Text style={ps.foreignLabel}>Controlled by</Text>
               <View style={[ps.foreignCrest, { backgroundColor: ownerKingdom.color + '20' }]}>
@@ -360,6 +372,11 @@ const ps = StyleSheet.create({
   garrisonBtn: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, marginHorizontal: 16, marginTop: 10, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.military.steel + '50', backgroundColor: Colors.military.steel + '15' },
   garrisonBtnDisabled: { opacity: 0.4 },
   garrisonBtnText: { fontSize: 13, fontWeight: "600" as const, color: Colors.military.steel },
+  fogBanner: { flexDirection: "row" as const, alignItems: "center" as const, gap: 12, marginHorizontal: 16, marginTop: 12, padding: 14, borderRadius: 12, backgroundColor: '#0a0c14', borderWidth: 1, borderColor: '#1a1d28' },
+  fogBannerText: { flex: 1, gap: 4 },
+  fogTitle: { fontSize: 14, fontWeight: "700" as const, color: '#4a4d58' },
+  fogDesc: { fontSize: 11, color: '#3a3d48', lineHeight: 16 },
+  foggedNum: { color: '#2a2d38', fontSize: 20 },
   loyaltySection: { marginHorizontal: 16, marginTop: 4, backgroundColor: Colors.bg.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.border.primary },
   loyaltyRow: { flexDirection: "row" as const, gap: 12 },
   loyaltyItem: { flex: 1, gap: 6 },
