@@ -11,7 +11,7 @@ import ResourceBar from "@/components/ResourceBar";
 import MapView from "@/components/MapView";
 import GameToast from "@/components/GameToast";
 import AchievementPopup from "@/components/AchievementPopup";
-import { Province, Achievement } from "@/types/game";
+import { Province, Achievement, TurnSummary } from "@/types/game";
 import { SEASON_EFFECTS } from "@/mocks/gameData";
 
 function SeasonBadge({ season }: { season: string }) {
@@ -43,8 +43,6 @@ function WarBanner({ wars }: { wars: Array<{ name: string; color: string }> }) {
     </Animated.View>
   );
 }
-
-import { TurnSummary } from "@/types/game";
 
 function TurnSummaryModal({ visible, onClose, summary }: {
   visible: boolean;
