@@ -1,17 +1,17 @@
 const VALID_ROUTES: string[] = ["/", "/armies", "/diplomacy", "/events", "/ruler"];
 
 export function redirectSystemPath({
-  path,
-  initial,
+  path: _path,
+  initial: _initial,
 }: {
   path: string;
   initial: boolean;
 }) {
-  if (initial) {
+  if (_initial) {
     return "/";
   }
-  if (VALID_ROUTES.includes(path) || path.startsWith("/province/")) {
-    return path;
+  if (VALID_ROUTES.includes(_path) || _path.startsWith("/province/")) {
+    return _path;
   }
   return "/";
 }
