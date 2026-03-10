@@ -12,6 +12,7 @@ import MapView from "@/components/MapView";
 import GameToast from "@/components/GameToast";
 import AchievementPopup from "@/components/AchievementPopup";
 import ProvinceActionPopup from "@/components/ProvinceActionPopup";
+import RumorCards from "@/components/RumorCards";
 import { Province, Achievement, TurnSummary } from "@/types/game";
 import { SEASON_EFFECTS } from "@/mocks/gameData";
 
@@ -174,7 +175,7 @@ export default function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, visibilityMap } = useGame();
+  const { state, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, visibilityMap, investigateRumor, dismissRumor } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -466,6 +467,15 @@ export default function KingdomScreen() {
             <TouchableOpacity style={idx.achievementAlert} onPress={() => navigateTo("/achievements")} activeOpacity={0.7}>
               <Trophy size={16} color={Colors.gold.bright} /><Text style={idx.achievementAlertText}>{newAchievements.length} achievement{newAchievements.length > 1 ? 's' : ''} unlocked!</Text><ChevronRight size={14} color={Colors.text.dim} />
             </TouchableOpacity>
+          )}
+
+          {state.rumors.length > 0 && (
+            <RumorCards
+              rumors={state.rumors}
+              onInvestigate={investigateRumor}
+              onDismiss={dismissRumor}
+              onSendSpy={() => navigateTo('/espionage')}
+            />
           )}
 
           <Text style={idx.sectionTitle}>Realm Map</Text>

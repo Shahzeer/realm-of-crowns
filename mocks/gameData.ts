@@ -1,4 +1,4 @@
-import { Ruler, Resources, Province, Army, Kingdom, GameEvent, Building, Trait, Technology, Councilor, Heir, BuildingBlueprint, CombatTactic, KingdomChoice, SpyMission, FaithAction, Achievement, AIPersonality, AIPersonalityProfile } from '@/types/game';
+import { Ruler, Resources, Province, Army, Kingdom, GameEvent, Building, Trait, Technology, Councilor, Heir, BuildingBlueprint, CombatTactic, KingdomChoice, SpyMission, FaithAction, Achievement, AIPersonality, AIPersonalityProfile, RumorCategory } from '@/types/game';
 
 export const TRAITS: Trait[] = [
   { id: 'brave', name: 'Brave', icon: '⚔️', effect: '+3 Martial, +10 Army Morale', modifier: { martial: 3 } },
@@ -589,6 +589,66 @@ export const PERSONALITY_LABELS: Record<AIPersonality, { name: string; icon: str
   religious: { name: 'Zealous', icon: '🙏', color: '#d4a574' },
   trade_focused: { name: 'Mercantile', icon: '💰', color: '#e8b94a' },
   espionage_focused: { name: 'Shadowy', icon: '🕵️', color: '#8b5cf6' },
+};
+
+export interface RumorTemplate {
+  description: string;
+  category: RumorCategory;
+  trueChance: number;
+}
+
+export const RUMOR_TEMPLATES: Record<string, RumorTemplate[]> = {
+  war: [
+    { description: '{kingdom} is massing troops near {border}.', category: 'war', trueChance: 0.7 },
+    { description: '{kingdom} generals have been seen studying maps of your lands.', category: 'war', trueChance: 0.5 },
+    { description: 'War banners fly over the camps of {kingdom}.', category: 'war', trueChance: 0.65 },
+    { description: '{kingdom} has recalled all border patrols — something is brewing.', category: 'war', trueChance: 0.6 },
+    { description: 'Mercenaries are flocking to {kingdom}\'s banner in great numbers.', category: 'war', trueChance: 0.55 },
+    { description: '{kingdom} forges are working day and night on new weapons.', category: 'war', trueChance: 0.45 },
+    { description: 'A {kingdom} deserter claims their armies march within the fortnight.', category: 'war', trueChance: 0.4 },
+    { description: '{kingdom} has been stockpiling siege equipment near {border}.', category: 'war', trueChance: 0.6 },
+  ],
+  economy: [
+    { description: 'Whispers say {kingdom}\'s treasury is nearly empty.', category: 'economy', trueChance: 0.5 },
+    { description: '{kingdom}\'s merchants are hoarding grain — a famine may be near.', category: 'economy', trueChance: 0.45 },
+    { description: 'Gold flows freely in {kingdom} — their coffers overflow.', category: 'economy', trueChance: 0.55 },
+    { description: '{kingdom} has imposed new taxes, angering their populace.', category: 'economy', trueChance: 0.6 },
+    { description: 'Trade caravans from {kingdom} have stopped arriving at the border.', category: 'economy', trueChance: 0.5 },
+    { description: '{kingdom} mines have struck a rich new vein of gold.', category: 'economy', trueChance: 0.35 },
+    { description: 'Counterfeit coins bearing {kingdom}\'s seal flood the markets.', category: 'economy', trueChance: 0.4 },
+  ],
+  politics: [
+    { description: 'A conspiracy brews within the {kingdom} court.', category: 'politics', trueChance: 0.55 },
+    { description: '{kingdom}\'s nobles grow restless — succession talk fills the halls.', category: 'politics', trueChance: 0.5 },
+    { description: 'The ruler of {kingdom} has fallen gravely ill.', category: 'politics', trueChance: 0.4 },
+    { description: 'A powerful lord in {kingdom} seeks to defect to your realm.', category: 'politics', trueChance: 0.3 },
+    { description: '{kingdom}\'s council is divided — a rift grows between advisors.', category: 'politics', trueChance: 0.6 },
+    { description: 'Peasant unrest simmers in the provinces of {kingdom}.', category: 'politics', trueChance: 0.55 },
+    { description: '{kingdom}\'s heir has been disinherited in favor of a younger sibling.', category: 'politics', trueChance: 0.35 },
+  ],
+  espionage: [
+    { description: 'Shadowy agents from {kingdom} have been spotted near your borders.', category: 'espionage', trueChance: 0.6 },
+    { description: '{kingdom}\'s spymaster has placed informants in every court.', category: 'espionage', trueChance: 0.5 },
+    { description: 'A double agent offers secrets of {kingdom} for a price.', category: 'espionage', trueChance: 0.45 },
+    { description: '{kingdom} intercepted a message meant for your spymaster.', category: 'espionage', trueChance: 0.4 },
+    { description: 'Mysterious fires in {kingdom}\'s archives — someone is covering tracks.', category: 'espionage', trueChance: 0.5 },
+  ],
+  diplomacy: [
+    { description: '{kingdom} seeks a secret alliance with another power against you.', category: 'diplomacy', trueChance: 0.5 },
+    { description: 'Envoys from {kingdom} have been visiting every capital except yours.', category: 'diplomacy', trueChance: 0.55 },
+    { description: '{kingdom} is open to a marriage pact to strengthen ties.', category: 'diplomacy', trueChance: 0.45 },
+    { description: 'A border treaty between {kingdom} and a neighbor is about to collapse.', category: 'diplomacy', trueChance: 0.5 },
+    { description: '{kingdom} has secretly offered tribute to avoid conflict.', category: 'diplomacy', trueChance: 0.35 },
+    { description: '{kingdom}\'s ruler speaks of eternal peace — but their armies say otherwise.', category: 'diplomacy', trueChance: 0.6 },
+  ],
+};
+
+export const RUMOR_CATEGORY_ICONS: Record<RumorCategory, string> = {
+  war: '⚔️',
+  economy: '💰',
+  politics: '👑',
+  espionage: '🕵️',
+  diplomacy: '🤝',
 };
 
 export const TRADE_TEMPLATES = [

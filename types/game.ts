@@ -253,6 +253,21 @@ export interface EventChoice {
   followUpDelay?: number;
 }
 
+export type RumorCategory = 'war' | 'economy' | 'politics' | 'espionage' | 'diplomacy';
+
+export interface Rumor {
+  id: string;
+  kingdomId: string;
+  kingdomName: string;
+  description: string;
+  category: RumorCategory;
+  accuracy: number;
+  isTrue: boolean;
+  turn: number;
+  investigated: boolean;
+  fromSpy: boolean;
+}
+
 export interface KingdomChoice {
   id: string;
   name: string;
@@ -373,4 +388,5 @@ export interface GameState {
   faithCooldowns: Record<string, number>;
   tutorialSeen: boolean;
   difficulty: 'easy' | 'normal' | 'hard';
+  rumors: Rumor[];
 }

@@ -25,6 +25,8 @@ import {
   Achievement,
   AIPersonality,
   KingdomIntel,
+  Rumor,
+  RumorCategory,
 } from '@/types/game';
 import {
   INITIAL_RULER,
@@ -88,6 +90,7 @@ const defaultState: GameState = {
   faithCooldowns: {},
   tutorialSeen: false,
   difficulty: 'normal',
+  rumors: [],
 };
 
 function getTacticModifiers(tacticId: string): CombatTactic {
@@ -229,6 +232,60 @@ function getPersonalityBuildingPool(profile: ReturnType<typeof getPersonalityPro
     default:
       return pool;
   }
+}
+
+function generateRumors(kingdoms: Kingdom[], provinces: Province[], turn: number, hasActiveSpy: boolean, spyTargetId?: string): Rumor[] {
+  const rumors: Rumor[] = [];
+  const categories: Array<keyof typeof RUMOR_TEMPLATES> = ['war', 'economy', 'politics', 'espionage', 'diplomacy'];
+  const rumorCount = 1 + Math.floor(Math.random() * 3);
+
+  for (let i = 0; i < rumorCount; i++) {
+    const targetKingdom = kingdoms[Math.floor(Math.random() * kingdoms.length)];
+    if (!targetKingdom) continue;
+
+    const category = categories[Math.floor(Math.random() * categories.length)];
+    const templates = RUMOR_TEMPLATES[category];
+    if (!templates || templates.length === 0) continue;
+
+    const template = templates[Math.floor(Math.random() * templates.length)];
+    const borderProvinces = provinces.filter(p =>
+      p.owner === 'player' &&
+      p.connectedTo.some(c => provinces.find(cp => cp.id === c)?.owner === targetKingdom.id)
+    );
+    const borderName = borderProvinces.length > 0
+      ? borderProvinces[Math.floor(Math.random() * borderProvinces.length)].name
+      : 'the frontier';
+
+    const description = template.description
+      .replace(/{kingdom}/g, targetKingdom.name)
+      .replace(/{border}/g, borderName);
+
+    let baseAccuracy = template.trueChance;
+    const isSpyTarget = spyTargetId === targetKingdom.id;
+    if (hasActiveSpy && isSpyTarget) {
+      baseAccuracy = Math.min(0.95, baseAccuracy + 0.25);
+    }
+
+    const isTrue = Math.random() < baseAccuracy;
+    const displayAccuracy = hasActiveSpy && isSpyTarget
+      ? Math.floor(60 + Math.random() * 35)
+      : Math.floor(20 + Math.random() * 50);
+
+    rumors.push({
+      id: `rumor_${turn}_${i}_${Date.now()}`,
+      kingdomId: targetKingdom.id,
+      kingdomName: targetKingdom.name,
+      description,
+      category: template.category,
+      accuracy: displayAccuracy,
+      isTrue,
+      turn,
+      investigated: false,
+      fromSpy: hasActiveSpy && isSpyTarget,
+    });
+  }
+
+  return rumors;
 }
 
 function generateIntelRumor(kingdom: Kingdom, turn: number): string | null {
@@ -695,6 +752,7 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
     faithCooldowns: {},
     tutorialSeen: false,
     difficulty,
+    rumors: [],
   };
 }
 
@@ -723,6 +781,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       faithCooldowns: loaded.faithCooldowns ?? {},
       tutorialSeen: loaded.tutorialSeen ?? false,
       difficulty: loaded.difficulty ?? 'normal',
+      rumors: loaded.rumors ?? [],
     };
   }
 
@@ -987,6 +1046,42 @@ export const [GameProvider, useGame] = createContextHook(() => {
   const dismissTutorial = useCallback(() => {
     setState(prev => {
       const newState = { ...prev, tutorialSeen: true };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
+  const investigateRumor = useCallback((rumorId: string) => {
+    setState(prev => {
+      if (prev.activeSpyMission) return prev;
+      const rumor = prev.rumors.find(r => r.id === rumorId);
+      if (!rumor || rumor.investigated) return prev;
+      const cost = 50;
+      if (prev.resources.gold < cost) return prev;
+      const spymaster = prev.council.find(c => c.role === 'spymaster');
+      const intrigueBonus = Math.max(0, (prev.ruler.intrigue - 10) + ((spymaster?.skill ?? 0) - 10));
+      const newAccuracy = Math.min(95, rumor.accuracy + 20 + Math.floor(intrigueBonus / 2));
+      const updatedRumors = prev.rumors.map(r =>
+        r.id === rumorId ? { ...r, investigated: true, accuracy: newAccuracy } : r
+      );
+      const logMsg = `🔍 Investigated rumor about ${rumor.kingdomName} — reliability now ${newAccuracy}%`;
+      const newState: GameState = {
+        ...prev,
+        rumors: updatedRumors,
+        resources: { ...prev.resources, gold: prev.resources.gold - cost },
+        log: [logMsg, ...prev.log].slice(0, 50),
+      };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
+  const dismissRumor = useCallback((rumorId: string) => {
+    setState(prev => {
+      const newState: GameState = {
+        ...prev,
+        rumors: prev.rumors.filter(r => r.id !== rumorId),
+      };
       saveMutation.mutate(newState);
       return newState;
     });
@@ -1483,6 +1578,13 @@ export const [GameProvider, useGame] = createContextHook(() => {
       };
       newAchievements = checkAchievements(tempState);
 
+      const newRumors = generateRumors(
+        newKingdoms, newProvinces, nextTurn,
+        !!prev.activeSpyMission,
+        prev.activeSpyMission?.targetId
+      );
+      const allRumors = [...newRumors, ...prev.rumors].slice(0, 15);
+
       const newState = {
         ...prev,
         turn: nextTurn, year: nextYear, season: nextSeason,
@@ -1496,6 +1598,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         lastTurnSummary: summary,
         faithCooldowns: newFaithCooldowns,
         pendingChainEvents: remainingChains,
+        rumors: allRumors,
       } as GameState;
       saveMutation.mutate(newState);
       return newState;
@@ -1946,7 +2049,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     winProbability, startSpyMission, proposeTrade, useFaithAction,
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
     arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
-    visibilityMap,
+    visibilityMap, investigateRumor, dismissRumor,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -1956,6 +2059,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     winProbability, startSpyMission, proposeTrade, useFaithAction,
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
     arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
-    visibilityMap,
+    visibilityMap, investigateRumor, dismissRumor,
   ]);
 });
