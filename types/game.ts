@@ -211,10 +211,13 @@ export interface GameEvent {
   id: string;
   title: string;
   description: string;
-  type: 'political' | 'military' | 'religious' | 'economic' | 'personal';
+  type: 'political' | 'military' | 'religious' | 'economic' | 'personal' | 'dynasty';
   choices: EventChoice[];
   turn: number;
   seen: boolean;
+  chainId?: string;
+  chainStep?: number;
+  isChainEvent?: boolean;
 }
 
 export interface EventChoice {
@@ -223,6 +226,8 @@ export interface EventChoice {
   effects: string;
   cost?: Partial<Resources>;
   reward?: Partial<Resources>;
+  followUpEventId?: string;
+  followUpDelay?: number;
 }
 
 export interface KingdomChoice {

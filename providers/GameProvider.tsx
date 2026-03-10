@@ -49,6 +49,12 @@ import {
   INITIAL_ACHIEVEMENTS,
   MARRIAGE_CANDIDATES,
 } from '@/mocks/gameData';
+import { getStandaloneNarrativeEvents, getFollowUpEvent } from '@/mocks/narrativeEvents';
+
+interface PendingChainEvent {
+  eventId: string;
+  triggerTurn: number;
+}
 
 const STORAGE_KEY = 'realm_of_crowns_save';
 const CLOUD_SAVE_DEBOUNCE_MS = 2000;
@@ -1185,10 +1191,31 @@ export const [GameProvider, useGame] = createContextHook(() => {
       });
 
       let newEvents = [...prev.events, ...aiResult.newEvents.map(e => ({ ...e, turn: nextTurn })), ...revoltEvents];
+
+      const pendingChains: PendingChainEvent[] = (prev as GameState & { pendingChainEvents?: PendingChainEvent[] }).pendingChainEvents ?? [];
+      const triggeredChains = pendingChains.filter(pc => pc.triggerTurn <= nextTurn);
+      const remainingChains = pendingChains.filter(pc => pc.triggerTurn > nextTurn);
+      triggeredChains.forEach(pc => {
+        const followUp = getFollowUpEvent(pc.eventId);
+        if (followUp) {
+          const chainEvt: GameEvent = {
+            ...followUp,
+            id: `${followUp.id}_${nextTurn}`,
+            turn: nextTurn,
+            seen: false,
+          };
+          newEvents.push(chainEvt);
+          summary.eventsTriggered.push(followUp.title);
+          console.log(`[Game] Chain event triggered: ${followUp.title}`);
+        }
+      });
+
       if (Math.random() > 0.4) {
-        const pool = RANDOM_EVENTS.filter(e => !prev.events.some(ex => ex.id === e.id));
-        if (pool.length > 0) {
-          const picked = pool[Math.floor(Math.random() * pool.length)];
+        const classicPool = RANDOM_EVENTS.filter(e => !prev.events.some(ex => ex.id === e.id));
+        const narrativePool = getStandaloneNarrativeEvents().filter(e => !prev.events.some(ex => ex.id.startsWith(e.id)));
+        const combinedPool = [...classicPool, ...narrativePool];
+        if (combinedPool.length > 0) {
+          const picked = combinedPool[Math.floor(Math.random() * combinedPool.length)];
           newEvents.push({ ...picked, id: `${picked.id}_${nextTurn}`, turn: nextTurn, seen: false });
           summary.eventsTriggered.push(picked.title);
         }
@@ -1364,7 +1391,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       };
       newAchievements = checkAchievements(tempState);
 
-      const newState: GameState = {
+      const newState = {
         ...prev,
         turn: nextTurn, year: nextYear, season: nextSeason,
         ruler: newRuler, heir: newHeir,
@@ -1376,7 +1403,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
         achievements: newAchievements,
         lastTurnSummary: summary,
         faithCooldowns: newFaithCooldowns,
-      };
+        pendingChainEvents: remainingChains,
+      } as GameState;
       saveMutation.mutate(newState);
       return newState;
     });
@@ -1400,10 +1428,22 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const newEvents = prev.events.map(e => e.id === eventId ? { ...e, seen: true } : e);
       const evt = prev.events.find(e => e.id === eventId);
       const logEntry = `Event: ${evt?.title ?? 'Unknown'} — chose "${choice.text}"`;
-      const newState: GameState = {
+
+      const prevExtended = prev as GameState & { pendingChainEvents?: PendingChainEvent[] };
+      let pendingChains: PendingChainEvent[] = [...(prevExtended.pendingChainEvents ?? [])];
+      if (choice.followUpEventId && choice.followUpDelay) {
+        pendingChains.push({
+          eventId: choice.followUpEventId,
+          triggerTurn: prev.turn + choice.followUpDelay,
+        });
+        console.log(`[Game] Scheduled chain event: ${choice.followUpEventId} in ${choice.followUpDelay} turns`);
+      }
+
+      const newState = {
         ...prev, resources: newResources, events: newEvents,
         log: [logEntry, ...prev.log].slice(0, 50),
-      };
+        pendingChainEvents: pendingChains,
+      } as GameState;
       saveMutation.mutate(newState);
       return newState;
     });
