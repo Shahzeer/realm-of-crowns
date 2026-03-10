@@ -1,7 +1,8 @@
-import React, { useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
+import { getDeviceId, loadCloudSave, saveToCloud, deleteCloudSave } from '@/utils/supabase';
 import {
   GameState,
   Resources,
@@ -48,6 +49,7 @@ import {
 } from '@/mocks/gameData';
 
 const STORAGE_KEY = 'realm_of_crowns_save';
+const CLOUD_SAVE_DEBOUNCE_MS = 2000;
 
 const defaultState: GameState = {
   turn: 1,
@@ -599,43 +601,98 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
 export const [GameProvider, useGame] = createContextHook(() => {
   const [state, setState] = React.useState<GameState>(defaultState);
   const [isLoaded, setIsLoaded] = React.useState(false);
+  const [cloudStatus, setCloudStatus] = React.useState<'idle' | 'syncing' | 'synced' | 'offline'>('idle');
+  const deviceIdRef = useRef<string | null>(null);
+  const cloudSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSaveRef = useRef<GameState | null>(null);
+
+  function mergeLoadedState(loaded: Partial<GameState>): GameState {
+    return {
+      ...defaultState,
+      ...loaded,
+      technologies: loaded.technologies ?? INITIAL_TECHNOLOGIES,
+      council: loaded.council ?? INITIAL_COUNCIL,
+      battles: loaded.battles ?? [],
+      heir: loaded.heir ?? INITIAL_HEIR,
+      gameOver: loaded.gameOver ?? false,
+      victory: loaded.victory ?? false,
+      gameStarted: loaded.gameStarted ?? false,
+      activeTactic: loaded.activeTactic ?? 'balanced',
+      activeTrades: loaded.activeTrades ?? [],
+      achievements: loaded.achievements ?? INITIAL_ACHIEVEMENTS,
+      faithCooldowns: loaded.faithCooldowns ?? {},
+      tutorialSeen: loaded.tutorialSeen ?? false,
+      difficulty: loaded.difficulty ?? 'normal',
+    };
+  }
 
   const loadQuery = useQuery({
     queryKey: ['game-save'],
     queryFn: async () => {
-      const saved = await AsyncStorage.getItem(STORAGE_KEY);
-      if (saved) return JSON.parse(saved) as GameState;
+      const devId = await getDeviceId();
+      deviceIdRef.current = devId;
+      console.log('[Game] Device ID:', devId);
+
+      let cloudState: Record<string, unknown> | null = null;
+      try {
+        cloudState = await loadCloudSave(devId);
+        if (cloudState) {
+          console.log('[Game] Found cloud save, turn:', (cloudState as { turn?: number }).turn);
+          setCloudStatus('synced');
+        }
+      } catch (e) {
+        console.warn('[Game] Cloud load failed, falling back to local:', e);
+        setCloudStatus('offline');
+      }
+
+      let localState: GameState | null = null;
+      try {
+        const saved = await AsyncStorage.getItem(STORAGE_KEY);
+        if (saved) localState = JSON.parse(saved) as GameState;
+      } catch (e) {
+        console.warn('[Game] Local load failed:', e);
+      }
+
+      if (cloudState && localState) {
+        const cloudTurn = (cloudState as { turn?: number }).turn ?? 0;
+        const localTurn = localState.turn ?? 0;
+        console.log(`[Game] Cloud turn: ${cloudTurn}, Local turn: ${localTurn}`);
+        return cloudTurn >= localTurn ? (cloudState as unknown as GameState) : localState;
+      }
+
+      if (cloudState) return cloudState as unknown as GameState;
+      if (localState) return localState;
       return null;
     },
   });
 
+  const debouncedCloudSave = useCallback((gameState: GameState) => {
+    pendingSaveRef.current = gameState;
+    if (cloudSaveTimerRef.current) clearTimeout(cloudSaveTimerRef.current);
+    cloudSaveTimerRef.current = setTimeout(async () => {
+      const toSave = pendingSaveRef.current;
+      if (!toSave || !deviceIdRef.current) return;
+      pendingSaveRef.current = null;
+      setCloudStatus('syncing');
+      const ok = await saveToCloud(deviceIdRef.current, toSave as unknown as Record<string, unknown>);
+      setCloudStatus(ok ? 'synced' : 'offline');
+      if (!ok) {
+        console.warn('[Game] Cloud save failed, will retry on next save');
+      }
+    }, CLOUD_SAVE_DEBOUNCE_MS);
+  }, []);
+
   const saveMutation = useMutation({
     mutationFn: async (gameState: GameState) => {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
+      debouncedCloudSave(gameState);
     },
   });
 
   useEffect(() => {
     if (loadQuery.data && !isLoaded) {
-      console.log('[Game] Loaded save from storage');
-      const loaded = loadQuery.data;
-      const merged: GameState = {
-        ...defaultState,
-        ...loaded,
-        technologies: loaded.technologies ?? INITIAL_TECHNOLOGIES,
-        council: loaded.council ?? INITIAL_COUNCIL,
-        battles: loaded.battles ?? [],
-        heir: loaded.heir ?? INITIAL_HEIR,
-        gameOver: loaded.gameOver ?? false,
-        victory: loaded.victory ?? false,
-        gameStarted: loaded.gameStarted ?? false,
-        activeTactic: loaded.activeTactic ?? 'balanced',
-        activeTrades: loaded.activeTrades ?? [],
-        achievements: loaded.achievements ?? INITIAL_ACHIEVEMENTS,
-        faithCooldowns: loaded.faithCooldowns ?? {},
-        tutorialSeen: loaded.tutorialSeen ?? false,
-        difficulty: loaded.difficulty ?? 'normal',
-      };
+      console.log('[Game] Loaded save');
+      const merged = mergeLoadedState(loadQuery.data);
       setState(merged);
       setIsLoaded(true);
     } else if (loadQuery.isSuccess && !loadQuery.data && !isLoaded) {
@@ -1655,8 +1712,19 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
   const resetGame = useCallback(async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
+    if (deviceIdRef.current) {
+      await deleteCloudSave(deviceIdRef.current);
+    }
     setState({ ...defaultState, gameStarted: false });
   }, []);
+
+  const forceCloudSync = useCallback(async () => {
+    if (!deviceIdRef.current) return false;
+    setCloudStatus('syncing');
+    const ok = await saveToCloud(deviceIdRef.current, state as unknown as Record<string, unknown>);
+    setCloudStatus(ok ? 'synced' : 'offline');
+    return ok;
+  }, [state]);
 
   const unseenEvents = useMemo(() => state.events.filter(e => !e.seen), [state.events]);
   const playerProvinces = useMemo(() => state.provinces.filter(p => p.owner === 'player'), [state.provinces]);
@@ -1681,7 +1749,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     selectKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
-    arrangeMarriage,
+    arrangeMarriage, cloudStatus, forceCloudSync,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -1690,6 +1758,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     selectKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
-    arrangeMarriage,
+    arrangeMarriage, cloudStatus, forceCloudSync,
   ]);
 });

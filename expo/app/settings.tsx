@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, Settings, RotateCcw, Crown, Shield, Swords, BookOpen, MapPin, Calendar, Flame } from "lucide-react-native";
+import { X, Settings, RotateCcw, Crown, Shield, Swords, BookOpen, MapPin, Calendar, Flame, Cloud, CloudOff, RefreshCw } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 
@@ -38,7 +38,7 @@ export default function SettingsScreen() {
   console.log("[RealmOfCrowns] Settings render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, resetGame, playerProvinces } = useGame();
+  const { state, resetGame, playerProvinces, cloudStatus, forceCloudSync } = useGame();
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -112,6 +112,37 @@ export default function SettingsScreen() {
                 <Text style={[st.infoValue, { color: diff.color }]}>{diff.label}</Text>
                 <Text style={st.infoLabel}>Difficulty</Text>
               </View>
+            </View>
+          </View>
+
+          <View style={st.cloudCard}>
+            <View style={st.cloudRow}>
+              {cloudStatus === 'synced' ? (
+                <Cloud size={18} color={Colors.status.success} />
+              ) : cloudStatus === 'syncing' ? (
+                <RefreshCw size={18} color={Colors.status.warning} />
+              ) : (
+                <CloudOff size={18} color={Colors.text.dim} />
+              )}
+              <View style={st.cloudInfo}>
+                <Text style={st.cloudTitle}>Cloud Save</Text>
+                <Text style={[st.cloudStatusText, {
+                  color: cloudStatus === 'synced' ? Colors.status.success
+                    : cloudStatus === 'syncing' ? Colors.status.warning
+                    : Colors.text.dim
+                }]}>
+                  {cloudStatus === 'synced' ? 'Synced' : cloudStatus === 'syncing' ? 'Syncing...' : cloudStatus === 'offline' ? 'Offline' : 'Idle'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => { void forceCloudSync(); }}
+                style={st.syncBtn}
+                activeOpacity={0.7}
+                testID="force-sync-btn"
+              >
+                <RefreshCw size={14} color={Colors.gold.bright} />
+                <Text style={st.syncBtnText}>Sync Now</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -215,4 +246,11 @@ const st = StyleSheet.create({
   dangerZone: { marginHorizontal: 16, marginTop: 30 },
   newGameBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: Colors.crimson.bright + '50', backgroundColor: Colors.crimson.bright + '10' },
   newGameText: { fontSize: 15, fontWeight: "700" as const, color: Colors.crimson.bright },
+  cloudCard: { marginHorizontal: 16, marginTop: 16, backgroundColor: Colors.bg.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.border.primary },
+  cloudRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 12 },
+  cloudInfo: { flex: 1, gap: 2 },
+  cloudTitle: { fontSize: 14, fontWeight: "700" as const, color: Colors.text.primary },
+  cloudStatusText: { fontSize: 11, fontWeight: "600" as const },
+  syncBtn: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: Colors.gold.dim + '20', borderWidth: 1, borderColor: Colors.gold.dim + '40' },
+  syncBtnText: { fontSize: 11, fontWeight: "700" as const, color: Colors.gold.bright },
 });
