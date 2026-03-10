@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Modal } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Modal, Alert } from "react-native";
 import { useRouter, Redirect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -11,6 +11,7 @@ import ResourceBar from "@/components/ResourceBar";
 import MapView from "@/components/MapView";
 import GameToast from "@/components/GameToast";
 import AchievementPopup from "@/components/AchievementPopup";
+import ProvinceActionPopup from "@/components/ProvinceActionPopup";
 import { Province, Achievement, TurnSummary } from "@/types/game";
 import { SEASON_EFFECTS } from "@/mocks/gameData";
 
@@ -173,7 +174,7 @@ export default function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements } = useGame();
+  const { state, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -183,6 +184,7 @@ export default function KingdomScreen() {
   const [toast, setToast] = React.useState<{ visible: boolean; message: string; type: 'success' | 'warning' | 'danger' | 'info' }>({ visible: false, message: '', type: 'info' });
   const [showEndTurnConfirm, setShowEndTurnConfirm] = React.useState(false);
   const [pendingAchievements, setPendingAchievements] = React.useState<Achievement[]>([]);
+  const [selectedProvince, setSelectedProvince] = React.useState<Province | null>(null);
   const prevTurn = useRef(state.turn);
 
   useEffect(() => {
@@ -242,8 +244,69 @@ export default function KingdomScreen() {
 
   const handleProvincePress = useCallback((province: Province) => {
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
-    router.push(`/province/${province.id}`);
-  }, [router]);
+    setSelectedProvince(province);
+  }, []);
+
+  const handlePopupAction = useCallback((action: string, province: Province) => {
+    console.log('[RealmOfCrowns] Popup action:', action, province.id);
+    setSelectedProvince(null);
+    switch (action) {
+      case 'details':
+      case 'info':
+        router.push(`/province/${province.id}`);
+        break;
+      case 'build':
+        router.push(`/province/${province.id}`);
+        break;
+      case 'recruit': {
+        const troops = 200;
+        const cost = troops * 2;
+        if (state.resources.gold < cost) {
+          Alert.alert('Insufficient Gold', `Need ${cost} gold to recruit.`);
+          return;
+        }
+        if (state.resources.military < troops) {
+          Alert.alert('Insufficient Military', `Need ${troops} military points.`);
+          return;
+        }
+        if (Platform.OS !== 'web') { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }
+        recruitArmy(province.id, troops);
+        setToast({ visible: true, message: `Army recruited at ${province.name}!`, type: 'success' });
+        break;
+      }
+      case 'reinforce': {
+        const amount = 100;
+        if (state.resources.gold < amount || state.resources.military < amount) {
+          Alert.alert('Insufficient Resources', `Need ${amount} gold and ${amount} military.`);
+          return;
+        }
+        if (Platform.OS !== 'web') { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
+        reinforceGarrison(province.id, amount);
+        setToast({ visible: true, message: `+${amount} garrison at ${province.name}`, type: 'success' });
+        break;
+      }
+      case 'attack':
+        router.push('/armies' as any);
+        break;
+      case 'spy':
+        router.push('/espionage' as any);
+        break;
+      case 'diplomacy': {
+        const kingdom = state.kingdoms.find(k => k.id === province.owner);
+        if (kingdom) {
+          router.push('/diplomacy' as any);
+        }
+        break;
+      }
+      case 'trade':
+        router.push('/trade' as any);
+        break;
+    }
+  }, [router, state.resources, state.kingdoms, recruitArmy, reinforceGarrison]);
+
+  const handlePopupClose = useCallback(() => {
+    setSelectedProvince(null);
+  }, []);
 
   const navigateTo = useCallback((path: string) => {
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
@@ -452,7 +515,12 @@ export default function KingdomScreen() {
           )}
 
           <Text style={idx.sectionTitle}>Realm Map</Text>
-          <MapView provinces={state.provinces} armies={state.armies} onProvincePress={handleProvincePress} />
+          <MapView
+            provinces={state.provinces}
+            armies={state.armies}
+            onProvincePress={handleProvincePress}
+            selectedProvinceId={selectedProvince?.id ?? null}
+          />
 
           <Text style={idx.sectionTitle}>Command</Text>
           <View style={idx.commandGrid}>
@@ -541,6 +609,14 @@ export default function KingdomScreen() {
           </View>
         </Animated.View>
       </ScrollView>
+
+      <ProvinceActionPopup
+        province={selectedProvince}
+        armies={state.armies}
+        kingdoms={state.kingdoms}
+        onAction={handlePopupAction}
+        onClose={handlePopupClose}
+      />
 
       <View style={[idx.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <TouchableOpacity style={idx.endTurnButton} onPress={handleAdvanceTurn} activeOpacity={0.8} testID="advance-turn-button" disabled={state.gameOver || state.victory}>

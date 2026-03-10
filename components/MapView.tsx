@@ -8,10 +8,13 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const MAP_WIDTH = Math.max(SCREEN_WIDTH - 40, 340);
 const MAP_HEIGHT = 520;
 
+export { MAP_WIDTH, MAP_HEIGHT, OWNER_COLORS, OWNER_LABELS };
+
 interface MapViewProps {
   provinces: Province[];
   armies: Army[];
   onProvincePress: (province: Province) => void;
+  selectedProvinceId?: string | null;
 }
 
 const OWNER_COLORS: Record<string, string> = {
@@ -34,6 +37,48 @@ const OWNER_LABELS: Record<string, string> = {
   emeraldleague: 'Emerald League',
 };
 
+function TerritoryGlow({ provinces }: { provinces: Province[] }) {
+  const ownerGroups = useMemo(() => {
+    const groups: Record<string, Province[]> = {};
+    provinces.forEach(p => {
+      if (!groups[p.owner]) groups[p.owner] = [];
+      groups[p.owner].push(p);
+    });
+    return groups;
+  }, [provinces]);
+
+  return (
+    <>
+      {Object.entries(ownerGroups).map(([owner, ownerProvinces]) => {
+        const color = OWNER_COLORS[owner] || '#555';
+        return ownerProvinces.map(p => {
+          const cx = p.x * (MAP_WIDTH - 20);
+          const cy = p.y * MAP_HEIGHT;
+          const isCapital = p.type === 'capital';
+          const radius = isCapital ? 42 : 34;
+          return (
+            <View
+              key={`glow-${p.id}`}
+              style={[
+                styles.territoryGlow,
+                {
+                  left: cx - radius,
+                  top: cy - radius,
+                  width: radius * 2,
+                  height: radius * 2,
+                  borderRadius: radius,
+                  backgroundColor: color + '14',
+                  borderColor: color + '25',
+                },
+              ]}
+            />
+          );
+        });
+      })}
+    </>
+  );
+}
+
 function ConnectionLine({ from, to }: { from: Province; to: Province }) {
   const x1 = from.x * (MAP_WIDTH - 20);
   const y1 = from.y * MAP_HEIGHT;
@@ -43,7 +88,9 @@ function ConnectionLine({ from, to }: { from: Province; to: Province }) {
   const length = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
   const angle = Math.atan2(y2 - y1, x2 - x1) * (180 / Math.PI);
 
+  const sameOwner = from.owner === to.owner && from.owner !== '';
   const isWarZone = from.owner !== to.owner && from.owner !== '' && to.owner !== '';
+  const ownerColor = sameOwner ? (OWNER_COLORS[from.owner] || Colors.border.primary) : null;
 
   return (
     <View
@@ -54,8 +101,12 @@ function ConnectionLine({ from, to }: { from: Province; to: Province }) {
           left: x1,
           top: y1,
           transform: [{ rotate: `${angle}deg` }],
-          backgroundColor: isWarZone ? Colors.crimson.bright + '40' : Colors.border.primary + '60',
-          height: isWarZone ? 2 : 1,
+          backgroundColor: isWarZone
+            ? Colors.crimson.bright + '40'
+            : sameOwner
+              ? ownerColor + '50'
+              : Colors.border.primary + '40',
+          height: isWarZone ? 2 : sameOwner ? 1.5 : 1,
         },
       ]}
     />
@@ -95,16 +146,77 @@ function MarchingIndicator({ from, to, armyName }: { from: Province; to: Provinc
   );
 }
 
-function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _totalTroops }: {
+function SiegeProgressBar({ province }: { province: Province }) {
+  const cx = province.x * (MAP_WIDTH - 20);
+  const cy = province.y * MAP_HEIGHT;
+  const isCapital = province.type === 'capital';
+  const barWidth = 40;
+  const progress = province.siegeProgress ?? 0;
+
+  const pulseAnim = useRef(new Animated.Value(0.7)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.7, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        styles.siegeProgressContainer,
+        {
+          left: cx - barWidth / 2,
+          top: cy + nodeOffset,
+          width: barWidth,
+          opacity: pulseAnim,
+        },
+      ]}
+    >
+      <View style={styles.siegeProgressBg}>
+        <View style={[styles.siegeProgressFill, { width: `${progress}%` }]} />
+      </View>
+      <Text style={styles.siegeProgressText}>{progress}%</Text>
+    </Animated.View>
+  );
+}
+
+function TroopCountLabel({ province, troops }: { province: Province; troops: number }) {
+  const cx = province.x * (MAP_WIDTH - 20);
+  const cy = province.y * MAP_HEIGHT;
+  const isCapital = province.type === 'capital';
+  const nodeOffset = isCapital ? 34 : 28;
+
+  return (
+    <View
+      style={[
+        styles.troopCountContainer,
+        {
+          left: cx + (isCapital ? 24 : 18),
+          top: cy - 8,
+        },
+      ]}
+    >
+      <Text style={styles.troopCountIcon}>⚔️</Text>
+      <Text style={styles.troopCountText}>{troops >= 1000 ? `${(troops / 1000).toFixed(1)}k` : troops}</Text>
+    </View>
+  );
+}
+
+function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _totalTroops, isSelected }: {
   province: Province;
   onPress: () => void;
   index: number;
   armyCount: number;
   isUnderSiege: boolean;
   _totalTroops: number;
+  isSelected: boolean;
 }) {
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const siegePulse = useRef(new Animated.Value(1)).current;
+  const selectGlow = useRef(new Animated.Value(0)).current;
   const isPlayer = province.owner === 'player';
 
   useEffect(() => {
@@ -128,6 +240,14 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
     }
   }, [isUnderSiege]);
 
+  useEffect(() => {
+    Animated.timing(selectGlow, {
+      toValue: isSelected ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [isSelected]);
+
   const borderColor = OWNER_COLORS[province.owner] || '#666';
   const bgColor = (OWNER_COLORS[province.owner] || '#444') + '33';
   const isCapital = province.type === 'capital';
@@ -143,16 +263,30 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
         },
       ]}
     >
+      {isSelected && (
+        <Animated.View
+          style={[
+            styles.selectedRing,
+            {
+              width: isCapital ? 68 : 56,
+              height: isCapital ? 68 : 56,
+              borderRadius: isCapital ? 34 : 28,
+              borderColor: Colors.gold.bright,
+              opacity: selectGlow,
+            },
+          ]}
+        />
+      )}
       <TouchableOpacity
         style={[
           styles.provinceNode,
           {
-            backgroundColor: bgColor,
-            borderColor: isUnderSiege ? '#ff4444' : borderColor,
+            backgroundColor: isSelected ? (OWNER_COLORS[province.owner] || '#444') + '55' : bgColor,
+            borderColor: isSelected ? Colors.gold.bright : isUnderSiege ? '#ff4444' : borderColor,
             width: isCapital ? 60 : 48,
             height: isCapital ? 60 : 48,
             borderRadius: isCapital ? 30 : 24,
-            borderWidth: isCapital ? 3 : 2,
+            borderWidth: isSelected ? 3 : isCapital ? 3 : 2,
           },
         ]}
         onPress={onPress}
@@ -171,7 +305,7 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
         >
           {province.name}
         </Text>
-        {isPlayer && (
+        {isPlayer && !isSelected && (
           <View style={[styles.ownerDot, { backgroundColor: Colors.gold.primary }]} />
         )}
         {armyCount > 0 && (
@@ -196,7 +330,7 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
   );
 }
 
-export default React.memo(function MapView({ provinces, armies, onProvincePress }: MapViewProps) {
+export default React.memo(function MapView({ provinces, armies, onProvincePress, selectedProvinceId }: MapViewProps) {
   const connections = useMemo(() => {
     const result: Array<{ from: Province; to: Province; key: string }> = [];
     const drawn = new Set<string>();
@@ -232,6 +366,14 @@ export default React.memo(function MapView({ provinces, armies, onProvincePress 
     return counts;
   }, [armies]);
 
+  const siegeProvinces = useMemo(() => {
+    return provinces.filter(p => p.underSiege === true);
+  }, [provinces]);
+
+  const provincesWithTroops = useMemo(() => {
+    return provinces.filter(p => (troopCounts[p.id] || 0) > 0);
+  }, [provinces, troopCounts]);
+
   const legendOwners = useMemo(() => {
     const owners = new Set<string>();
     provinces.forEach(p => owners.add(p.owner));
@@ -242,6 +384,7 @@ export default React.memo(function MapView({ provinces, armies, onProvincePress 
     <View style={styles.mapContainer}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         <View style={styles.mapBg}>
+          <TerritoryGlow provinces={provinces} />
           {connections.map(c => (
             <ConnectionLine key={c.key} from={c.from} to={c.to} />
           ))}
@@ -254,7 +397,18 @@ export default React.memo(function MapView({ provinces, armies, onProvincePress 
               armyCount={armyCounts[province.id] || 0}
               isUnderSiege={province.underSiege === true}
               _totalTroops={troopCounts[province.id] || 0}
+              isSelected={selectedProvinceId === province.id}
             />
+          ))}
+          {provincesWithTroops.map(p => (
+            <TroopCountLabel
+              key={`troops-${p.id}`}
+              province={p}
+              troops={troopCounts[p.id] || 0}
+            />
+          ))}
+          {siegeProvinces.map(p => (
+            <SiegeProgressBar key={`siege-${p.id}`} province={p} />
           ))}
           {armies.filter(a => a.status === 'marching' && a.destination).map(army => {
             const fromProv = provinces.find(p => p.id === army.location);
@@ -292,6 +446,10 @@ const styles = StyleSheet.create({
     padding: 10,
     position: 'relative',
   },
+  territoryGlow: {
+    position: 'absolute',
+    borderWidth: 1,
+  },
   connection: {
     position: 'absolute',
     height: 1,
@@ -302,6 +460,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  selectedRing: {
+    position: 'absolute',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    alignSelf: 'center',
   },
   provinceNode: {
     alignItems: 'center',
@@ -368,6 +532,52 @@ const styles = StyleSheet.create({
   siegeIndicatorText: {
     fontSize: 10,
   },
+  siegeProgressContainer: {
+    position: 'absolute',
+    alignItems: 'center',
+    gap: 1,
+    zIndex: 50,
+  },
+  siegeProgressBg: {
+    height: 3,
+    width: '100%',
+    borderRadius: 2,
+    backgroundColor: '#1a0505',
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: '#ff000040',
+  },
+  siegeProgressFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: '#ff4444',
+  },
+  siegeProgressText: {
+    fontSize: 7,
+    fontWeight: '800' as const,
+    color: '#ff6666',
+  },
+  troopCountContainer: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: Colors.bg.primary + 'cc',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    borderWidth: 0.5,
+    borderColor: Colors.border.primary,
+    zIndex: 40,
+  },
+  troopCountIcon: {
+    fontSize: 7,
+  },
+  troopCountText: {
+    fontSize: 8,
+    fontWeight: '800' as const,
+    color: Colors.text.primary,
+  },
   legendRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -403,6 +613,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: Colors.status.warning + '60',
+    zIndex: 60,
   },
   marchIcon: {
     fontSize: 10,
