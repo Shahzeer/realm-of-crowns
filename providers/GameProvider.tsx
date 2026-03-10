@@ -1573,7 +1573,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         turn: prev.turn + 1, year: prev.year, season: prev.season,
         goldGained: 0, foodGained: 0, militaryGained: 0, faithGained: 0,
         provincesConquered: [], provincesLost: [], battlesWon: 0, battlesLost: 0,
-        eventsTriggered: [], aiActions: [], revolts: [], tradeIncome: 0, spyResults: [],
+        eventsTriggered: [], aiActions: [], revolts: [], tradeIncome: 0, spyResults: [], rumorsHeard: [],
       };
 
       const seasonIndex = SEASONS.indexOf(prev.season);
@@ -2145,6 +2145,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         ? newRumors.map(r => ({ ...r, accuracy: Math.min(100, r.accuracy + 20) }))
         : newRumors;
       const allRumors = [...boostedRumors, ...prev.rumors].slice(0, 15);
+      summary.rumorsHeard = boostedRumors.map(r => r.description);
 
       const legacyState: GameState = {
         ...prev,

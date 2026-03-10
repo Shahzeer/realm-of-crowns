@@ -5,12 +5,15 @@ const TERRAIN_DESCRIPTORS = [
   'at the break of dawn', 'as thunder rolled overhead', 'beneath a pale winter sun',
   'through sheets of rain', 'in the dead of night', 'as snow began to fall',
   'under scorching heat', 'through dense forest', 'across the river crossing',
+  'amid choking dust clouds', 'along the ancient road', 'where the river bends',
+  'from the treeline at dusk', 'as war horns echoed across the valley',
 ];
 
 const ATTACK_VERBS = [
   'charged', 'surged forward', 'advanced relentlessly', 'swept across the field',
   'unleashed a devastating assault', 'stormed the defenses', 'pressed the attack',
   'launched a fierce offensive', 'crashed into enemy lines', 'bore down upon',
+  'thundered forth', 'struck with precision', 'descended like a hammer',
 ];
 
 const DEFENSE_VERBS = [
@@ -25,6 +28,8 @@ const FLANKING_PHRASES = [
   'outmaneuvered the defenders with a bold cavalry charge',
   'split the forces to strike from multiple angles',
   'found a weakness in the left flank and exploited it ruthlessly',
+  'encircled the enemy rearguard with a daring night march',
+  'sent skirmishers to draw fire while the main force struck from behind',
 ];
 
 const VICTORY_PHRASES = [
@@ -33,6 +38,8 @@ const VICTORY_PHRASES = [
   'The banner was raised over the conquered stronghold as cheers erupted.',
   'The routing army scattered into the wilderness, their cause lost.',
   'As dust settled, the victorious army stood triumphant amid the carnage.',
+  'The field fell silent save for the groans of the wounded and the distant sound of retreat.',
+  'Survivors knelt before the victors as the banner was raised high above the ruined walls.',
 ];
 
 const DEFEAT_PHRASES = [
@@ -41,6 +48,8 @@ const DEFEAT_PHRASES = [
   'The walls held firm, and the attacking force was driven back with heavy losses.',
   'Outnumbered and outmaneuvered, the army was forced to sound the retreat.',
   'The battle was lost, and surviving soldiers limped back to friendly territory.',
+  'What began as a confident advance ended in chaos — broken shields and abandoned standards littered the road of retreat.',
+  'The defenders\'s resolve proved unbreakable, and the attackers paid dearly for every step of ground.',
 ];
 
 const COMMANDER_CONTRIBUTIONS_VICTORY = [
@@ -89,10 +98,42 @@ export function getVictoryTitle(battle: BattleResult): VictoryTitle {
   }
 }
 
+const SIEGE_PHRASES = [
+  'After days of bombardment, the walls crumbled and the assault began in earnest.',
+  'The siege engines groaned as boulders crashed against the fortifications.',
+  'Sappers breached the outer wall under cover of darkness, opening the way for the storming party.',
+];
+
+const CASUALTY_COMMENTARY: Record<string, string[]> = {
+  light: [
+    'Losses were mercifully light on both sides.',
+    'The engagement was swift, sparing many from the worst of the fighting.',
+  ],
+  moderate: [
+    'Both sides paid a heavy toll in blood.',
+    'The cost of battle was written across the field in fallen soldiers.',
+  ],
+  devastating: [
+    'The carnage was unspeakable — entire companies were wiped from existence.',
+    'A generation of soldiers perished in that single, brutal encounter.',
+    'The battlefield became a charnel house, with neither side spared from horror.',
+  ],
+};
+
+function getCasualtyLevel(battle: BattleResult): 'light' | 'moderate' | 'devastating' {
+  const totalTroops = battle.attackerTroops + battle.defenderTroops;
+  const totalLosses = battle.attackerLosses + battle.defenderLosses;
+  const rate = totalLosses / Math.max(totalTroops, 1);
+  if (rate < 0.2) return 'light';
+  if (rate < 0.5) return 'moderate';
+  return 'devastating';
+}
+
 export function generateBattleNarrative(battle: BattleResult): string {
   const terrain = pick(TERRAIN_DESCRIPTORS);
   const isVictory = battle.winner === 'attacker';
   const ratio = battle.attackerTroops / Math.max(battle.defenderTroops, 1);
+  const casualtyLevel = getCasualtyLevel(battle);
 
   let narrative = '';
 
@@ -108,12 +149,17 @@ export function generateBattleNarrative(battle: BattleResult): string {
         narrative += `${battle.attackerCommander?.name ?? 'The commander'} ${pick(COMMANDER_CONTRIBUTIONS_VICTORY)}. `;
       }
     }
+    if (battle.conquered) {
+      narrative += pick(SIEGE_PHRASES) + ' ';
+    }
     narrative += pick(VICTORY_PHRASES);
   } else {
     narrative = `The ${battle.attackerName} ${pick(ATTACK_VERBS)} ${terrain} at ${battle.provinceName}, but the ${battle.defenderName} ${pick(DEFENSE_VERBS)} the assault. `;
     narrative += `${battle.defenderCommander?.name ?? 'The defending commander'} ${pick(COMMANDER_CONTRIBUTIONS_VICTORY)}. `;
     narrative += pick(DEFEAT_PHRASES);
   }
+
+  narrative += ' ' + pick(CASUALTY_COMMENTARY[casualtyLevel]);
 
   return narrative;
 }

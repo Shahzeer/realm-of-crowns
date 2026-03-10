@@ -99,33 +99,53 @@ function BattleCard({ battle, index }: { battle: BattleResult; index: number }) 
           <View style={bt.expandedSection}>
             {battle.narrative && (
               <View style={bt.narrativeBox}>
+                <Text style={bt.narrativeQuote}>"</Text>
                 <Text style={bt.narrativeText}>{battle.narrative}</Text>
               </View>
             )}
+
+            <View style={bt.battleStatsRow}>
+              <View style={bt.battleStatItem}>
+                <Text style={bt.battleStatLabel}>Total Engaged</Text>
+                <Text style={bt.battleStatValue}>{(battle.attackerTroops + battle.defenderTroops).toLocaleString()}</Text>
+              </View>
+              <View style={bt.battleStatItem}>
+                <Text style={bt.battleStatLabel}>Total Fallen</Text>
+                <Text style={[bt.battleStatValue, { color: Colors.crimson.bright }]}>{(battle.attackerLosses + battle.defenderLosses).toLocaleString()}</Text>
+              </View>
+              <View style={bt.battleStatItem}>
+                <Text style={bt.battleStatLabel}>Casualty Rate</Text>
+                <Text style={bt.battleStatValue}>{Math.round(((battle.attackerLosses + battle.defenderLosses) / Math.max(battle.attackerTroops + battle.defenderTroops, 1)) * 100)}%</Text>
+              </View>
+            </View>
 
             {(battle.attackerCommander || battle.defenderCommander) && (
               <View style={bt.commandersSection}>
                 <Text style={bt.commandersTitle}>NOTABLE COMMANDERS</Text>
                 {battle.attackerCommander && (
                   <View style={bt.commanderRow}>
-                    <Crown size={12} color={Colors.gold.bright} />
+                    <View style={bt.commanderIconBox}>
+                      <Crown size={12} color={Colors.gold.bright} />
+                    </View>
                     <View style={bt.commanderInfo}>
                       <Text style={bt.commanderName}>{battle.attackerCommander.name}</Text>
-                      <Text style={bt.commanderRole}>{battle.attackerCommander.role}</Text>
+                      <Text style={bt.commanderRole}>{battle.attackerCommander.role} • {battle.attackerName}</Text>
                       {battle.attackerCommander.contribution ? (
-                        <Text style={bt.commanderContribution}>{battle.attackerCommander.contribution}</Text>
+                        <Text style={bt.commanderContribution}>"{battle.attackerCommander.contribution}"</Text>
                       ) : null}
                     </View>
                   </View>
                 )}
                 {battle.defenderCommander && (
                   <View style={bt.commanderRow}>
-                    <Shield size={12} color={Colors.status.info} />
+                    <View style={[bt.commanderIconBox, { backgroundColor: Colors.status.info + '15' }]}>
+                      <Shield size={12} color={Colors.status.info} />
+                    </View>
                     <View style={bt.commanderInfo}>
                       <Text style={bt.commanderName}>{battle.defenderCommander.name}</Text>
-                      <Text style={bt.commanderRole}>{battle.defenderCommander.role}</Text>
+                      <Text style={bt.commanderRole}>{battle.defenderCommander.role} • {battle.defenderName}</Text>
                       {battle.defenderCommander.contribution ? (
-                        <Text style={bt.commanderContribution}>{battle.defenderCommander.contribution}</Text>
+                        <Text style={bt.commanderContribution}>"{battle.defenderCommander.contribution}"</Text>
                       ) : null}
                     </View>
                   </View>
@@ -136,7 +156,7 @@ function BattleCard({ battle, index }: { battle: BattleResult; index: number }) 
             {battle.tacticUsed && (
               <View style={bt.tacticRow}>
                 <Text style={bt.tacticLabel}>Tactic Used:</Text>
-                <Text style={bt.tacticValue}>{battle.tacticUsed}</Text>
+                <Text style={bt.tacticValue}>{battle.tacticUsed.replace(/_/g, ' ')}</Text>
               </View>
             )}
           </View>
@@ -241,11 +261,17 @@ const bt = StyleSheet.create({
   vsBox: { width: 28, height: 28, borderRadius: 14, backgroundColor: Colors.bg.primary, alignItems: "center", justifyContent: "center" },
   vsText: { fontSize: 9, fontWeight: "800" as const, color: Colors.gold.dim },
   expandedSection: { marginTop: 14, gap: 12 },
-  narrativeBox: { backgroundColor: '#1a1812', borderRadius: 12, padding: 14, borderLeftWidth: 3, borderLeftColor: Colors.gold.dim },
-  narrativeText: { fontSize: 13, color: Colors.parchment.dark, lineHeight: 20, fontStyle: "italic" as const },
+  narrativeBox: { backgroundColor: '#1a1812', borderRadius: 12, padding: 14, borderLeftWidth: 3, borderLeftColor: Colors.gold.dim, position: 'relative' as const },
+  narrativeQuote: { fontSize: 32, fontWeight: '800' as const, color: Colors.gold.dim + '40', position: 'absolute' as const, top: 4, left: 8, lineHeight: 36 },
+  narrativeText: { fontSize: 13, color: Colors.parchment.dark, lineHeight: 21, fontStyle: "italic" as const, paddingLeft: 14 },
+  battleStatsRow: { flexDirection: 'row' as const, gap: 8 },
+  battleStatItem: { flex: 1, backgroundColor: Colors.bg.tertiary, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 6, alignItems: 'center' as const },
+  battleStatLabel: { fontSize: 8, fontWeight: '700' as const, color: Colors.text.dim, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 2 },
+  battleStatValue: { fontSize: 13, fontWeight: '800' as const, color: Colors.text.primary },
   commandersSection: { gap: 8 },
   commandersTitle: { fontSize: 10, fontWeight: "800" as const, color: Colors.gold.dim, letterSpacing: 1.5, marginBottom: 2 },
   commanderRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingLeft: 4 },
+  commanderIconBox: { width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.gold.dim + '15', alignItems: 'center' as const, justifyContent: 'center' as const, marginTop: 2 },
   commanderInfo: { flex: 1, gap: 1 },
   commanderName: { fontSize: 13, fontWeight: "700" as const, color: Colors.text.primary },
   commanderRole: { fontSize: 10, fontWeight: "600" as const, color: Colors.text.dim, textTransform: "uppercase" as const, letterSpacing: 0.5 },

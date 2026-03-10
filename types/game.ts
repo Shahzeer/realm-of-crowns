@@ -395,6 +395,7 @@ export interface TurnSummary {
   revolts: string[];
   tradeIncome: number;
   spyResults: string[];
+  rumorsHeard: string[];
 }
 
 export interface KingdomPressures {

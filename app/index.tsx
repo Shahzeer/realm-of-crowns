@@ -4,7 +4,7 @@ import { useRouter, Redirect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { Swords, Globe, ScrollText, Crown, ChevronRight, Play, BookOpen, Users, Shield, Flame, RotateCcw, ArrowRightLeft, Eye, Sparkles, Trophy, X, TrendingUp, Settings, ShieldAlert } from "lucide-react-native";
+import { Swords, Globe, ScrollText, Crown, ChevronRight, Play, BookOpen, Users, Shield, Flame, RotateCcw, ArrowRightLeft, Eye, Sparkles, Trophy, X, TrendingUp, Settings, ShieldAlert, AlertTriangle, Bug, Wheat, Skull } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import ResourceBar from "@/components/ResourceBar";
@@ -44,6 +44,45 @@ function WarBanner({ wars }: { wars: Array<{ name: string; color: string }> }) {
   );
 }
 
+function PressureIndicators({ pressures, onPress }: { pressures: { corruption: number; overstretch: number; famine: number; plague: { active: boolean; severity: number }; nobleDisputes: Array<{ resolved: boolean }> }; onPress: () => void }) {
+  const indicators: Array<{ label: string; value: number; threshold: number; criticalThreshold: number; icon: React.ReactNode }> = [];
+
+  if (pressures.corruption > 15) {
+    indicators.push({ label: 'Corruption', value: pressures.corruption, threshold: 30, criticalThreshold: 60, icon: <Bug size={12} color={pressures.corruption >= 60 ? Colors.crimson.bright : Colors.status.warning} /> });
+  }
+  if (pressures.overstretch > 0) {
+    indicators.push({ label: 'Overstretch', value: pressures.overstretch, threshold: 20, criticalThreshold: 50, icon: <AlertTriangle size={12} color={pressures.overstretch >= 50 ? Colors.crimson.bright : Colors.status.warning} /> });
+  }
+  if (pressures.famine > 10) {
+    indicators.push({ label: 'Famine', value: pressures.famine, threshold: 25, criticalThreshold: 50, icon: <Wheat size={12} color={pressures.famine >= 50 ? Colors.crimson.bright : Colors.status.warning} /> });
+  }
+  if (pressures.plague.active) {
+    indicators.push({ label: 'Plague', value: pressures.plague.severity, threshold: 1, criticalThreshold: 50, icon: <Skull size={12} color={Colors.crimson.bright} /> });
+  }
+  const unresolvedDisputes = pressures.nobleDisputes.filter(d => !d.resolved).length;
+  if (unresolvedDisputes > 0) {
+    indicators.push({ label: `${unresolvedDisputes} Dispute${unresolvedDisputes > 1 ? 's' : ''}`, value: unresolvedDisputes * 25, threshold: 25, criticalThreshold: 75, icon: <Crown size={12} color={Colors.status.warning} /> });
+  }
+
+  if (indicators.length === 0) return null;
+
+  return (
+    <TouchableOpacity style={idx.pressureStrip} onPress={onPress} activeOpacity={0.7} testID="pressure-indicators">
+      {indicators.map((ind, i) => {
+        const isCritical = ind.value >= ind.criticalThreshold;
+        const color = isCritical ? Colors.crimson.bright : Colors.status.warning;
+        return (
+          <View key={i} style={[idx.pressureChip, { backgroundColor: color + '15', borderColor: color + '30' }]}>
+            {ind.icon}
+            <Text style={[idx.pressureChipText, { color }]}>{ind.label}</Text>
+            <View style={[idx.pressureDot, { backgroundColor: color }]} />
+          </View>
+        );
+      })}
+    </TouchableOpacity>
+  );
+}
+
 function TurnSummaryModal({ visible, onClose, summary }: { visible: boolean; onClose: () => void; summary: TurnSummary | undefined }) {
   if (!summary) return null;
   return (
@@ -75,6 +114,23 @@ function TurnSummaryModal({ visible, onClose, summary }: { visible: boolean; onC
               <View style={idx.summarySection}>
                 <Text style={idx.summarySectionTitle}>Conquered</Text>
                 {summary.provincesConquered.map((p: string, i: number) => <Text key={i} style={[idx.summaryDetail, { color: Colors.status.success }]}>🏴 {p}</Text>)}
+              </View>
+            )}
+            {summary.rumorsHeard && summary.rumorsHeard.length > 0 && (
+              <View style={idx.summarySection}>
+                <Text style={idx.summarySectionTitle}>Rumors Heard</Text>
+                {summary.rumorsHeard.map((r: string, i: number) => (
+                  <View key={i} style={idx.summaryRumorRow}>
+                    <Text style={idx.summaryRumorQuote}>"</Text>
+                    <Text style={idx.summaryRumorText}>{r}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+            {summary.spyResults && summary.spyResults.length > 0 && (
+              <View style={idx.summarySection}>
+                <Text style={idx.summarySectionTitle}>Spy Reports</Text>
+                {summary.spyResults.map((s: string, i: number) => <Text key={i} style={idx.summaryDetail}>🕵️ {s}</Text>)}
               </View>
             )}
           </ScrollView>
@@ -246,6 +302,7 @@ export default function KingdomScreen() {
       </View>
 
       <ResourceBar resources={state.resources} />
+      <PressureIndicators pressures={state.pressures} onPress={() => navigateTo('/pressures')} />
       <WarBanner wars={activeWars.map(w => ({ name: w.name, color: w.color }))} />
 
       <ScrollView style={idx.scrollContent} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }} showsVerticalScrollIndicator={false}>
@@ -389,6 +446,13 @@ const idx = StyleSheet.create({
   summaryDetail: { fontSize: 12, color: Colors.text.secondary, lineHeight: 18 },
   summaryDismiss: { marginTop: 12, backgroundColor: Colors.gold.primary, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
   summaryDismissText: { fontSize: 15, fontWeight: "700" as const, color: Colors.bg.primary },
+  summaryRumorRow: { flexDirection: "row" as const, gap: 4, marginBottom: 4 },
+  summaryRumorQuote: { fontSize: 16, fontWeight: "700" as const, color: Colors.gold.dim, lineHeight: 20 },
+  summaryRumorText: { fontSize: 12, color: Colors.parchment.dark, fontStyle: "italic" as const, lineHeight: 18, flex: 1 },
+  pressureStrip: { flexDirection: "row" as const, flexWrap: "wrap" as const, paddingHorizontal: 12, paddingVertical: 6, gap: 6, backgroundColor: Colors.bg.secondary + '80' },
+  pressureChip: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
+  pressureChipText: { fontSize: 10, fontWeight: "700" as const, letterSpacing: 0.3 },
+  pressureDot: { width: 5, height: 5, borderRadius: 3 },
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: "center" as const, justifyContent: "center" as const, padding: 24 },
   confirmCard: { width: "100%" as const, maxWidth: 320, borderRadius: 20, padding: 28, alignItems: "center" as const, overflow: "hidden" as const, borderWidth: 1, borderColor: Colors.border.gold },
   confirmTitle: { fontSize: 20, fontWeight: "800" as const, color: Colors.gold.bright, marginBottom: 20 },
