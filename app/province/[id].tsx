@@ -4,11 +4,10 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, ArrowUpCircle, Shield, Users, TrendingUp, Swords, Hammer, ChevronDown, ChevronUp } from "lucide-react-native";
+import { X, ArrowUpCircle, Shield, Users, TrendingUp, Swords, Hammer, ChevronDown, ChevronUp, Eye } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { PROVINCE_TYPE_ICONS, BUILDING_BLUEPRINTS } from "@/mocks/gameData";
-import { Eye } from "lucide-react-native";
 
 export default function ProvinceDetailScreen() {
   console.log("[RealmOfCrowns] Province detail render");

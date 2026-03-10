@@ -535,7 +535,7 @@ function resolveBattle(
   const effectiveAttackPower = attackPower * (defenseMod > 0 ? 1 : 1 + defenseMod / 100);
   const winner = effectiveAttackPower > defendPower * 0.9 ? 'attacker' : 'defender';
 
-  return {
+  const result: BattleResult = {
     id: `battle_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     turn: 0,
     attackerName: attacker.name,
@@ -1528,7 +1528,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       if (candidate.martialBonus) bonuses.martial = candidate.martialBonus;
       if (candidate.stewardshipBonus) bonuses.stewardship = candidate.stewardshipBonus;
       if (candidate.intrigueBonus) bonuses.intrigue = candidate.intrigueBonus;
-      if (candidate.learningBonus) bonuses.learningBonus = candidate.learningBonus;
+      if (candidate.learningBonus) bonuses.learning = candidate.learningBonus;
       const resourceBonuses: Record<string, number> = {};
       if (candidate.goldBonus) resourceBonuses.goldPerTurn = candidate.goldBonus;
       if (candidate.militaryBonus) resourceBonuses.militaryPerTurn = candidate.militaryBonus;
