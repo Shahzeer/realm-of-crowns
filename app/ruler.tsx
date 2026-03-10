@@ -13,7 +13,7 @@ export default function RulerScreen() {
   console.log("[RealmOfCrowns] Ruler render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, resetGame, startRulerUpgrade, arrangeMarriage } = useGame();
+  const { state, resetGame, startRulerUpgrade, arrangeMarriage, educateHeir } = useGame();
   const [showMarriage, setShowMarriage] = useState(false);
   const ruler = state.ruler;
   const heir = state.heir;
@@ -272,6 +272,54 @@ export default function RulerScreen() {
                   ))}
                 </View>
               )}
+
+              {heir.activeEducation ? (
+                <View style={r.heirEduActive}>
+                  <View style={r.heirEduHeader}>
+                    <Clock size={14} color={Colors.status.info} />
+                    <Text style={r.heirEduTitle}>Educating: {heir.activeEducation.stat.charAt(0).toUpperCase() + heir.activeEducation.stat.slice(1)}</Text>
+                  </View>
+                  <View style={r.heirEduBarBg}>
+                    <View style={[r.heirEduBarFill, { width: `${((heir.activeEducation.totalTurns - heir.activeEducation.turnsRemaining) / heir.activeEducation.totalTurns) * 100}%` }]} />
+                  </View>
+                  <Text style={r.heirEduProgress}>{heir.activeEducation.turnsRemaining} turn{heir.activeEducation.turnsRemaining !== 1 ? 's' : ''} left • +{heir.activeEducation.bonus} {heir.activeEducation.stat}</Text>
+                </View>
+              ) : (
+                <View style={r.heirEduSection}>
+                  <Text style={r.heirEduSectionTitle}>📖 Heir Education (120g, 4 turns, +3 stat)</Text>
+                  <View style={r.heirEduGrid}>
+                    {(['diplomacy', 'martial', 'stewardship', 'intrigue', 'learning'] as const).map(stat => {
+                      const icons: Record<string, string> = { diplomacy: '🗣️', martial: '⚔️', stewardship: '💰', intrigue: '🗡️', learning: '📖' };
+                      return (
+                        <TouchableOpacity
+                          key={stat}
+                          style={[r.heirEduBtn, state.resources.gold < 120 && r.heirEduBtnDisabled]}
+                          onPress={() => {
+                            if (state.resources.gold < 120) {
+                              Alert.alert("Insufficient Gold", "Need 120 gold for heir education.");
+                              return;
+                            }
+                            if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
+                            Alert.alert(
+                              "Educate Heir",
+                              `Train ${heir.name} in ${stat}?\n\nCost: 120 gold\nDuration: 4 turns\nBonus: +3 ${stat}`,
+                              [
+                                { text: "Cancel", style: "cancel" },
+                                { text: "Begin", onPress: () => educateHeir(stat) },
+                              ]
+                            );
+                          }}
+                          activeOpacity={0.7}
+                          disabled={state.resources.gold < 120}
+                        >
+                          <Text style={r.heirEduBtnIcon}>{icons[stat]}</Text>
+                          <Text style={[r.heirEduBtnLabel, state.resources.gold < 120 && { color: Colors.text.dim }]}>{stat.charAt(0).toUpperCase() + stat.slice(1)}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
             </View>
           ) : (
             <View style={r.noHeirCard}>
@@ -396,4 +444,17 @@ const r = StyleSheet.create({
   candidateDesc: { fontSize: 11, color: Colors.text.secondary, lineHeight: 16, marginBottom: 8 },
   candidateBonuses: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 },
   candidateBonus: { fontSize: 10, fontWeight: "600" as const, color: Colors.status.success, backgroundColor: Colors.status.success + '15', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: "hidden" as const },
+  heirEduActive: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border.primary },
+  heirEduHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginBottom: 8 },
+  heirEduTitle: { fontSize: 13, fontWeight: "700" as const, color: Colors.status.info },
+  heirEduBarBg: { height: 5, borderRadius: 3, backgroundColor: Colors.bg.tertiary, overflow: "hidden" as const },
+  heirEduBarFill: { height: "100%" as const, borderRadius: 3, backgroundColor: Colors.status.info },
+  heirEduProgress: { fontSize: 11, color: Colors.text.secondary, marginTop: 6 },
+  heirEduSection: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border.primary },
+  heirEduSectionTitle: { fontSize: 11, fontWeight: "600" as const, color: Colors.text.dim, marginBottom: 8 },
+  heirEduGrid: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 },
+  heirEduBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.bg.tertiary, flexDirection: "row" as const, alignItems: "center" as const, gap: 4, borderWidth: 1, borderColor: Colors.border.primary },
+  heirEduBtnDisabled: { opacity: 0.4 },
+  heirEduBtnIcon: { fontSize: 12 },
+  heirEduBtnLabel: { fontSize: 11, fontWeight: "600" as const, color: Colors.text.primary },
 });

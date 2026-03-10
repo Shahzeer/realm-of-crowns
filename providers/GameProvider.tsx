@@ -13,6 +13,7 @@ import {
   EventChoice,
   BattleResult,
   Heir,
+  HeirEducation,
   Building,
   StatUpgrade,
   CombatTactic,
@@ -1023,6 +1024,17 @@ export const [GameProvider, useGame] = createContextHook(() => {
         }
       }
 
+      if (newHeir?.activeEducation) {
+        const edu = { ...newHeir.activeEducation };
+        edu.turnsRemaining -= 1;
+        if (edu.turnsRemaining <= 0) {
+          newHeir = { ...newHeir, [edu.stat]: newHeir[edu.stat] + edu.bonus, activeEducation: undefined };
+          allLogs.unshift(`📖 Heir ${newHeir.name} completed ${edu.stat} education (+${edu.bonus})`);
+        } else {
+          newHeir = { ...newHeir, activeEducation: edu };
+        }
+      }
+
       if (!newHeir && Math.random() > 0.85) {
         const name = HEIR_NAMES[Math.floor(Math.random() * HEIR_NAMES.length)];
         newHeir = {
@@ -1700,6 +1712,53 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const mergeArmies = useCallback((armyId1: string, armyId2: string) => {
+    setState(prev => {
+      const army1 = prev.armies.find(a => a.id === armyId1);
+      const army2 = prev.armies.find(a => a.id === armyId2);
+      if (!army1 || !army2) return prev;
+      if (army1.location !== army2.location) return prev;
+      if (army1.status !== 'idle' || army2.status !== 'idle') return prev;
+      const mergedTroops = army1.troops + army2.troops;
+      const mergedMaxTroops = army1.maxTroops + army2.maxTroops;
+      const mergedMorale = Math.round((army1.morale * army1.troops + army2.morale * army2.troops) / mergedTroops);
+      const mergedArmy: Army = {
+        ...army1,
+        troops: mergedTroops,
+        maxTroops: mergedMaxTroops,
+        morale: mergedMorale,
+        name: `${army1.name} (Combined)`,
+      };
+      const newArmies = prev.armies.filter(a => a.id !== armyId2).map(a => a.id === armyId1 ? mergedArmy : a);
+      const logMsg = `⚔️ Merged ${army2.name} into ${army1.name} (${mergedTroops} troops)`;
+      const newState: GameState = { ...prev, armies: newArmies, log: [logMsg, ...prev.log].slice(0, 50) };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
+  const educateHeir = useCallback((stat: 'diplomacy' | 'martial' | 'stewardship' | 'intrigue' | 'learning') => {
+    setState(prev => {
+      if (!prev.heir) return prev;
+      if (prev.heir.activeEducation) return prev;
+      const cost = 120;
+      if (prev.resources.gold < cost) return prev;
+      const bonus = 3;
+      const turns = 4;
+      const education: HeirEducation = { stat, turnsRemaining: turns, totalTurns: turns, bonus };
+      const newHeir = { ...prev.heir, activeEducation: education };
+      const logMsg = `📖 Began heir education: ${stat} (+${bonus}, ${turns} turns)`;
+      const newState: GameState = {
+        ...prev,
+        heir: newHeir,
+        resources: { ...prev.resources, gold: prev.resources.gold - cost },
+        log: [logMsg, ...prev.log].slice(0, 50),
+      };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const assignCouncilTask = useCallback((councilId: string, task: string) => {
     setState(prev => {
       const newCouncil = prev.council.map(c => c.id === councilId ? { ...c, task } : c);
@@ -1749,7 +1808,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     selectKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
-    arrangeMarriage, cloudStatus, forceCloudSync,
+    arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -1758,6 +1817,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     selectKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
-    arrangeMarriage, cloudStatus, forceCloudSync,
+    arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
   ]);
 });

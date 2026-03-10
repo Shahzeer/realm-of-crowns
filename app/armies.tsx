@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, Shield, MapPin, Navigation, Swords, ChevronRight, Target, Plus, Trash2 } from "lucide-react-native";
+import { X, Shield, MapPin, Navigation, Swords, ChevronRight, Target, Plus, Trash2, Merge } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { Army, Province, CombatTactic } from "@/types/game";
@@ -208,8 +208,9 @@ export default function ArmiesScreen() {
   console.log("[RealmOfCrowns] Armies render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, moveArmy, setActiveTactic, winProbability, reinforceArmy, disbandArmy } = useGame();
+  const { state, moveArmy, setActiveTactic, winProbability, reinforceArmy, disbandArmy, mergeArmies } = useGame();
   const [showTactics, setShowTactics] = useState(false);
+  const [mergeSourceId, setMergeSourceId] = useState<string | null>(null);
   const totalTroops = state.armies.reduce((sum, a) => sum + a.troops, 0);
   const avgMorale = state.armies.length > 0 ? Math.round(state.armies.reduce((s, a) => s + a.morale, 0) / state.armies.length) : 0;
   const moraleColor = avgMorale > 70 ? Colors.status.success : avgMorale > 40 ? Colors.status.warning : Colors.status.danger;
@@ -272,6 +273,33 @@ export default function ArmiesScreen() {
     setActiveTactic(tacticId);
   }, [setActiveTactic]);
 
+  const handleMerge = useCallback((armyId: string) => {
+    if (!mergeSourceId) {
+      setMergeSourceId(armyId);
+      return;
+    }
+    if (mergeSourceId === armyId) {
+      setMergeSourceId(null);
+      return;
+    }
+    const src = state.armies.find(a => a.id === mergeSourceId);
+    const tgt = state.armies.find(a => a.id === armyId);
+    if (!src || !tgt || src.location !== tgt.location) {
+      Alert.alert("Cannot Merge", "Both armies must be in the same province and idle.");
+      setMergeSourceId(null);
+      return;
+    }
+    if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
+    Alert.alert(
+      "Merge Armies",
+      `Merge ${tgt.name} (${tgt.troops}) into ${src.name} (${src.troops})?\n\nTotal: ${src.troops + tgt.troops} troops`,
+      [
+        { text: "Cancel", style: "cancel", onPress: () => setMergeSourceId(null) },
+        { text: "Merge", onPress: () => { mergeArmies(mergeSourceId, armyId); setMergeSourceId(null); } },
+      ]
+    );
+  }, [mergeSourceId, state.armies, mergeArmies]);
+
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
       <LinearGradient colors={[Colors.bg.primary, '#1a0f0f', Colors.bg.primary]} style={StyleSheet.absoluteFill} />
@@ -316,20 +344,39 @@ export default function ArmiesScreen() {
           </View>
         )}
 
+        {state.armies.length >= 2 && (
+          <TouchableOpacity
+            style={[s.mergeBanner, mergeSourceId ? s.mergeBannerActive : null]}
+            onPress={() => setMergeSourceId(mergeSourceId ? null : undefined as unknown as string)}
+            activeOpacity={0.7}
+          >
+            <Merge size={16} color={mergeSourceId ? Colors.gold.bright : Colors.status.info} />
+            <Text style={[s.mergeBannerText, mergeSourceId ? { color: Colors.gold.bright } : null]}>
+              {mergeSourceId ? 'Select second army to merge (tap again to cancel)' : 'Tap to start merging armies'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {state.armies.length === 0 ? (
           <View style={s.emptyState}><Text style={s.emptyIcon}>⚔️</Text><Text style={s.emptyTitle}>No Armies</Text><Text style={s.emptyDesc}>Visit a province to recruit soldiers.</Text></View>
         ) : state.armies.map((army, idx) => (
-          <ArmyCard
+          <TouchableOpacity
             key={army.id}
-            army={army}
-            provinces={state.provinces}
-            onMove={handleMove}
-            onAttack={handleAttack}
-            onReinforce={handleReinforce}
-            onDisband={handleDisband}
-            index={idx}
-            resources={{ gold: state.resources.gold, military: state.resources.military }}
-          />
+            activeOpacity={mergeSourceId ? 0.7 : 1}
+            onPress={mergeSourceId ? () => handleMerge(army.id) : undefined}
+            style={mergeSourceId === army.id ? s.mergeSelected : undefined}
+          >
+            <ArmyCard
+              army={army}
+              provinces={state.provinces}
+              onMove={handleMove}
+              onAttack={handleAttack}
+              onReinforce={handleReinforce}
+              onDisband={handleDisband}
+              index={idx}
+              resources={{ gold: state.resources.gold, military: state.resources.military }}
+            />
+          </TouchableOpacity>
         ))}
       </ScrollView>
     </View>
@@ -404,4 +451,8 @@ const s = StyleSheet.create({
   disbandBtn: { flex: 1, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: Colors.crimson.bright + '40', backgroundColor: Colors.crimson.bright + '10' },
   disbandBtnText: { fontSize: 12, fontWeight: "600" as const, color: Colors.crimson.bright },
   btnDisabled: { opacity: 0.4 },
+  mergeBanner: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, marginHorizontal: 16, marginBottom: 10, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.status.info + '10', borderWidth: 1, borderColor: Colors.status.info + '30' },
+  mergeBannerActive: { backgroundColor: Colors.gold.dim + '15', borderColor: Colors.gold.dim + '40' },
+  mergeBannerText: { fontSize: 12, fontWeight: "600" as const, color: Colors.status.info },
+  mergeSelected: { borderRadius: 14, borderWidth: 2, borderColor: Colors.gold.bright, marginHorizontal: 14, marginBottom: 2 },
 });

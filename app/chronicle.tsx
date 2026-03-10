@@ -1,11 +1,13 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useMemo, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { X, BookOpen } from "lucide-react-native";
+import { X, BookOpen, Filter } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
+
+type FilterType = 'all' | 'military' | 'diplomacy' | 'economy' | 'events';
 
 function getLogIcon(entry: string): string {
   if (entry.includes('⚔️') || entry.includes('Conquered')) return '⚔️';
@@ -20,6 +22,8 @@ function getLogIcon(entry: string): string {
   if (entry.includes('Revolt') || entry.includes('revolt')) return '🔥';
   if (entry.includes('Event')) return '📜';
   if (entry.includes('Year')) return '📅';
+  if (entry.includes('📖') || entry.includes('education')) return '📖';
+  if (entry.includes('💍') || entry.includes('married')) return '💍';
   return '📋';
 }
 
@@ -34,16 +38,43 @@ function getLogColor(entry: string): string {
   return Colors.text.dim;
 }
 
+function getLogCategory(entry: string): FilterType {
+  if (entry.includes('⚔️') || entry.includes('army') || entry.includes('Conquered') || entry.includes('siege') || entry.includes('Recruited') || entry.includes('Merged') || entry.includes('Reinforced') || entry.includes('Disbanded')) return 'military';
+  if (entry.includes('🤝') || entry.includes('Trade') || entry.includes('alliance') || entry.includes('gift') || entry.includes('☮️') || entry.includes('relation') || entry.includes('💍')) return 'diplomacy';
+  if (entry.includes('🏗️') || entry.includes('Built') || entry.includes('Upgraded') || entry.includes('gold') || entry.includes('💰')) return 'economy';
+  if (entry.includes('Event') || entry.includes('📜') || entry.includes('🔥') || entry.includes('Revolt')) return 'events';
+  return 'all';
+}
+
 export default function ChronicleScreen() {
   console.log("[RealmOfCrowns] Chronicle render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { state } = useGame();
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
   }, []);
+
+  const battlesWon = useMemo(() => state.battles.filter(b => b.conquered).length, [state.battles]);
+  const battlesLost = useMemo(() => state.battles.filter(b => !b.conquered).length, [state.battles]);
+  const playerProvCount = useMemo(() => state.provinces.filter(p => p.owner === 'player').length, [state.provinces]);
+  const techResearched = useMemo(() => state.technologies.filter(t => t.researched).length, [state.technologies]);
+
+  const filteredLogs = useMemo(() => {
+    if (activeFilter === 'all') return state.log;
+    return state.log.filter(entry => getLogCategory(entry) === activeFilter || entry.startsWith('Year'));
+  }, [state.log, activeFilter]);
+
+  const filters: Array<{ id: FilterType; label: string; icon: string }> = [
+    { id: 'all', label: 'All', icon: '📋' },
+    { id: 'military', label: 'Military', icon: '⚔️' },
+    { id: 'diplomacy', label: 'Diplomacy', icon: '🤝' },
+    { id: 'economy', label: 'Economy', icon: '🏗️' },
+    { id: 'events', label: 'Events', icon: '📜' },
+  ];
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
@@ -73,15 +104,63 @@ export default function ChronicleScreen() {
         </View>
       </View>
 
+      <View style={s.kingdomStats}>
+        <View style={s.kStatRow}>
+          <View style={s.kStatItem}>
+            <Text style={s.kStatIcon}>⚔️</Text>
+            <Text style={s.kStatValue}>{battlesWon}</Text>
+            <Text style={s.kStatLabel}>Won</Text>
+          </View>
+          <View style={s.kStatItem}>
+            <Text style={s.kStatIcon}>💀</Text>
+            <Text style={s.kStatValue}>{battlesLost}</Text>
+            <Text style={s.kStatLabel}>Lost</Text>
+          </View>
+          <View style={s.kStatItem}>
+            <Text style={s.kStatIcon}>🏰</Text>
+            <Text style={s.kStatValue}>{playerProvCount}</Text>
+            <Text style={s.kStatLabel}>Provinces</Text>
+          </View>
+          <View style={s.kStatItem}>
+            <Text style={s.kStatIcon}>📚</Text>
+            <Text style={s.kStatValue}>{techResearched}</Text>
+            <Text style={s.kStatLabel}>Tech</Text>
+          </View>
+          <View style={s.kStatItem}>
+            <Text style={s.kStatIcon}>👑</Text>
+            <Text style={s.kStatValue}>{state.ruler.age}</Text>
+            <Text style={s.kStatLabel}>Age</Text>
+          </View>
+        </View>
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filterScroll} contentContainerStyle={s.filterScrollContent}>
+        {filters.map(f => (
+          <TouchableOpacity
+            key={f.id}
+            style={[s.filterChip, activeFilter === f.id && s.filterChipActive]}
+            onPress={() => setActiveFilter(f.id)}
+            activeOpacity={0.7}
+          >
+            <Text style={s.filterIcon}>{f.icon}</Text>
+            <Text style={[s.filterLabel, activeFilter === f.id && s.filterLabelActive]}>{f.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 20 }} showsVerticalScrollIndicator={false}>
         <Animated.View style={{ opacity: fadeAnim }}>
-          {state.log.map((entry, idx) => {
+          {filteredLogs.map((entry, idx) => {
             const icon = getLogIcon(entry);
             const color = getLogColor(entry);
             const isYearEntry = entry.startsWith('Year');
 
             return (
               <View key={`log-${idx}`} style={[s.logEntry, isYearEntry && s.logEntryYear]}>
+                <View style={s.timelineCol}>
+                  <View style={[s.timelineDot, { backgroundColor: color }]} />
+                  {idx < filteredLogs.length - 1 && <View style={s.timelineLine} />}
+                </View>
                 <View style={[s.logIconBox, { backgroundColor: color + '15' }]}>
                   <Text style={s.logIcon}>{icon}</Text>
                 </View>
@@ -90,16 +169,17 @@ export default function ChronicleScreen() {
                     {entry}
                   </Text>
                 </View>
-                <View style={[s.logTimeline, { backgroundColor: color + '30' }]} />
               </View>
             );
           })}
 
-          {state.log.length === 0 && (
+          {filteredLogs.length === 0 && (
             <View style={s.emptyState}>
               <Text style={s.emptyIcon}>📜</Text>
-              <Text style={s.emptyTitle}>The Chronicle Awaits</Text>
-              <Text style={s.emptyDesc}>Your deeds will be recorded here for posterity.</Text>
+              <Text style={s.emptyTitle}>{activeFilter === 'all' ? 'The Chronicle Awaits' : 'No Entries'}</Text>
+              <Text style={s.emptyDesc}>
+                {activeFilter === 'all' ? 'Your deeds will be recorded here for posterity.' : `No ${activeFilter} entries found.`}
+              </Text>
             </View>
           )}
         </Animated.View>
@@ -114,17 +194,32 @@ const s = StyleSheet.create({
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   title: { fontSize: 20, fontWeight: "800" as const, color: Colors.text.primary },
   closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.bg.card, alignItems: "center", justifyContent: "center" },
-  summaryRow: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 14, gap: 10 },
+  summaryRow: { flexDirection: "row", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, gap: 10 },
   summaryCard: { flex: 1, backgroundColor: Colors.bg.card, borderRadius: 10, paddingVertical: 12, alignItems: "center", borderWidth: 1, borderColor: Colors.border.primary },
   summaryValue: { fontSize: 20, fontWeight: "800" as const, color: Colors.gold.bright },
   summaryLabel: { fontSize: 10, color: Colors.text.secondary, textTransform: "uppercase" as const, marginTop: 2 },
-  logEntry: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 16, paddingVertical: 10, gap: 10, borderBottomWidth: 1, borderBottomColor: Colors.border.primary + '40' },
+  kingdomStats: { marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.bg.card, borderRadius: 12, padding: 12, borderWidth: 1, borderColor: Colors.border.primary },
+  kStatRow: { flexDirection: "row", justifyContent: "space-between" },
+  kStatItem: { alignItems: "center", gap: 2, flex: 1 },
+  kStatIcon: { fontSize: 16 },
+  kStatValue: { fontSize: 15, fontWeight: "800" as const, color: Colors.text.primary },
+  kStatLabel: { fontSize: 8, color: Colors.text.dim, textTransform: "uppercase" as const, letterSpacing: 0.5 },
+  filterScroll: { maxHeight: 44, marginBottom: 4 },
+  filterScrollContent: { paddingHorizontal: 16, gap: 8, flexDirection: "row", alignItems: "center" },
+  filterChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.bg.card, borderWidth: 1, borderColor: Colors.border.primary },
+  filterChipActive: { backgroundColor: Colors.gold.dim + '20', borderColor: Colors.gold.dim + '50' },
+  filterIcon: { fontSize: 12 },
+  filterLabel: { fontSize: 11, fontWeight: "600" as const, color: Colors.text.dim },
+  filterLabelActive: { color: Colors.gold.bright },
+  logEntry: { flexDirection: "row", alignItems: "flex-start", paddingRight: 16, paddingVertical: 10, gap: 8 },
   logEntryYear: { backgroundColor: Colors.gold.dim + '08' },
+  timelineCol: { width: 20, alignItems: "center", paddingTop: 8, marginLeft: 16 },
+  timelineDot: { width: 8, height: 8, borderRadius: 4 },
+  timelineLine: { width: 2, flex: 1, backgroundColor: Colors.border.primary, marginTop: 4 },
   logIconBox: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   logIcon: { fontSize: 14 },
   logContent: { flex: 1 },
   logText: { fontSize: 13, color: Colors.text.secondary, lineHeight: 18 },
-  logTimeline: { width: 3, borderRadius: 2, alignSelf: "stretch" },
   emptyState: { alignItems: "center", paddingTop: 80, gap: 8 },
   emptyIcon: { fontSize: 56, marginBottom: 8 },
   emptyTitle: { fontSize: 18, fontWeight: "700" as const, color: Colors.text.primary },

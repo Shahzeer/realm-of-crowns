@@ -57,6 +57,13 @@ export interface Ruler {
   };
 }
 
+export interface HeirEducation {
+  stat: 'diplomacy' | 'martial' | 'stewardship' | 'intrigue' | 'learning';
+  turnsRemaining: number;
+  totalTurns: number;
+  bonus: number;
+}
+
 export interface Heir {
   id: string;
   name: string;
@@ -68,6 +75,7 @@ export interface Heir {
   learning: number;
   traits: Trait[];
   claimStrength: number;
+  activeEducation?: HeirEducation;
 }
 
 export interface Resources {

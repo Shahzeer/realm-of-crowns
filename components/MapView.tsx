@@ -62,6 +62,39 @@ function ConnectionLine({ from, to }: { from: Province; to: Province }) {
   );
 }
 
+function MarchingIndicator({ from, to, armyName }: { from: Province; to: Province; armyName: string }) {
+  const dashAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(dashAnim, { toValue: 1, duration: 1200, useNativeDriver: true })
+    ).start();
+  }, []);
+
+  const x1 = from.x * (MAP_WIDTH - 20);
+  const y1 = from.y * MAP_HEIGHT;
+  const x2 = to.x * (MAP_WIDTH - 20);
+  const y2 = to.y * MAP_HEIGHT;
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+
+  return (
+    <Animated.View
+      style={[
+        styles.marchIndicator,
+        {
+          left: midX - 28,
+          top: midY - 10,
+          opacity: Animated.add(0.6, Animated.multiply(dashAnim, 0.4)),
+        },
+      ]}
+    >
+      <Text style={styles.marchIcon}>🚶</Text>
+      <Text style={styles.marchLabel} numberOfLines={1}>{armyName.slice(0, 8)}</Text>
+    </Animated.View>
+  );
+}
+
 function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _totalTroops }: {
   province: Province;
   onPress: () => void;
@@ -223,6 +256,12 @@ export default React.memo(function MapView({ provinces, armies, onProvincePress 
               _totalTroops={troopCounts[province.id] || 0}
             />
           ))}
+          {armies.filter(a => a.status === 'marching' && a.destination).map(army => {
+            const fromProv = provinces.find(p => p.id === army.location);
+            const toProv = provinces.find(p => p.id === army.destination);
+            if (!fromProv || !toProv) return null;
+            return <MarchingIndicator key={`march-${army.id}`} from={fromProv} to={toProv} armyName={army.name} />;
+          })}
         </View>
       </ScrollView>
       <View style={styles.legendRow}>
@@ -352,5 +391,26 @@ const styles = StyleSheet.create({
   legendText: {
     fontSize: 9,
     color: Colors.text.secondary,
+  },
+  marchIndicator: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.status.warning + '40',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: Colors.status.warning + '60',
+  },
+  marchIcon: {
+    fontSize: 10,
+  },
+  marchLabel: {
+    fontSize: 7,
+    fontWeight: '700' as const,
+    color: Colors.status.warning,
+    maxWidth: 40,
   },
 });

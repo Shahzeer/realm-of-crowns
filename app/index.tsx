@@ -10,7 +10,8 @@ import { useGame } from "@/providers/GameProvider";
 import ResourceBar from "@/components/ResourceBar";
 import MapView from "@/components/MapView";
 import GameToast from "@/components/GameToast";
-import { Province } from "@/types/game";
+import AchievementPopup from "@/components/AchievementPopup";
+import { Province, Achievement } from "@/types/game";
 import { SEASON_EFFECTS } from "@/mocks/gameData";
 
 function SeasonBadge({ season }: { season: string }) {
@@ -182,6 +183,8 @@ export default function KingdomScreen() {
   const [showTurnSummary, setShowTurnSummary] = React.useState(false);
   const [showTutorial, setShowTutorial] = React.useState(false);
   const [toast, setToast] = React.useState<{ visible: boolean; message: string; type: 'success' | 'warning' | 'danger' | 'info' }>({ visible: false, message: '', type: 'info' });
+  const [showEndTurnConfirm, setShowEndTurnConfirm] = React.useState(false);
+  const [pendingAchievements, setPendingAchievements] = React.useState<Achievement[]>([]);
   const prevTurn = useRef(state.turn);
 
   useEffect(() => {
@@ -221,11 +224,20 @@ export default function KingdomScreen() {
       } else if (summary.revolts.length > 0) {
         setTimeout(() => setToast({ visible: true, message: summary.revolts[0], type: 'warning' }), 500);
       }
+      if (newAchievements.length > 0) {
+        setTimeout(() => setPendingAchievements([...newAchievements]), 800);
+      }
     }
     prevTurn.current = state.turn;
-  }, [state.turn, state.lastTurnSummary]);
+  }, [state.turn, state.lastTurnSummary, newAchievements]);
 
   const handleAdvanceTurn = useCallback(() => {
+    if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
+    setShowEndTurnConfirm(true);
+  }, []);
+
+  const confirmAdvanceTurn = useCallback(() => {
+    setShowEndTurnConfirm(false);
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
     advanceTurn();
   }, [advanceTurn]);
@@ -275,6 +287,34 @@ export default function KingdomScreen() {
         onClose={() => setShowTurnSummary(false)}
         summary={state.lastTurnSummary}
       />
+      <AchievementPopup
+        achievements={pendingAchievements}
+        onDismiss={() => setPendingAchievements([])}
+      />
+
+      <Modal visible={showEndTurnConfirm} transparent animationType="fade">
+        <View style={idx.confirmOverlay}>
+          <View style={idx.confirmCard}>
+            <LinearGradient colors={['#1a1812', '#0d1117']} style={StyleSheet.absoluteFill} />
+            <Text style={idx.confirmIcon}>⏭️</Text>
+            <Text style={idx.confirmTitle}>End Turn {state.turn}?</Text>
+            <Text style={idx.confirmDesc}>
+              {unseenEvents.length > 0 ? `⚠️ ${unseenEvents.length} unseen event${unseenEvents.length > 1 ? 's' : ''}!\n` : ''}
+              {activeWars.length > 0 ? `🔥 ${activeWars.length} active war${activeWars.length > 1 ? 's' : ''}\n` : ''}
+              Advance to {state.season === 'Winter' ? state.year + 1 : state.year} AD, {['Spring', 'Summer', 'Autumn', 'Winter'][((['Spring', 'Summer', 'Autumn', 'Winter'].indexOf(state.season)) + 1) % 4]}
+            </Text>
+            <View style={idx.confirmActions}>
+              <TouchableOpacity style={idx.confirmCancel} onPress={() => setShowEndTurnConfirm(false)} activeOpacity={0.7}>
+                <Text style={idx.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={idx.confirmBtn} onPress={confirmAdvanceTurn} activeOpacity={0.7}>
+                <Play size={16} color={Colors.bg.primary} fill={Colors.bg.primary} />
+                <Text style={idx.confirmBtnText}>End Turn</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={showGameOver} transparent animationType="fade">
         <View style={idx.modalOverlay}>
@@ -617,4 +657,14 @@ const idx = StyleSheet.create({
   tutStepText: { fontSize: 13, color: Colors.text.primary, flex: 1, lineHeight: 18 },
   tutBtn: { backgroundColor: Colors.gold.primary, paddingVertical: 14, paddingHorizontal: 40, borderRadius: 12 },
   tutBtnText: { fontSize: 16, fontWeight: "700" as const, color: Colors.bg.primary },
+  confirmOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.75)', alignItems: "center" as const, justifyContent: "center" as const, padding: 24 },
+  confirmCard: { width: "100%" as const, maxWidth: 320, borderRadius: 20, padding: 28, alignItems: "center" as const, overflow: "hidden" as const, borderWidth: 1, borderColor: Colors.border.gold },
+  confirmIcon: { fontSize: 40, marginBottom: 12 },
+  confirmTitle: { fontSize: 20, fontWeight: "800" as const, color: Colors.gold.bright, marginBottom: 8 },
+  confirmDesc: { fontSize: 13, color: Colors.text.secondary, textAlign: "center" as const, lineHeight: 20, marginBottom: 20 },
+  confirmActions: { flexDirection: "row" as const, gap: 12, width: "100%" as const },
+  confirmCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.border.primary, alignItems: "center" as const },
+  confirmCancelText: { fontSize: 14, fontWeight: "600" as const, color: Colors.text.secondary },
+  confirmBtn: { flex: 1, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, paddingVertical: 12, borderRadius: 10, backgroundColor: Colors.gold.primary },
+  confirmBtnText: { fontSize: 14, fontWeight: "700" as const, color: Colors.bg.primary },
 });
