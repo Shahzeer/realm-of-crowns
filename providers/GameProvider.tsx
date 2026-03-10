@@ -35,6 +35,7 @@ import {
   Councilor,
   ReignChronicle,
   ReignEvent,
+  PendingChainEvent,
 } from '@/types/game';
 import {
   INITIAL_RULER,
@@ -66,11 +67,6 @@ import {
 } from '@/mocks/gameData';
 import { getStandaloneNarrativeEvents, getFollowUpEvent } from '@/mocks/narrativeEvents';
 import { enrichBattleResult } from '@/utils/battleNarrative';
-
-interface PendingChainEvent {
-  eventId: string;
-  triggerTurn: number;
-}
 
 const STORAGE_KEY = 'realm_of_crowns_save';
 const CLOUD_SAVE_DEBOUNCE_MS = 2000;
@@ -579,6 +575,8 @@ function checkAchievements(state: GameState): Achievement[] {
       case 'faith_500': unlocked = state.resources.faith >= 500; break;
       case 'buildings_10': unlocked = totalBuildings >= 10; break;
       case 'trades_3': unlocked = state.activeTrades.length >= 3; break;
+      case 'spy_5': unlocked = state.log.filter(l => l.includes('Spy mission') && l.includes('succeeded')).length >= 5; break;
+      case 'succession_1': unlocked = (state.reignChronicles?.length ?? 0) >= 1; break;
     }
     if (unlocked) return { ...ach, unlocked: true, unlockedTurn: state.turn };
     return ach;
@@ -1175,6 +1173,19 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
       plague: { active: false, severity: 0, infectedProvinces: [], turnStarted: 0, contained: false },
       nobleDisputes: [],
     },
+    reignChronicles: [],
+    rulerStartTurn: 1,
+    rulerStartYear: 1066,
+    rulerPeakProvinces: 0,
+    rulerPeakGold: 0,
+    rulerBuildingsConstructed: 0,
+    rulerTechResearched: 0,
+    rulerWarsFought: 0,
+    rulerBattlesWon: 0,
+    rulerBattlesLost: 0,
+    rulerProvincesConquered: 0,
+    rulerProvincesLost: 0,
+    pendingChainEvents: [],
   };
 }
 
@@ -1211,6 +1222,19 @@ export const [GameProvider, useGame] = createContextHook(() => {
         plague: { active: false, severity: 0, infectedProvinces: [], turnStarted: 0, contained: false },
         nobleDisputes: [],
       },
+      reignChronicles: loaded.reignChronicles ?? [],
+      rulerStartTurn: loaded.rulerStartTurn ?? 1,
+      rulerStartYear: loaded.rulerStartYear ?? loaded.year ?? 1066,
+      rulerPeakProvinces: loaded.rulerPeakProvinces ?? 0,
+      rulerPeakGold: loaded.rulerPeakGold ?? 0,
+      rulerBuildingsConstructed: loaded.rulerBuildingsConstructed ?? 0,
+      rulerTechResearched: loaded.rulerTechResearched ?? 0,
+      rulerWarsFought: loaded.rulerWarsFought ?? 0,
+      rulerBattlesWon: loaded.rulerBattlesWon ?? 0,
+      rulerBattlesLost: loaded.rulerBattlesLost ?? 0,
+      rulerProvincesConquered: loaded.rulerProvincesConquered ?? 0,
+      rulerProvincesLost: loaded.rulerProvincesLost ?? 0,
+      pendingChainEvents: loaded.pendingChainEvents ?? [],
     };
   }
 
@@ -1839,7 +1863,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       let newEvents = [...prev.events, ...aiResult.newEvents.map(e => ({ ...e, turn: nextTurn })), ...revoltEvents];
 
-      const pendingChains: PendingChainEvent[] = (prev as GameState & { pendingChainEvents?: PendingChainEvent[] }).pendingChainEvents ?? [];
+      const pendingChains: PendingChainEvent[] = prev.pendingChainEvents ?? [];
       const triggeredChains = pendingChains.filter(pc => pc.triggerTurn <= nextTurn);
       const remainingChains = pendingChains.filter(pc => pc.triggerTurn > nextTurn);
       triggeredChains.forEach(pc => {
@@ -2254,8 +2278,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         }
       }
 
-      const prevExtended = prev as GameState & { pendingChainEvents?: PendingChainEvent[] };
-      let pendingChains: PendingChainEvent[] = [...(prevExtended.pendingChainEvents ?? [])];
+      let pendingChains: PendingChainEvent[] = [...(prev.pendingChainEvents ?? [])];
       if (choice.followUpEventId && choice.followUpDelay) {
         pendingChains.push({
           eventId: choice.followUpEventId,

@@ -501,4 +501,10 @@ export interface GameState {
   rulerProvincesConquered?: number;
   rulerProvincesLost?: number;
   latestReignChronicle?: ReignChronicle;
+  pendingChainEvents?: PendingChainEvent[];
+}
+
+export interface PendingChainEvent {
+  eventId: string;
+  triggerTurn: number;
 }
