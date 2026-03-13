@@ -64,6 +64,7 @@ import {
   AI_PERSONALITY_PROFILES,
   DEFAULT_KINGDOM_PERSONALITIES,
   PERSONALITY_RUMORS,
+  RUMOR_TEMPLATES,
 } from '@/mocks/gameData';
 import { getStandaloneNarrativeEvents, getFollowUpEvent } from '@/mocks/narrativeEvents';
 import { enrichBattleResult } from '@/utils/battleNarrative';
