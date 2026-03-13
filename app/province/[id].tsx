@@ -169,8 +169,9 @@ export default function ProvinceDetailScreen() {
             <>
               <Text style={ps.sectionTitle}>Buildings ({province.buildings.length}/5)</Text>
               {province.buildings.map(building => {
-                const upgradeCost = (building.cost.gold ?? 100) * (building.level + 1);
+                const upgradeCost = Math.floor((building.cost.gold ?? 100) * (1 + building.level * 0.5));
                 const canUpgrade = building.level < building.maxLevel && state.resources.gold >= upgradeCost;
+                const levelPercent = (building.level / building.maxLevel) * 100;
                 return (
                   <View key={building.id} style={ps.buildingCard}>
                     <View style={ps.buildingHeader}>
@@ -183,17 +184,24 @@ export default function ProvinceDetailScreen() {
                         <Text style={ps.levelText}>Lv {building.level}/{building.maxLevel}</Text>
                       </View>
                     </View>
+                    <View style={ps.levelBarBg}>
+                      <View style={[ps.levelBarFill, { width: `${levelPercent}%` }]} />
+                    </View>
                     <View style={ps.buildingProduction}>
                       {building.production.goldPerTurn ? <Text style={ps.prodText}>💰 +{building.production.goldPerTurn * building.level}/turn</Text> : null}
                       {building.production.foodPerTurn ? <Text style={ps.prodText}>🌾 +{building.production.foodPerTurn * building.level}/turn</Text> : null}
                       {building.production.militaryPerTurn ? <Text style={ps.prodText}>⚔️ +{building.production.militaryPerTurn * building.level}/turn</Text> : null}
                       {building.production.faithPerTurn ? <Text style={ps.prodText}>🙏 +{building.production.faithPerTurn * building.level}/turn</Text> : null}
                     </View>
-                    {building.level < building.maxLevel && (
+                    {building.level < building.maxLevel ? (
                       <TouchableOpacity style={[ps.upgradeBtn, !canUpgrade && ps.upgradeBtnDisabled]} onPress={() => handleUpgrade(building.id)} disabled={!canUpgrade} activeOpacity={0.7}>
                         <ArrowUpCircle size={16} color={canUpgrade ? Colors.bg.primary : Colors.text.dim} />
-                        <Text style={[ps.upgradeBtnText, !canUpgrade && ps.upgradeBtnTextDisabled]}>Upgrade ({upgradeCost}g)</Text>
+                        <Text style={[ps.upgradeBtnText, !canUpgrade && ps.upgradeBtnTextDisabled]}>Upgrade to Lv {building.level + 1} ({upgradeCost}g)</Text>
                       </TouchableOpacity>
+                    ) : (
+                      <View style={ps.maxLevelBadge}>
+                        <Text style={ps.maxLevelText}>✨ MAX LEVEL</Text>
+                      </View>
                     )}
                   </View>
                 );
@@ -387,4 +395,8 @@ const ps = StyleSheet.create({
   unrestWarningText: { fontSize: 11, color: '#ff4444', fontWeight: "600" as const },
   loyaltyWarning: { marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, backgroundColor: Colors.status.warning + '12', borderWidth: 1, borderColor: Colors.status.warning + '25' },
   loyaltyWarningText: { fontSize: 11, color: Colors.status.warning, fontWeight: "600" as const },
+  levelBarBg: { height: 3, borderRadius: 2, backgroundColor: Colors.bg.tertiary, marginTop: 8, marginLeft: 34, overflow: "hidden" as const },
+  levelBarFill: { height: "100%" as const, borderRadius: 2, backgroundColor: Colors.gold.primary },
+  maxLevelBadge: { marginTop: 10, alignItems: "center" as const, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.gold.primary + '15', borderWidth: 1, borderColor: Colors.gold.primary + '30' },
+  maxLevelText: { fontSize: 12, fontWeight: "700" as const, color: Colors.gold.bright, letterSpacing: 1 },
 });

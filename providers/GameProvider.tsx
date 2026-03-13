@@ -793,7 +793,7 @@ function processAIKingdomGrowth(kingdom: Kingdom, provinces: Province[], turn: n
     if (upgradeTarget) {
       const building = upgradeTarget.buildings.find(b => b.level < b.maxLevel);
       if (building) {
-        const cost = (building.cost.gold ?? 100) * (building.level + 1);
+        const cost = Math.floor((building.cost.gold ?? 100) * (1 + building.level * 0.5));
         if (updatedKingdom.treasury >= cost) {
           updatedProvinces = updatedProvinces.map(p =>
             p.id === upgradeTarget.id
@@ -2420,13 +2420,13 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const province = prev.provinces.find(p => p.id === provinceId);
       const building = province?.buildings.find(b => b.id === buildingId);
       if (!province || !building || building.level >= building.maxLevel) return prev;
-      const upgradeCost = (building.cost.gold ?? 100) * (building.level + 1);
+      const upgradeCost = Math.floor((building.cost.gold ?? 100) * (1 + building.level * 0.5));
       if (prev.resources.gold < upgradeCost) return prev;
       const newProvinces = prev.provinces.map(p => {
         if (p.id !== provinceId) return p;
-        return { ...p, buildings: p.buildings.map(b => b.id !== buildingId ? b : { ...b, level: b.level + 1 }), development: Math.min(100, p.development + 5) };
+        return { ...p, buildings: p.buildings.map(b => b.id !== buildingId ? b : { ...b, level: b.level + 1 }), development: Math.min(100, p.development + 2) };
       });
-      const logEntry = `Upgraded ${building.name} to level ${building.level + 1} in ${province.name}`;
+      const logEntry = `🏗️ Upgraded ${building.name} to level ${building.level + 1} in ${province.name}`;
       const newState: GameState = {
         ...prev, resources: { ...prev.resources, gold: prev.resources.gold - upgradeCost },
         provinces: newProvinces, log: [logEntry, ...prev.log].slice(0, 50),

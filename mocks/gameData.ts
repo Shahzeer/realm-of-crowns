@@ -64,64 +64,58 @@ export const INITIAL_RESOURCES: Resources = {
   food: 300,
   military: 200,
   faith: 100,
-  goldPerTurn: 45,
-  foodPerTurn: 30,
-  militaryPerTurn: 10,
-  faithPerTurn: 5,
+  goldPerTurn: 30,
+  foodPerTurn: 20,
+  militaryPerTurn: 8,
+  faithPerTurn: 3,
 };
 
 const BUILDINGS: Record<string, Building[]> = {
   ironhold: [
-    { id: 'b1', name: 'Castle Keep', level: 3, maxLevel: 5, description: 'Fortified seat of power', cost: { gold: 200 }, production: { militaryPerTurn: 3 }, icon: '🏰' },
-    { id: 'b2', name: 'Market Square', level: 2, maxLevel: 5, description: 'Hub of trade and commerce', cost: { gold: 150 }, production: { goldPerTurn: 8 }, icon: '🏪' },
-    { id: 'b3', name: 'Grand Cathedral', level: 2, maxLevel: 4, description: 'Center of worship', cost: { gold: 180 }, production: { faithPerTurn: 3 }, icon: '⛪' },
+    { id: 'b1', name: 'Castle Keep', level: 2, maxLevel: 10, description: 'Fortified seat of power', cost: { gold: 200 }, production: { militaryPerTurn: 2 }, icon: '🏰' },
+    { id: 'b2', name: 'Market Square', level: 1, maxLevel: 10, description: 'Hub of trade and commerce', cost: { gold: 150 }, production: { goldPerTurn: 4 }, icon: '🏪' },
   ],
   thornvale: [
-    { id: 'b4', name: 'Lumber Mill', level: 2, maxLevel: 4, description: 'Processes timber resources', cost: { gold: 100 }, production: { goldPerTurn: 5 }, icon: '🪵' },
-    { id: 'b5', name: 'Watchtower', level: 1, maxLevel: 3, description: 'Scouts approaching enemies', cost: { gold: 80 }, production: { militaryPerTurn: 1 }, icon: '🗼' },
+    { id: 'b4', name: 'Watchtower', level: 1, maxLevel: 10, description: 'Scouts approaching enemies', cost: { gold: 80 }, production: { militaryPerTurn: 1 }, icon: '🗼' },
   ],
   goldmere: [
-    { id: 'b6', name: 'Gold Mine', level: 3, maxLevel: 5, description: 'Rich veins of gold ore', cost: { gold: 250 }, production: { goldPerTurn: 12 }, icon: '⛏️' },
-    { id: 'b7', name: 'Tavern', level: 1, maxLevel: 3, description: 'Rest for weary soldiers', cost: { gold: 60 }, production: { goldPerTurn: 3 }, icon: '🍺' },
+    { id: 'b6', name: 'Gold Mine', level: 1, maxLevel: 10, description: 'Rich veins of gold ore', cost: { gold: 250 }, production: { goldPerTurn: 5 }, icon: '⛏️' },
   ],
   ashford: [
-    { id: 'b8', name: 'Granary', level: 2, maxLevel: 4, description: 'Stores food for the population', cost: { gold: 90 }, production: { foodPerTurn: 8 }, icon: '🌾' },
-    { id: 'b9', name: 'Farmstead', level: 3, maxLevel: 5, description: 'Fertile farmlands', cost: { gold: 120 }, production: { foodPerTurn: 10 }, icon: '🌻' },
+    { id: 'b9', name: 'Farmstead', level: 1, maxLevel: 10, description: 'Fertile farmlands', cost: { gold: 120 }, production: { foodPerTurn: 5 }, icon: '🌻' },
   ],
   stormwatch: [
-    { id: 'b10', name: 'Fortress Wall', level: 2, maxLevel: 5, description: 'Massive stone fortifications', cost: { gold: 200 }, production: { militaryPerTurn: 4 }, icon: '🧱' },
-    { id: 'b11', name: 'Barracks', level: 2, maxLevel: 4, description: 'Training grounds for soldiers', cost: { gold: 150 }, production: { militaryPerTurn: 5 }, icon: '⚔️' },
+    { id: 'b10', name: 'Fortress Wall', level: 1, maxLevel: 10, description: 'Massive stone fortifications', cost: { gold: 200 }, production: { militaryPerTurn: 2 }, icon: '🧱' },
   ],
-  ravenspire: [
-    { id: 'b12', name: 'Monastery', level: 3, maxLevel: 5, description: 'Sacred place of learning', cost: { gold: 180 }, production: { faithPerTurn: 5 }, icon: '📿' },
-    { id: 'b13', name: 'Scriptorium', level: 1, maxLevel: 3, description: 'Where knowledge is preserved', cost: { gold: 100 }, production: { faithPerTurn: 2 }, icon: '📜' },
-  ],
+  ravenspire: [],
   dragonfall: [
-    { id: 'b14', name: 'War Forge', level: 2, maxLevel: 5, description: 'Forge of mighty weapons', cost: { gold: 200 }, production: { militaryPerTurn: 6 }, icon: '🔨' },
-    { id: 'b15', name: 'Blood Arena', level: 2, maxLevel: 4, description: 'Warriors prove their worth', cost: { gold: 150 }, production: { militaryPerTurn: 3 }, icon: '🏟️' },
+    { id: 'b14', name: 'War Forge', level: 2, maxLevel: 10, description: 'Forge of mighty weapons', cost: { gold: 200 }, production: { militaryPerTurn: 3 }, icon: '🔨' },
+    { id: 'b15', name: 'Blood Arena', level: 1, maxLevel: 10, description: 'Warriors prove their worth', cost: { gold: 150 }, production: { militaryPerTurn: 2 }, icon: '🏟️' },
   ],
   blackmoor: [
-    { id: 'b16', name: 'Iron Mine', level: 2, maxLevel: 4, description: 'Deep mountain mines', cost: { gold: 200 }, production: { goldPerTurn: 8 }, icon: '⛏️' },
+    { id: 'b16', name: 'Iron Mine', level: 1, maxLevel: 10, description: 'Deep mountain mines', cost: { gold: 200 }, production: { goldPerTurn: 4 }, icon: '⛏️' },
   ],
   sunspear: [
-    { id: 'b17', name: 'Grand Bazaar', level: 3, maxLevel: 5, description: 'Wealthy trade hub', cost: { gold: 250 }, production: { goldPerTurn: 14 }, icon: '🏪' },
-    { id: 'b18', name: 'Palace Gardens', level: 2, maxLevel: 4, description: 'Beauty and diplomacy', cost: { gold: 180 }, production: { faithPerTurn: 3 }, icon: '🌺' },
+    { id: 'b17', name: 'Grand Bazaar', level: 2, maxLevel: 10, description: 'Wealthy trade hub', cost: { gold: 250 }, production: { goldPerTurn: 6 }, icon: '🏪' },
   ],
   highgarden: [
-    { id: 'b19', name: 'Vineyard', level: 2, maxLevel: 4, description: 'Fine wines and trade goods', cost: { gold: 120 }, production: { goldPerTurn: 5 }, icon: '🍇' },
-    { id: 'b20', name: 'Great Farmstead', level: 3, maxLevel: 5, description: 'Bountiful harvests', cost: { gold: 100 }, production: { foodPerTurn: 12 }, icon: '🌻' },
+    { id: 'b20', name: 'Great Farmstead', level: 1, maxLevel: 10, description: 'Bountiful harvests', cost: { gold: 100 }, production: { foodPerTurn: 5 }, icon: '🌻' },
   ],
 };
 
 export const BUILDING_BLUEPRINTS: BuildingBlueprint[] = [
-  { id: 'bp_barracks', name: 'Barracks', maxLevel: 4, description: 'Train soldiers for your army', baseCost: 200, production: { militaryPerTurn: 4 }, icon: '⚔️' },
-  { id: 'bp_market', name: 'Marketplace', maxLevel: 5, description: 'Boost local trade revenue', baseCost: 180, production: { goldPerTurn: 6 }, icon: '🏪' },
-  { id: 'bp_farm', name: 'Farmstead', maxLevel: 5, description: 'Grow food for your people', baseCost: 120, production: { foodPerTurn: 8 }, icon: '🌻', requiredType: ['farmland', 'forest'] },
-  { id: 'bp_temple', name: 'Temple', maxLevel: 4, description: 'A house of worship', baseCost: 160, production: { faithPerTurn: 4 }, icon: '🕯️' },
-  { id: 'bp_walls', name: 'Stone Walls', maxLevel: 5, description: 'Fortify the province (+garrison)', baseCost: 250, production: { militaryPerTurn: 2 }, icon: '🧱', requiredType: ['castle', 'capital', 'city'] },
-  { id: 'bp_mine', name: 'Mine', maxLevel: 4, description: 'Extract valuable ores', baseCost: 220, production: { goldPerTurn: 10 }, icon: '⛏️', requiredType: ['mountain'] },
-  { id: 'bp_library', name: 'Library', maxLevel: 3, description: 'Advance knowledge and learning', baseCost: 300, production: { faithPerTurn: 2 }, icon: '📚' },
-  { id: 'bp_tavern', name: 'Tavern', maxLevel: 3, description: 'Rest and recruitment hub', baseCost: 80, production: { goldPerTurn: 3 }, icon: '🍺' },
+  { id: 'bp_barracks', name: 'Barracks', maxLevel: 10, description: 'Train soldiers for your army', baseCost: 200, production: { militaryPerTurn: 2 }, icon: '⚔️' },
+  { id: 'bp_market', name: 'Marketplace', maxLevel: 10, description: 'Boost local trade revenue', baseCost: 180, production: { goldPerTurn: 3 }, icon: '🏪' },
+  { id: 'bp_farm', name: 'Farmstead', maxLevel: 10, description: 'Grow food for your people', baseCost: 120, production: { foodPerTurn: 3 }, icon: '🌻', requiredType: ['farmland', 'forest'] },
+  { id: 'bp_temple', name: 'Temple', maxLevel: 10, description: 'A house of worship', baseCost: 160, production: { faithPerTurn: 2 }, icon: '🕯️' },
+  { id: 'bp_walls', name: 'Stone Walls', maxLevel: 10, description: 'Fortify the province (+garrison)', baseCost: 250, production: { militaryPerTurn: 1 }, icon: '🧱', requiredType: ['castle', 'capital', 'city'] },
+  { id: 'bp_mine', name: 'Mine', maxLevel: 10, description: 'Extract valuable ores', baseCost: 220, production: { goldPerTurn: 4 }, icon: '⛏️', requiredType: ['mountain'] },
+  { id: 'bp_library', name: 'Library', maxLevel: 10, description: 'Advance knowledge and learning', baseCost: 300, production: { faithPerTurn: 1 }, icon: '📚' },
+  { id: 'bp_tavern', name: 'Tavern', maxLevel: 10, description: 'Rest and recruitment hub', baseCost: 80, production: { goldPerTurn: 2 }, icon: '🍺' },
+  { id: 'bp_cathedral', name: 'Grand Cathedral', maxLevel: 10, description: 'Center of worship and faith', baseCost: 280, production: { faithPerTurn: 3 }, icon: '⛪' },
+  { id: 'bp_granary', name: 'Granary', maxLevel: 10, description: 'Stores food for the population', baseCost: 140, production: { foodPerTurn: 4 }, icon: '🌾' },
+  { id: 'bp_lumber', name: 'Lumber Mill', maxLevel: 10, description: 'Processes timber for gold', baseCost: 100, production: { goldPerTurn: 2 }, icon: '🪵', requiredType: ['forest'] },
+  { id: 'bp_monastery', name: 'Monastery', maxLevel: 10, description: 'Sacred place of learning', baseCost: 240, production: { faithPerTurn: 3 }, icon: '📿', requiredType: ['temple'] },
 ];
 
 export const ALL_PROVINCES: Province[] = [
@@ -426,10 +420,12 @@ export const COMMANDER_NAMES = [
 ];
 
 export const AI_BUILDING_POOL: BuildingBlueprint[] = [
-  { id: 'ai_barracks', name: 'Barracks', maxLevel: 4, description: 'Train soldiers', baseCost: 200, production: { militaryPerTurn: 4 }, icon: '⚔️' },
-  { id: 'ai_market', name: 'Marketplace', maxLevel: 5, description: 'Trade hub', baseCost: 180, production: { goldPerTurn: 6 }, icon: '🏪' },
-  { id: 'ai_farm', name: 'Farmstead', maxLevel: 5, description: 'Food production', baseCost: 120, production: { foodPerTurn: 8 }, icon: '🌻' },
-  { id: 'ai_walls', name: 'Stone Walls', maxLevel: 5, description: 'Fortification', baseCost: 250, production: { militaryPerTurn: 2 }, icon: '🧱' },
+  { id: 'ai_barracks', name: 'Barracks', maxLevel: 10, description: 'Train soldiers', baseCost: 200, production: { militaryPerTurn: 2 }, icon: '⚔️' },
+  { id: 'ai_market', name: 'Marketplace', maxLevel: 10, description: 'Trade hub', baseCost: 180, production: { goldPerTurn: 3 }, icon: '🏪' },
+  { id: 'ai_farm', name: 'Farmstead', maxLevel: 10, description: 'Food production', baseCost: 120, production: { foodPerTurn: 3 }, icon: '🌻' },
+  { id: 'ai_walls', name: 'Stone Walls', maxLevel: 10, description: 'Fortification', baseCost: 250, production: { militaryPerTurn: 1 }, icon: '🧱' },
+  { id: 'ai_temple', name: 'Temple', maxLevel: 10, description: 'Place of worship', baseCost: 160, production: { faithPerTurn: 2 }, icon: '🕯️' },
+  { id: 'ai_mine', name: 'Mine', maxLevel: 10, description: 'Gold extraction', baseCost: 220, production: { goldPerTurn: 4 }, icon: '⛏️' },
 ];
 
 export const SPY_MISSIONS: SpyMission[] = [
