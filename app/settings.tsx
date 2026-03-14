@@ -4,9 +4,10 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, Settings, RotateCcw, Crown, Shield, Swords, BookOpen, MapPin, Calendar, Flame, Cloud, CloudOff, RefreshCw } from "lucide-react-native";
+import { X, Settings, RotateCcw, Crown, Shield, Swords, BookOpen, MapPin, Calendar, Flame, Cloud, CloudOff, RefreshCw, LogOut } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
+import { useAuth } from "@/providers/AuthProvider";
 
 const DIFFICULTY_META: Record<string, { label: string; color: string; desc: string }> = {
   easy: { label: 'EASY', color: Colors.status.success, desc: 'More resources, weaker AI opponents' },
@@ -39,6 +40,7 @@ export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { state, resetGame, playerProvinces, cloudStatus, forceCloudSync } = useGame();
+  const { user, signOut } = useAuth();
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -198,6 +200,27 @@ export default function SettingsScreen() {
             ))}
           </View>
 
+          <Text style={st.sectionTitle}>Account</Text>
+          <View style={st.accountCard}>
+            <View style={st.accountRow}>
+              <Text style={st.accountEmail}>{user?.email ?? 'Not signed in'}</Text>
+            </View>
+            <TouchableOpacity
+              style={st.signOutBtn}
+              onPress={() => {
+                Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Sign Out', style: 'destructive', onPress: () => { void signOut(); } },
+                ]);
+              }}
+              activeOpacity={0.7}
+              testID="sign-out-btn"
+            >
+              <LogOut size={16} color={Colors.text.secondary} />
+              <Text style={st.signOutText}>Sign Out</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={st.dangerZone}>
             <TouchableOpacity style={st.newGameBtn} onPress={handleNewGame} activeOpacity={0.7} testID="new-game-btn">
               <RotateCcw size={18} color={Colors.crimson.bright} />
@@ -253,4 +276,9 @@ const st = StyleSheet.create({
   cloudStatusText: { fontSize: 11, fontWeight: "600" as const },
   syncBtn: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: Colors.gold.dim + '20', borderWidth: 1, borderColor: Colors.gold.dim + '40' },
   syncBtnText: { fontSize: 11, fontWeight: "700" as const, color: Colors.gold.bright },
+  accountCard: { marginHorizontal: 16, backgroundColor: Colors.bg.card, borderRadius: 14, padding: 14, borderWidth: 1, borderColor: Colors.border.primary },
+  accountRow: { marginBottom: 12 },
+  accountEmail: { fontSize: 14, fontWeight: "600" as const, color: Colors.text.primary },
+  signOutBtn: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, paddingVertical: 12, borderRadius: 10, borderWidth: 1, borderColor: Colors.border.primary, backgroundColor: Colors.bg.tertiary },
+  signOutText: { fontSize: 14, fontWeight: "600" as const, color: Colors.text.secondary },
 });

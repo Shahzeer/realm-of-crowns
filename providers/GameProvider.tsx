@@ -2,7 +2,8 @@ import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
-import { getDeviceId, loadCloudSave, saveToCloud, deleteCloudSave } from '@/utils/supabase';
+import { loadCloudSave, saveToCloud, deleteCloudSave } from '@/utils/supabase';
+import { useAuth } from '@/providers/AuthProvider';
 import { computeVisibility, VisibilityMap } from '@/utils/fogOfWar';
 import {
   GameState,
@@ -1191,12 +1192,22 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
 }
 
 export const [GameProvider, useGame] = createContextHook(() => {
+  const { user } = useAuth();
   const [state, setState] = React.useState<GameState>(defaultState);
   const [isLoaded, setIsLoaded] = React.useState(false);
   const [cloudStatus, setCloudStatus] = React.useState<'idle' | 'syncing' | 'synced' | 'offline'>('idle');
-  const deviceIdRef = useRef<string | null>(null);
+  const userIdRef = useRef<string | null>(null);
   const cloudSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSaveRef = useRef<GameState | null>(null);
+
+  useEffect(() => {
+    if (user?.id) {
+      userIdRef.current = user.id;
+      console.log('[Game] User ID set:', user.id);
+    } else {
+      userIdRef.current = null;
+    }
+  }, [user?.id]);
 
   function mergeLoadedState(loaded: Partial<GameState>): GameState {
     return {
@@ -1240,15 +1251,18 @@ export const [GameProvider, useGame] = createContextHook(() => {
   }
 
   const loadQuery = useQuery({
-    queryKey: ['game-save'],
+    queryKey: ['game-save', user?.id],
     queryFn: async () => {
-      const devId = await getDeviceId();
-      deviceIdRef.current = devId;
-      console.log('[Game] Device ID:', devId);
+      const userId = user?.id;
+      if (!userId) {
+        console.log('[Game] No user ID, skipping cloud load');
+        return null;
+      }
+      console.log('[Game] Loading save for user:', userId);
 
       let cloudState: Record<string, unknown> | null = null;
       try {
-        cloudState = await loadCloudSave(devId);
+        cloudState = await loadCloudSave(userId);
         if (cloudState) {
           console.log('[Game] Found cloud save, turn:', (cloudState as { turn?: number }).turn);
           setCloudStatus('synced');
@@ -1260,7 +1274,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       let localState: GameState | null = null;
       try {
-        const saved = await AsyncStorage.getItem(STORAGE_KEY);
+        const saved = await AsyncStorage.getItem(STORAGE_KEY + '_' + userId);
         if (saved) localState = JSON.parse(saved) as GameState;
       } catch (e) {
         console.warn('[Game] Local load failed:', e);
@@ -1277,6 +1291,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       if (localState) return localState;
       return null;
     },
+    enabled: !!user?.id,
   });
 
   const debouncedCloudSave = useCallback((gameState: GameState) => {
@@ -1284,10 +1299,10 @@ export const [GameProvider, useGame] = createContextHook(() => {
     if (cloudSaveTimerRef.current) clearTimeout(cloudSaveTimerRef.current);
     cloudSaveTimerRef.current = setTimeout(async () => {
       const toSave = pendingSaveRef.current;
-      if (!toSave || !deviceIdRef.current) return;
+      if (!toSave || !userIdRef.current) return;
       pendingSaveRef.current = null;
       setCloudStatus('syncing');
-      const ok = await saveToCloud(deviceIdRef.current, toSave as unknown as Record<string, unknown>);
+      const ok = await saveToCloud(userIdRef.current, toSave as unknown as Record<string, unknown>);
       setCloudStatus(ok ? 'synced' : 'offline');
       if (!ok) {
         console.warn('[Game] Cloud save failed, will retry on next save');
@@ -1297,8 +1312,10 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
   const saveMutation = useMutation({
     mutationFn: async (gameState: GameState) => {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
-      debouncedCloudSave(gameState);
+      const userId = userIdRef.current;
+      const storageKey = userId ? STORAGE_KEY + '_' + userId : STORAGE_KEY;
+      await AsyncStorage.setItem(storageKey, JSON.stringify(gameState));
+      if (userId) debouncedCloudSave(gameState);
     },
   });
 
@@ -2810,17 +2827,19 @@ export const [GameProvider, useGame] = createContextHook(() => {
   }, [saveMutation]);
 
   const resetGame = useCallback(async () => {
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    if (deviceIdRef.current) {
-      await deleteCloudSave(deviceIdRef.current);
+    const userId = userIdRef.current;
+    const storageKey = userId ? STORAGE_KEY + '_' + userId : STORAGE_KEY;
+    await AsyncStorage.removeItem(storageKey);
+    if (userId) {
+      await deleteCloudSave(userId);
     }
     setState({ ...defaultState, gameStarted: false });
   }, []);
 
   const forceCloudSync = useCallback(async () => {
-    if (!deviceIdRef.current) return false;
+    if (!userIdRef.current) return false;
     setCloudStatus('syncing');
-    const ok = await saveToCloud(deviceIdRef.current, state as unknown as Record<string, unknown>);
+    const ok = await saveToCloud(userIdRef.current, state as unknown as Record<string, unknown>);
     setCloudStatus(ok ? 'synced' : 'offline');
     return ok;
   }, [state]);

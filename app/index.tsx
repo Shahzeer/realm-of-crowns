@@ -7,6 +7,7 @@ import * as Haptics from "expo-haptics";
 import { Swords, Globe, ScrollText, Crown, ChevronRight, Play, BookOpen, Users, Shield, Flame, RotateCcw, ArrowRightLeft, Eye, Sparkles, Trophy, X, TrendingUp, Settings, ShieldAlert, AlertTriangle, Bug, Wheat, Skull } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
+import { useAuth } from "@/providers/AuthProvider";
 import ResourceBar from "@/components/ResourceBar";
 import MapView from "@/components/MapView";
 import GameToast from "@/components/GameToast";
@@ -46,26 +47,13 @@ function WarBanner({ wars }: { wars: Array<{ name: string; color: string }> }) {
 
 function PressureIndicators({ pressures, onPress }: { pressures: { corruption: number; overstretch: number; famine: number; plague: { active: boolean; severity: number }; nobleDisputes: Array<{ resolved: boolean }> }; onPress: () => void }) {
   const indicators: Array<{ label: string; value: number; threshold: number; criticalThreshold: number; icon: React.ReactNode }> = [];
-
-  if (pressures.corruption > 15) {
-    indicators.push({ label: 'Corruption', value: pressures.corruption, threshold: 30, criticalThreshold: 60, icon: <Bug size={12} color={pressures.corruption >= 60 ? Colors.crimson.bright : Colors.status.warning} /> });
-  }
-  if (pressures.overstretch > 0) {
-    indicators.push({ label: 'Overstretch', value: pressures.overstretch, threshold: 20, criticalThreshold: 50, icon: <AlertTriangle size={12} color={pressures.overstretch >= 50 ? Colors.crimson.bright : Colors.status.warning} /> });
-  }
-  if (pressures.famine > 10) {
-    indicators.push({ label: 'Famine', value: pressures.famine, threshold: 25, criticalThreshold: 50, icon: <Wheat size={12} color={pressures.famine >= 50 ? Colors.crimson.bright : Colors.status.warning} /> });
-  }
-  if (pressures.plague.active) {
-    indicators.push({ label: 'Plague', value: pressures.plague.severity, threshold: 1, criticalThreshold: 50, icon: <Skull size={12} color={Colors.crimson.bright} /> });
-  }
+  if (pressures.corruption > 15) indicators.push({ label: 'Corruption', value: pressures.corruption, threshold: 30, criticalThreshold: 60, icon: <Bug size={12} color={pressures.corruption >= 60 ? Colors.crimson.bright : Colors.status.warning} /> });
+  if (pressures.overstretch > 0) indicators.push({ label: 'Overstretch', value: pressures.overstretch, threshold: 20, criticalThreshold: 50, icon: <AlertTriangle size={12} color={pressures.overstretch >= 50 ? Colors.crimson.bright : Colors.status.warning} /> });
+  if (pressures.famine > 10) indicators.push({ label: 'Famine', value: pressures.famine, threshold: 25, criticalThreshold: 50, icon: <Wheat size={12} color={pressures.famine >= 50 ? Colors.crimson.bright : Colors.status.warning} /> });
+  if (pressures.plague.active) indicators.push({ label: 'Plague', value: pressures.plague.severity, threshold: 1, criticalThreshold: 50, icon: <Skull size={12} color={Colors.crimson.bright} /> });
   const unresolvedDisputes = pressures.nobleDisputes.filter(d => !d.resolved).length;
-  if (unresolvedDisputes > 0) {
-    indicators.push({ label: `${unresolvedDisputes} Dispute${unresolvedDisputes > 1 ? 's' : ''}`, value: unresolvedDisputes * 25, threshold: 25, criticalThreshold: 75, icon: <Crown size={12} color={Colors.status.warning} /> });
-  }
-
+  if (unresolvedDisputes > 0) indicators.push({ label: `${unresolvedDisputes} Dispute${unresolvedDisputes > 1 ? 's' : ''}`, value: unresolvedDisputes * 25, threshold: 25, criticalThreshold: 75, icon: <Crown size={12} color={Colors.status.warning} /> });
   if (indicators.length === 0) return null;
-
   return (
     <TouchableOpacity style={idx.pressureStrip} onPress={onPress} activeOpacity={0.7} testID="pressure-indicators">
       {indicators.map((ind, i) => {
@@ -130,7 +118,7 @@ function TurnSummaryModal({ visible, onClose, summary }: { visible: boolean; onC
             {summary.spyResults && summary.spyResults.length > 0 && (
               <View style={idx.summarySection}>
                 <Text style={idx.summarySectionTitle}>Spy Reports</Text>
-                {summary.spyResults.map((s: string, i: number) => <Text key={i} style={idx.summaryDetail}>🕵️ {s}</Text>)}
+                {summary.spyResults.map((sr: string, i: number) => <Text key={i} style={idx.summaryDetail}>🕵️ {sr}</Text>)}
               </View>
             )}
           </ScrollView>
@@ -147,6 +135,7 @@ export default function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { state, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, visibilityMap, investigateRumor, dismissRumor } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -247,6 +236,8 @@ export default function KingdomScreen() {
   const pressureBadge = (state.pressures.plague.active ? 1 : 0) + state.pressures.nobleDisputes.filter(d => !d.resolved).length;
   const pressureSub = state.pressures.plague.active ? 'Plague!' : state.pressures.corruption > 30 ? 'Corruption' : 'Stable';
 
+  if (authLoading) return <View style={idx.root}><LinearGradient colors={[Colors.bg.primary, Colors.bg.secondary, Colors.bg.primary]} style={StyleSheet.absoluteFill} /></View>;
+  if (!isAuthenticated) return <Redirect href="/sign-in" />;
   if (!state.gameStarted) return <Redirect href="/kingdom-select" />;
 
   return (
@@ -255,7 +246,6 @@ export default function KingdomScreen() {
       <GameToast visible={toast.visible} message={toast.message} type={toast.type} onDismiss={() => setToast(prev => ({ ...prev, visible: false }))} />
       <TurnSummaryModal visible={showTurnSummary} onClose={() => setShowTurnSummary(false)} summary={state.lastTurnSummary} />
       <AchievementPopup achievements={pendingAchievements} onDismiss={() => setPendingAchievements([])} />
-
       <Modal visible={showEndTurnConfirm} transparent animationType="fade">
         <View style={idx.confirmOverlay}>
           <View style={idx.confirmCard}>
@@ -271,7 +261,6 @@ export default function KingdomScreen() {
           </View>
         </View>
       </Modal>
-
       <Modal visible={showGameOver} transparent animationType="fade">
         <View style={idx.modalOverlay}>
           <View style={idx.modalCard}>
@@ -286,7 +275,6 @@ export default function KingdomScreen() {
           </View>
         </View>
       </Modal>
-
       <View style={idx.header}>
         <TouchableOpacity style={idx.rulerButton} onPress={() => navigateTo("/ruler")} activeOpacity={0.7} testID="ruler-button">
           <View style={idx.rulerAvatar}><Crown size={18} color={Colors.gold.bright} /></View>
@@ -300,11 +288,9 @@ export default function KingdomScreen() {
           <SeasonBadge season={state.season} />
         </View>
       </View>
-
       <ResourceBar resources={state.resources} />
       <PressureIndicators pressures={state.pressures} onPress={() => navigateTo('/pressures')} />
       <WarBanner wars={activeWars.map(w => ({ name: w.name, color: w.color }))} />
-
       <ScrollView style={idx.scrollContent} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }} showsVerticalScrollIndicator={false}>
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
           {seasonEffect && (

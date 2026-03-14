@@ -4,6 +4,7 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
+import { AuthProvider } from "@/providers/AuthProvider";
 import { GameProvider } from "@/providers/GameProvider";
 import Colors from "@/constants/colors";
 
@@ -17,6 +18,8 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg.primary }, animation: "slide_from_right" }}>
       <Stack.Screen name="index" options={{ headerShown: false, animation: "none" }} />
+      <Stack.Screen name="sign-in" options={{ headerShown: false, animation: "fade" }} />
+      <Stack.Screen name="sign-up" options={{ headerShown: false, animation: "slide_from_right" }} />
       <Stack.Screen name="kingdom-select" options={{ headerShown: false, animation: "fade" }} />
       <Stack.Screen name="province/[id]" options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: false }} />
       <Stack.Screen name="armies" options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: false }} />
@@ -44,10 +47,12 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={realmQueryClient}>
       <GestureHandlerRootView style={{ flex: 1, backgroundColor: Colors.bg.primary }}>
-        <GameProvider>
-          <StatusBar style="light" backgroundColor={Colors.bg.primary} />
-          <RootLayoutNav />
-        </GameProvider>
+        <AuthProvider>
+          <GameProvider>
+            <StatusBar style="light" backgroundColor={Colors.bg.primary} />
+            <RootLayoutNav />
+          </GameProvider>
+        </AuthProvider>
       </GestureHandlerRootView>
     </QueryClientProvider>
   );
