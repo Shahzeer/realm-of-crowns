@@ -27,11 +27,8 @@ import {
   TurnSummary,
   Achievement,
   AIPersonality,
-  KingdomIntel,
   Rumor,
-  RumorCategory,
   KingdomPressures,
-  PlagueState,
   NobleDispute,
   Councilor,
   ReignChronicle,
@@ -703,7 +700,7 @@ function generateRumors(kingdoms: Kingdom[], provinces: Province[], turn: number
   return rumors;
 }
 
-function generateIntelRumor(kingdom: Kingdom, turn: number): string | null {
+function generateIntelRumor(kingdom: Kingdom, _turn: number): string | null {
   const personality = kingdom.personality ?? DEFAULT_KINGDOM_PERSONALITIES[kingdom.id];
   if (!personality) return null;
   if (Math.random() > 0.25) return null;
@@ -1103,17 +1100,17 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
   });
 
   if (choice.id !== 'ironforge') {
-    const ironforgeKingdom: Kingdom = {
+    const ironforgeKingdom = {
       id: 'ironforge', name: 'Kingdom of Ironforge',
       ruler: { ...INITIAL_RULER, id: 'iron_ruler' },
       provinces: provinces.filter(p => p.owner === 'ironforge').map(p => p.id),
-      relation: 0, attitude: 'neutral', color: '#d4a574', strength: 1500,
+      relation: 0, attitude: 'neutral' as const, color: '#d4a574', strength: 1500,
       armies: [
-        { id: 'iron_army1', name: 'Royal Guard', owner: 'ironforge', troops: 800, maxTroops: 1200, morale: 90, commander: 'King Aldric', location: 'ironhold', status: 'idle' },
-        { id: 'iron_army2', name: 'Northern Vanguard', owner: 'ironforge', troops: 450, maxTroops: 800, morale: 75, commander: 'Lord Cedric', location: 'stormwatch', status: 'idle' },
+        { id: 'iron_army1', name: 'Royal Guard', owner: 'ironforge', troops: 800, maxTroops: 1200, morale: 90, commander: 'King Aldric', location: 'ironhold', status: 'idle' as const },
+        { id: 'iron_army2', name: 'Northern Vanguard', owner: 'ironforge', troops: 450, maxTroops: 800, morale: 75, commander: 'Lord Cedric', location: 'stormwatch', status: 'idle' as const },
       ],
       treasury: 800, crest: '⚔️', description: 'A balanced kingdom with strong military tradition.',
-      personality: DEFAULT_KINGDOM_PERSONALITIES['ironforge'],
+      personality: DEFAULT_KINGDOM_PERSONALITIES['ironforge'] as AIPersonality,
     };
     kingdoms.push(ironforgeKingdom);
   }
@@ -1192,13 +1189,14 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
 }
 
 export const [GameProvider, useGame] = createContextHook(() => {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [state, setState] = React.useState<GameState>(defaultState);
   const [isLoaded, setIsLoaded] = React.useState(false);
   const [cloudStatus, setCloudStatus] = React.useState<'idle' | 'syncing' | 'synced' | 'offline'>('idle');
   const userIdRef = useRef<string | null>(null);
   const cloudSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSaveRef = useRef<GameState | null>(null);
+  const lastLoadedUserRef = useRef<string | null | undefined>(undefined);
 
   useEffect(() => {
     if (user?.id) {
@@ -1206,6 +1204,19 @@ export const [GameProvider, useGame] = createContextHook(() => {
       console.log('[Game] User ID set:', user.id);
     } else {
       userIdRef.current = null;
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    const currentUserId = user?.id ?? null;
+    if (lastLoadedUserRef.current === undefined) {
+      lastLoadedUserRef.current = currentUserId;
+      return;
+    }
+    if (currentUserId !== lastLoadedUserRef.current) {
+      console.log('[Game] User changed, resetting isLoaded to re-fetch save');
+      lastLoadedUserRef.current = currentUserId;
+      setIsLoaded(false);
     }
   }, [user?.id]);
 
@@ -1251,33 +1262,41 @@ export const [GameProvider, useGame] = createContextHook(() => {
   }
 
   const loadQuery = useQuery({
-    queryKey: ['game-save', user?.id],
+    queryKey: ['game-save', user?.id ?? 'anonymous'],
     queryFn: async () => {
       const userId = user?.id;
-      if (!userId) {
-        console.log('[Game] No user ID, skipping cloud load');
-        return null;
-      }
-      console.log('[Game] Loading save for user:', userId);
+      console.log('[Game] Loading save, userId:', userId ?? 'anonymous');
 
       let cloudState: Record<string, unknown> | null = null;
-      try {
-        cloudState = await loadCloudSave(userId);
-        if (cloudState) {
-          console.log('[Game] Found cloud save, turn:', (cloudState as { turn?: number }).turn);
-          setCloudStatus('synced');
+      if (userId) {
+        try {
+          cloudState = await loadCloudSave(userId);
+          if (cloudState) {
+            console.log('[Game] Found cloud save, turn:', (cloudState as { turn?: number }).turn);
+            setCloudStatus('synced');
+          }
+        } catch (e) {
+          console.warn('[Game] Cloud load failed, falling back to local:', e);
+          setCloudStatus('offline');
         }
-      } catch (e) {
-        console.warn('[Game] Cloud load failed, falling back to local:', e);
-        setCloudStatus('offline');
       }
 
       let localState: GameState | null = null;
-      try {
-        const saved = await AsyncStorage.getItem(STORAGE_KEY + '_' + userId);
-        if (saved) localState = JSON.parse(saved) as GameState;
-      } catch (e) {
-        console.warn('[Game] Local load failed:', e);
+      const userKey = userId ? STORAGE_KEY + '_' + userId : null;
+      const keysToTry = userKey ? [userKey, STORAGE_KEY] : [STORAGE_KEY];
+      for (const key of keysToTry) {
+        try {
+          const saved = await AsyncStorage.getItem(key);
+          if (saved) {
+            const parsed = JSON.parse(saved) as GameState;
+            if (!localState || (parsed.turn ?? 0) > (localState.turn ?? 0)) {
+              localState = parsed;
+              console.log('[Game] Found local save at key:', key, 'turn:', parsed.turn);
+            }
+          }
+        } catch (e) {
+          console.warn('[Game] Local load failed for key', key, ':', e);
+        }
       }
 
       if (cloudState && localState) {
@@ -1291,7 +1310,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       if (localState) return localState;
       return null;
     },
-    enabled: !!user?.id,
+    enabled: !authLoading,
   });
 
   const debouncedCloudSave = useCallback((gameState: GameState) => {
@@ -1314,7 +1333,9 @@ export const [GameProvider, useGame] = createContextHook(() => {
     mutationFn: async (gameState: GameState) => {
       const userId = userIdRef.current;
       const storageKey = userId ? STORAGE_KEY + '_' + userId : STORAGE_KEY;
+      console.log('[Game] Saving to', storageKey, 'turn:', gameState.turn);
       await AsyncStorage.setItem(storageKey, JSON.stringify(gameState));
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
       if (userId) debouncedCloudSave(gameState);
     },
   });
