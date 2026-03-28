@@ -126,14 +126,16 @@ export default function KingdomSelectGuard() {
   return <KingdomSelectScreen />;
 }
 
+
 function KingdomSelectScreen() {
   console.log("[RealmOfCrowns] Kingdom Select render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { selectKingdom } = useGame();
+  const { selectKingdom, state, isLoaded } = useGame();
   const titleAnim = useRef(new Animated.Value(0)).current;
   const titleSlide = useRef(new Animated.Value(-20)).current;
   const [difficulty, setDifficulty] = useState<'easy' | 'normal' | 'hard'>('normal');
+  const hasSavedGame = isLoaded && state.gameStarted;
 
   useEffect(() => {
     Animated.parallel([
@@ -148,6 +150,11 @@ function KingdomSelectScreen() {
     router.replace('/');
   }, [selectKingdom, router, difficulty]);
 
+  const handleContinue = useCallback(() => {
+    if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
+    router.replace('/');
+  }, [router]);
+
   return (
     <View style={[ks.root, { paddingTop: insets.top }]}>
       <LinearGradient colors={['#0a0e14', '#111820', '#0d1117']} style={StyleSheet.absoluteFill} />
@@ -155,7 +162,25 @@ function KingdomSelectScreen() {
       <Animated.View style={[ks.headerSection, { opacity: titleAnim, transform: [{ translateY: titleSlide }] }]}>
         <Text style={ks.crownEmoji}>👑</Text>
         <Text style={ks.mainTitle}>REALM OF CROWNS</Text>
-        <Text style={ks.subtitle}>Choose your kingdom wisely. Each realm offers unique strengths and challenges.</Text>
+        {hasSavedGame ? (
+          <TouchableOpacity
+            style={ks.continueButton}
+            onPress={handleContinue}
+            activeOpacity={0.8}
+            testID="continue-game-btn"
+          >
+            <LinearGradient
+              colors={['#8b6914', '#d4a574', '#8b6914']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={ks.continueGradient}
+            >
+              <ChevronRight size={18} color={Colors.bg.primary} />
+              <Text style={ks.continueText}>Continue — Turn {state.turn}, {state.year} AD</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        ) : null}
+        <Text style={ks.subtitle}>{hasSavedGame ? 'Or start a new game below:' : 'Choose your kingdom wisely. Each realm offers unique strengths and challenges.'}</Text>
         <View style={ks.difficultyRow}>
           {(['easy', 'normal', 'hard'] as const).map(d => (
             <TouchableOpacity
@@ -199,6 +224,9 @@ const ks = StyleSheet.create({
   crownEmoji: { fontSize: 48, marginBottom: 8 },
   mainTitle: { fontSize: 26, fontWeight: "900" as const, color: Colors.gold.bright, letterSpacing: 3, textAlign: "center" as const },
   subtitle: { fontSize: 13, color: Colors.text.secondary, textAlign: "center" as const, lineHeight: 19, marginTop: 8 },
+  continueButton: { width: '100%', borderRadius: 14, overflow: 'hidden' as const, marginTop: 12, marginBottom: 4 },
+  continueGradient: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, paddingVertical: 16, gap: 8 },
+  continueText: { fontSize: 16, fontWeight: '800' as const, color: Colors.bg.primary, letterSpacing: 0.5 },
   scrollArea: { flex: 1 },
   card: { marginBottom: 16, borderRadius: 16, overflow: "hidden", borderWidth: 1, borderColor: Colors.border.primary, padding: 16 },
   cardTop: { flexDirection: "row", alignItems: "center", gap: 12 },
