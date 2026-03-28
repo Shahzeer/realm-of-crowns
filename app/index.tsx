@@ -131,11 +131,25 @@ function TurnSummaryModal({ visible, onClose, summary }: { visible: boolean; onC
   );
 }
 
-export default function KingdomScreen() {
+export default function KingdomScreenGuard() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+
+  if (authLoading) {
+    return (
+      <View style={idx.root}>
+        <LinearGradient colors={[Colors.bg.primary, Colors.bg.secondary, Colors.bg.primary]} style={StyleSheet.absoluteFill} />
+      </View>
+    );
+  }
+  if (!isAuthenticated) return <Redirect href="/sign-in" />;
+
+  return <KingdomScreen />;
+}
+
+function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { state, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, visibilityMap, investigateRumor, dismissRumor } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -185,16 +199,16 @@ export default function KingdomScreen() {
   }, [state.latestReignChronicle]);
 
   const handleAdvanceTurn = useCallback(() => {
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS !== "web") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowEndTurnConfirm(true);
   }, []);
   const confirmAdvanceTurn = useCallback(() => {
     setShowEndTurnConfirm(false);
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS !== "web") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     advanceTurn();
   }, [advanceTurn]);
   const handleProvincePress = useCallback((province: Province) => {
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS !== "web") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedProvince(province);
   }, []);
   const handlePopupAction = useCallback((action: string, province: Province) => {
@@ -204,14 +218,14 @@ export default function KingdomScreen() {
       case 'recruit': {
         if (state.resources.gold < 400) { Alert.alert('Insufficient Gold'); return; }
         if (state.resources.military < 200) { Alert.alert('Insufficient Military'); return; }
-        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
         recruitArmy(province.id, 200);
         setToast({ visible: true, message: `Army recruited at ${province.name}!`, type: 'success' });
         break;
       }
       case 'reinforce': {
         if (state.resources.gold < 100 || state.resources.military < 100) { Alert.alert('Insufficient Resources'); return; }
-        if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         reinforceGarrison(province.id, 100);
         setToast({ visible: true, message: `+100 garrison at ${province.name}`, type: 'success' });
         break;
@@ -224,7 +238,7 @@ export default function KingdomScreen() {
   }, [router, state.resources, recruitArmy, reinforceGarrison]);
   const handlePopupClose = useCallback(() => setSelectedProvince(null), []);
   const navigateTo = useCallback((path: string) => {
-    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS !== "web") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(path as any);
   }, [router]);
   const handleReset = useCallback(async () => { await resetGame(); setShowGameOver(false); }, [resetGame]);
@@ -236,8 +250,6 @@ export default function KingdomScreen() {
   const pressureBadge = (state.pressures.plague.active ? 1 : 0) + state.pressures.nobleDisputes.filter(d => !d.resolved).length;
   const pressureSub = state.pressures.plague.active ? 'Plague!' : state.pressures.corruption > 30 ? 'Corruption' : 'Stable';
 
-  if (authLoading) return <View style={idx.root}><LinearGradient colors={[Colors.bg.primary, Colors.bg.secondary, Colors.bg.primary]} style={StyleSheet.absoluteFill} /></View>;
-  if (!isAuthenticated) return <Redirect href="/sign-in" />;
   if (!state.gameStarted) return <Redirect href="/kingdom-select" />;
 
   return (
