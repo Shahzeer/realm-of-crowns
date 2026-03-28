@@ -104,9 +104,10 @@ const BUILDINGS: Record<string, Building[]> = {
 };
 
 export const BUILDING_BLUEPRINTS: BuildingBlueprint[] = [
+  { id: 'bp_keep', name: 'Castle Keep', maxLevel: 10, description: 'Fortified seat of power', baseCost: 200, production: { militaryPerTurn: 2 }, icon: '🏰', requiredType: ['capital', 'castle'] },
   { id: 'bp_barracks', name: 'Barracks', maxLevel: 10, description: 'Train soldiers for your army', baseCost: 200, production: { militaryPerTurn: 2 }, icon: '⚔️' },
-  { id: 'bp_market', name: 'Marketplace', maxLevel: 10, description: 'Boost local trade revenue', baseCost: 180, production: { goldPerTurn: 3 }, icon: '🏪' },
   { id: 'bp_farm', name: 'Farmstead', maxLevel: 10, description: 'Grow food for your people', baseCost: 120, production: { foodPerTurn: 3 }, icon: '🌻', requiredType: ['farmland', 'forest'] },
+  { id: 'bp_market', name: 'Marketplace', maxLevel: 10, description: 'Boost local trade revenue', baseCost: 180, production: { goldPerTurn: 3 }, icon: '🏪' },
   { id: 'bp_temple', name: 'Temple', maxLevel: 10, description: 'A house of worship', baseCost: 160, production: { faithPerTurn: 2 }, icon: '🕯️' },
   { id: 'bp_walls', name: 'Stone Walls', maxLevel: 10, description: 'Fortify the province (+garrison)', baseCost: 250, production: { militaryPerTurn: 1 }, icon: '🧱', requiredType: ['castle', 'capital', 'city'] },
   { id: 'bp_mine', name: 'Mine', maxLevel: 10, description: 'Extract valuable ores', baseCost: 220, production: { goldPerTurn: 4 }, icon: '⛏️', requiredType: ['mountain'] },
@@ -117,6 +118,31 @@ export const BUILDING_BLUEPRINTS: BuildingBlueprint[] = [
   { id: 'bp_lumber', name: 'Lumber Mill', maxLevel: 10, description: 'Processes timber for gold', baseCost: 100, production: { goldPerTurn: 2 }, icon: '🪵', requiredType: ['forest'] },
   { id: 'bp_monastery', name: 'Monastery', maxLevel: 10, description: 'Sacred place of learning', baseCost: 240, production: { faithPerTurn: 3 }, icon: '📿', requiredType: ['temple'] },
 ];
+
+export const STARTER_BLUEPRINT_IDS: string[] = ['bp_keep', 'bp_barracks', 'bp_farm'];
+
+export const BLUEPRINT_UNLOCK_MAP: Record<string, string> = {
+  bp_market: 'tech_taxation',
+  bp_tavern: 'tech_taxation',
+  bp_mine: 'tech_ironworking',
+  bp_walls: 'tech_fortification',
+  bp_temple: 'tech_theology',
+  bp_cathedral: 'tech_theology',
+  bp_monastery: 'tech_theology',
+  bp_library: 'tech_diplomacy',
+  bp_granary: 'tech_farming',
+  bp_lumber: 'tech_trade',
+};
+
+export function getUnlockedBlueprintIds(researchedTechIds: string[]): string[] {
+  const unlocked = [...STARTER_BLUEPRINT_IDS];
+  for (const [bpId, techId] of Object.entries(BLUEPRINT_UNLOCK_MAP)) {
+    if (researchedTechIds.includes(techId)) {
+      unlocked.push(bpId);
+    }
+  }
+  return unlocked;
+}
 
 export const ALL_PROVINCES: Province[] = [
   // Ironforge provinces

@@ -502,6 +502,7 @@ export interface GameState {
   rulerProvincesLost?: number;
   latestReignChronicle?: ReignChronicle;
   pendingChainEvents?: PendingChainEvent[];
+  unlockedBlueprints: string[];
 }
 
 export interface PendingChainEvent {

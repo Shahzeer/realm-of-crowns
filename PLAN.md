@@ -1,29 +1,49 @@
-# Fog of War System for Realm of Crowns
+# Starter Buildings & Research-Based Blueprint Unlocks
+
+## Overview
+
+When starting a new game, the player will only have **3 starter buildings** across their capital province. All other building types must be **unlocked through research** before they can be built. 
+
+Also need to fix an issue user mentioned, "when sieging using multiple armies, after the siege is complete all armies attacking should march back".
+
+After each turn the summary should also show updates on what has been completed in building and others, as well as mentioning hints.
+
+---
 
 ## Features
 
-- **Visible zones**: Your own provinces, their neighbors, provinces where your armies are stationed, and provinces targeted by active spy missions are fully visible
-- **Fog zones**: All other provinces appear darkened with limited information
-- **Hidden details in fog**: Enemy army sizes, building levels, garrison counts, and economic data are replaced with "?" when viewing fogged provinces
-- **Dynamic fog updates**: Fog lifts/returns automatically as your armies march, spies deploy, or you gain/lose provinces
-- **Fog indicator on map**: Fogged province nodes appear visually dimmed with a dark overlay and reduced detail
-- **Connection lines in fog**: Roads between fogged provinces appear faded
-- **Province detail screen**: When tapping a fogged province, you see limited intel — name, type, and owner only — with a "No Intel" label for hidden stats
+### Starter Buildings (New Game)
+
+- **Castle Keep** — already built in the player's capital (level 1)
+- **Barracks** — already built in the player's capital (level 1)
+- **Farmstead** — already built in the player's capital (level 1)
+- All other provinces owned by the player start with **no buildings** (empty)
+- AI kingdoms keep their existing building setups 
+
+### Blueprint Unlock System
+
+- A new "Unlocked Blueprints" list is tracked per game save
+- Only **Castle Keep, Barracks, and Farmstead** are unlocked from the start
+- The remaining blueprints (Marketplace, Temple, Stone Walls, Mine, Library, Tavern, Grand Cathedral, Granary, Lumber Mill, Monastery) are **locked** by default
+- Each blueprint is tied to a specific **research technology** — once that tech is researched, the blueprint becomes available to build
+
+### Blueprint ↔ Research Mapping
+
+### Province Building Screen Changes
+
+- Locked blueprints show as **greyed out** with a 🔒 lock icon
+- Tapping a locked blueprint shows which research is needed to unlock it
+- Unlocked blueprints work exactly as they do now (pay gold to build)
+
+### AI Kingdoms
+
+- AI kingdoms are **not restricted** by this system — they use their own separate building pool as before, so they can still build and claim freely
+
+---
 
 ## Design
 
-- Fogged provinces get a dark semi-transparent overlay making them appear shrouded
-- Province icons in fog use muted colors and smaller opacity
-- Province names in fog are dimmed to near-invisible
-- Army badges, garrison badges, and troop count labels are hidden on fogged provinces
-- Territory glow effects are suppressed for fogged areas
-- A subtle "eye" icon appears on the map legend indicating fog of war is active
-- Connection lines to/from fogged provinces use a very faint color
-- The province action popup shows restricted actions for fogged provinces (only "Spy" and limited "View Info")
+- Locked blueprints appear in the build menu with a dark, dimmed style and a lock icon overlay
+- A small tag under each locked blueprint says something like *"Requires: Iron Working"*
+- When a tech is researched that unlocks new blueprints, the turn summary log mentions *"🔓 New blueprint unlocked: Marketplace"*
 
-## How It Works
-
-- A visibility calculation runs whenever the map renders, checking each province against your owned territories, adjacency, army positions, and spy targets
-- The map applies visual fog styling per-province based on visibility
-- The province detail screen checks visibility before showing stats
-- The province action popup adjusts available actions for fogged vs visible provinces

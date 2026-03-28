@@ -4,10 +4,10 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, ArrowUpCircle, Shield, Users, TrendingUp, Swords, Hammer, ChevronDown, ChevronUp, Eye } from "lucide-react-native";
+import { X, ArrowUpCircle, Shield, Users, TrendingUp, Swords, Hammer, ChevronDown, ChevronUp, Eye, Lock } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
-import { PROVINCE_TYPE_ICONS, BUILDING_BLUEPRINTS } from "@/mocks/gameData";
+import { PROVINCE_TYPE_ICONS, BUILDING_BLUEPRINTS, BLUEPRINT_UNLOCK_MAP, INITIAL_TECHNOLOGIES } from "@/mocks/gameData";
 
 export default function ProvinceDetailScreen() {
   console.log("[RealmOfCrowns] Province detail render");
@@ -61,12 +61,21 @@ export default function ProvinceDetailScreen() {
   const armiesHere = state.armies.filter(a => a.location === province.id);
   const ownerKingdom = !isOwned ? state.kingdoms.find(k => k.id === province.owner) : null;
   const canBuild = isOwned && province.buildings.length < 5;
-  const availableBlueprints = BUILDING_BLUEPRINTS.filter(bp => {
+  const unlockedIds = state.unlockedBlueprints ?? [];
+  const typeFilteredBlueprints = BUILDING_BLUEPRINTS.filter(bp => {
     if (!bp.requiredType) return true;
     return bp.requiredType.includes(province.type);
   }).filter(bp => {
     return !province.buildings.some(b => b.name === bp.name);
   });
+  const unlockedBlueprints = typeFilteredBlueprints.filter(bp => unlockedIds.includes(bp.id));
+  const lockedBlueprints = typeFilteredBlueprints.filter(bp => !unlockedIds.includes(bp.id));
+  const getRequiredTechName = (bpId: string): string => {
+    const techId = BLUEPRINT_UNLOCK_MAP[bpId];
+    if (!techId) return 'Unknown';
+    const tech = INITIAL_TECHNOLOGIES.find(t => t.id === techId);
+    return tech?.name ?? 'Unknown';
+  };
 
   return (
     <View style={[ps.root, { paddingTop: insets.top }]}>
@@ -209,7 +218,7 @@ export default function ProvinceDetailScreen() {
             </>
           )}
 
-          {!isFogged && canBuild && availableBlueprints.length > 0 && (
+          {!isFogged && canBuild && (unlockedBlueprints.length > 0 || lockedBlueprints.length > 0) && (
             <>
               <TouchableOpacity style={ps.buildToggle} onPress={() => setShowBuildMenu(!showBuildMenu)} activeOpacity={0.7}>
                 <Hammer size={16} color={Colors.gold.bright} />
@@ -218,7 +227,7 @@ export default function ProvinceDetailScreen() {
               </TouchableOpacity>
               {showBuildMenu && (
                 <View style={ps.buildMenu}>
-                  {availableBlueprints.map(bp => {
+                  {unlockedBlueprints.map(bp => {
                     const canAfford = state.resources.gold >= bp.baseCost;
                     return (
                       <TouchableOpacity
@@ -237,6 +246,31 @@ export default function ProvinceDetailScreen() {
                       </TouchableOpacity>
                     );
                   })}
+                  {lockedBlueprints.length > 0 && (
+                    <View style={ps.lockedSection}>
+                      <Text style={ps.lockedHeader}>Locked Blueprints</Text>
+                      {lockedBlueprints.map(bp => (
+                        <TouchableOpacity
+                          key={bp.id}
+                          style={ps.lockedOption}
+                          onPress={() => Alert.alert('Blueprint Locked', `Research "${getRequiredTechName(bp.id)}" to unlock ${bp.name}.`)}
+                          activeOpacity={0.7}
+                        >
+                          <View style={ps.lockedIconWrap}>
+                            <Text style={ps.lockedBpIcon}>{bp.icon}</Text>
+                            <View style={ps.lockBadge}>
+                              <Lock size={10} color="#6b6e7a" />
+                            </View>
+                          </View>
+                          <View style={ps.buildOptionInfo}>
+                            <Text style={ps.lockedName}>{bp.name}</Text>
+                            <Text style={ps.lockedRequires}>Requires: {getRequiredTechName(bp.id)}</Text>
+                          </View>
+                          <Lock size={14} color="#4a4d58" />
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
                 </View>
               )}
             </>
@@ -360,6 +394,14 @@ const ps = StyleSheet.create({
   buildOptionName: { fontSize: 13, fontWeight: "600" as const, color: Colors.text.primary },
   buildOptionDesc: { fontSize: 10, color: Colors.text.secondary },
   buildOptionCost: { fontSize: 12, fontWeight: "700" as const, color: Colors.gold.bright },
+  lockedSection: { marginTop: 8, borderTopWidth: 1, borderTopColor: Colors.border.primary, paddingTop: 8, gap: 4 },
+  lockedHeader: { fontSize: 10, fontWeight: "700" as const, color: Colors.text.dim, textTransform: "uppercase" as const, letterSpacing: 1.2, marginBottom: 4, paddingHorizontal: 4 },
+  lockedOption: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, padding: 10, borderRadius: 8, backgroundColor: '#0d0e14', opacity: 0.6 },
+  lockedIconWrap: { position: "relative" as const },
+  lockedBpIcon: { fontSize: 22, opacity: 0.4 },
+  lockBadge: { position: "absolute" as const, bottom: -2, right: -4, backgroundColor: '#1a1d28', borderRadius: 6, padding: 2 },
+  lockedName: { fontSize: 13, fontWeight: "600" as const, color: '#4a4d58' },
+  lockedRequires: { fontSize: 10, color: '#3a3d48', fontStyle: "italic" as const },
   armyCard: { marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.bg.card, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: Colors.border.primary },
   armyHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   armyName: { flex: 1, fontSize: 14, fontWeight: "600" as const, color: Colors.text.primary },

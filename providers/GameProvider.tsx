@@ -63,6 +63,8 @@ import {
   DEFAULT_KINGDOM_PERSONALITIES,
   PERSONALITY_RUMORS,
   RUMOR_TEMPLATES,
+  STARTER_BLUEPRINT_IDS,
+  getUnlockedBlueprintIds,
 } from '@/mocks/gameData';
 import { getStandaloneNarrativeEvents, getFollowUpEvent } from '@/mocks/narrativeEvents';
 import { enrichBattleResult } from '@/utils/battleNarrative';
@@ -114,6 +116,7 @@ const defaultState: GameState = {
   rulerBattlesLost: 0,
   rulerProvincesConquered: 0,
   rulerProvincesLost: 0,
+  unlockedBlueprints: [...STARTER_BLUEPRINT_IDS],
 };
 
 const NOBLE_NAMES = [
@@ -1071,9 +1074,18 @@ function processAITurn(kingdoms: Kingdom[], provinces: Province[], playerArmies:
 }
 
 function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' | 'normal' | 'hard'): GameState {
+  const capitalId = ALL_PROVINCES.find(p => choice.startingProvinces.includes(p.id) && p.type === 'capital')?.id || choice.startingProvinces[0];
+
+  const starterBuildings: Building[] = [
+    { id: 'starter_keep', name: 'Castle Keep', level: 1, maxLevel: 10, description: 'Fortified seat of power', cost: { gold: 200 }, production: { militaryPerTurn: 2 }, icon: '\ud83c\udff0' },
+    { id: 'starter_barracks', name: 'Barracks', level: 1, maxLevel: 10, description: 'Train soldiers for your army', cost: { gold: 200 }, production: { militaryPerTurn: 2 }, icon: '\u2694\ufe0f' },
+    { id: 'starter_farm', name: 'Farmstead', level: 1, maxLevel: 10, description: 'Grow food for your people', cost: { gold: 120 }, production: { foodPerTurn: 3 }, icon: '\ud83c\udf3b' },
+  ];
+
   let provinces = ALL_PROVINCES.map(p => {
     if (choice.startingProvinces.includes(p.id)) {
-      return { ...p, owner: 'player', loyalty: 90, unrest: 0 };
+      const buildings = p.id === capitalId ? [...starterBuildings] : [];
+      return { ...p, owner: 'player', loyalty: 90, unrest: 0, buildings };
     }
     if (choice.id !== 'ironforge' && p.owner === 'ironforge') {
       return { ...p, owner: choice.id };
@@ -1185,6 +1197,7 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
     rulerProvincesConquered: 0,
     rulerProvincesLost: 0,
     pendingChainEvents: [],
+    unlockedBlueprints: [...STARTER_BLUEPRINT_IDS],
   };
 }
 
@@ -1258,6 +1271,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       rulerProvincesConquered: loaded.rulerProvincesConquered ?? 0,
       rulerProvincesLost: loaded.rulerProvincesLost ?? 0,
       pendingChainEvents: loaded.pendingChainEvents ?? [],
+      unlockedBlueprints: loaded.unlockedBlueprints ?? [...STARTER_BLUEPRINT_IDS],
     };
   }
 
@@ -1758,6 +1772,18 @@ export const [GameProvider, useGame] = createContextHook(() => {
         return tech;
       });
 
+      const researchedTechIds = newTechnologies.filter(t => t.researched).map(t => t.id);
+      const newUnlocked = getUnlockedBlueprintIds(researchedTechIds);
+      const freshlyUnlocked = newUnlocked.filter(id => !prev.unlockedBlueprints.includes(id));
+      const unlockLogs: string[] = [];
+      freshlyUnlocked.forEach(bpId => {
+        const bp = BUILDING_BLUEPRINTS.find(b => b.id === bpId);
+        if (bp) {
+          unlockLogs.push(`\ud83d\udd13 New blueprint unlocked: ${bp.name}`);
+          console.log(`[Game] Blueprint unlocked: ${bp.name}`);
+        }
+      });
+
       const techBonuses = newTechnologies.filter(t => t.researched).reduce((acc, t) => {
         Object.entries(t.effects).forEach(([key, val]) => { acc[key] = (acc[key] || 0) + val; });
         return acc;
@@ -1796,20 +1822,27 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       const siegingArmies = newArmies.filter(a => a.owner === 'player' && a.status === 'sieging');
       const newBattlesFromSiege: BattleResult[] = [];
+      const resolvedSiegeProvinces = new Set<string>();
       siegingArmies.forEach(army => {
+        if (resolvedSiegeProvinces.has(army.location)) return;
         const targetProvince = newProvinces.find(p => p.id === army.location && p.owner !== 'player');
         if (targetProvince) {
+          const allSiegersHere = newArmies.filter(a => a.owner === 'player' && a.status === 'sieging' && a.location === army.location);
+          const totalSiegeTroops = allSiegersHere.reduce((sum, a) => sum + a.troops, 0);
           const hasSiegeEngineering = newTechnologies.find(t => t.id === 'tech_siege_engineering')?.researched ?? false;
-          const baseSiegeGain = 20 + Math.floor(army.troops / 100);
+          const baseSiegeGain = 20 + Math.floor(totalSiegeTroops / 100);
           const siegeGain = hasSiegeEngineering ? Math.floor(baseSiegeGain * 1.5) : baseSiegeGain;
           const newSiegeProgress = (targetProvince.siegeProgress || 0) + siegeGain;
           if (newSiegeProgress >= 100) {
+            resolvedSiegeProvinces.add(army.location);
             const defenderArmy: Army = {
               id: 'garrison_def', name: `Garrison of ${targetProvince.name}`, owner: targetProvince.owner,
               troops: targetProvince.garrison, maxTroops: targetProvince.garrison, morale: 50,
               commander: 'Local Captain', location: targetProvince.id, status: 'fighting',
             };
-            const battle = resolveBattle(army, defenderArmy, 0, targetProvince, prev.activeTactic);
+            const leadArmy = allSiegersHere.reduce((best, a) => a.troops > best.troops ? a : best, allSiegersHere[0]);
+            const combinedArmy: Army = { ...leadArmy, troops: totalSiegeTroops, maxTroops: totalSiegeTroops };
+            const battle = resolveBattle(combinedArmy, defenderArmy, 0, targetProvince, prev.activeTactic);
             battle.turn = nextTurn;
             newBattlesFromSiege.push(battle);
 
@@ -1817,14 +1850,18 @@ export const [GameProvider, useGame] = createContextHook(() => {
               newProvinces = newProvinces.map(p =>
                 p.id === targetProvince.id ? { ...p, owner: 'player', garrison: 50, underSiege: false, siegeProgress: 0, siegeAttacker: undefined, loyalty: 30, unrest: 40 } : p
               );
+              const lossPerArmy = Math.ceil(battle.attackerLosses / allSiegersHere.length);
+              const siegeArmyIds = new Set(allSiegersHere.map(a => a.id));
               newArmies = newArmies.map(a =>
-                a.id === army.id ? { ...a, status: 'idle' as const, troops: Math.max(50, a.troops - battle.attackerLosses), morale: Math.max(20, a.morale - 10) } : a
+                siegeArmyIds.has(a.id) ? { ...a, status: 'idle' as const, troops: Math.max(50, a.troops - lossPerArmy), morale: Math.max(20, a.morale - 10) } : a
               );
               summary.provincesConquered.push(targetProvince.name);
               summary.battlesWon++;
             } else {
+              const lossPerArmy = Math.ceil(battle.attackerLosses / allSiegersHere.length);
+              const siegeArmyIds = new Set(allSiegersHere.map(a => a.id));
               newArmies = newArmies.map(a =>
-                a.id === army.id ? { ...a, status: 'retreating' as const, troops: Math.max(50, a.troops - battle.attackerLosses), morale: Math.max(10, a.morale - 25) } : a
+                siegeArmyIds.has(a.id) ? { ...a, status: 'retreating' as const, troops: Math.max(50, a.troops - lossPerArmy), morale: Math.max(10, a.morale - 25) } : a
               );
               newProvinces = newProvinces.map(p =>
                 p.id === targetProvince.id ? { ...p, underSiege: false, siegeProgress: 0, siegeAttacker: undefined, garrison: Math.max(20, p.garrison - battle.defenderLosses) } : p
@@ -2083,9 +2120,11 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       const allBattles = [...prev.battles, ...newBattlesFromSiege, ...aiBattles].slice(-20);
       const allLogs = [
+        ...unlockLogs,
         ...(heirEduCompleteLog ? [heirEduCompleteLog] : []),
         ...(heirComingOfAge && newHeir ? [`🎂 ${newHeir.name} has come of age! Choose their path.`] : []),
         ...(betrayalResult.event ? [`⚠️ A councilor has betrayed you!`] : []),
+        ...(summary.techCompleted ? [`📚 Research complete: ${summary.techCompleted}`] : []),
         ...pressureResult.logs,
         ...summary.spyResults,
         ...aiResult.logs,
@@ -2246,6 +2285,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         rulerBattlesLost,
         rulerProvincesConquered,
         rulerProvincesLost,
+        unlockedBlueprints: newUnlocked,
       } as GameState;
       saveMutation.mutate(newState);
       return newState;
