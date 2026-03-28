@@ -101,6 +101,21 @@ const BUILDINGS: Record<string, Building[]> = {
   highgarden: [
     { id: 'b20', name: 'Great Farmstead', level: 1, maxLevel: 10, description: 'Bountiful harvests', cost: { gold: 100 }, production: { foodPerTurn: 5 }, icon: '🌻' },
   ],
+  crimsonkeep: [
+    { id: 'b21', name: 'War Pits', level: 1, maxLevel: 10, description: 'Brutal training grounds', cost: { gold: 180 }, production: { militaryPerTurn: 2 }, icon: '⚔️' },
+  ],
+  wolfden: [
+    { id: 'b22', name: 'Hunter Lodge', level: 1, maxLevel: 10, description: 'Wolf pelts and provisions', cost: { gold: 100 }, production: { foodPerTurn: 3 }, icon: '🐺' },
+  ],
+  blazefort: [
+    { id: 'b23', name: 'Fire Pit Forge', level: 1, maxLevel: 10, description: 'Desert weapons smithing', cost: { gold: 200 }, production: { militaryPerTurn: 2 }, icon: '🔥' },
+  ],
+  palmharbor: [
+    { id: 'b24', name: 'Dockyard', level: 1, maxLevel: 10, description: 'Bustling harbor trade', cost: { gold: 200 }, production: { goldPerTurn: 4 }, icon: '⚓' },
+  ],
+  mosshollow: [
+    { id: 'b25', name: 'Herbalist Hut', level: 1, maxLevel: 10, description: 'Rare healing herbs', cost: { gold: 120 }, production: { faithPerTurn: 2 }, icon: '🌿' },
+  ],
 };
 
 export const BUILDING_BLUEPRINTS: BuildingBlueprint[] = [
@@ -145,38 +160,78 @@ export function getUnlockedBlueprintIds(researchedTechIds: string[]): string[] {
 }
 
 export const ALL_PROVINCES: Province[] = [
-  // Ironforge provinces
-  { id: 'ironhold', name: 'Ironhold', type: 'capital', owner: 'ironforge', population: 12000, development: 75, buildings: BUILDINGS.ironhold, garrison: 500, color: '#d4a574', x: 0.42, y: 0.28, connectedTo: ['thornvale', 'goldmere', 'ashford'] },
-  { id: 'thornvale', name: 'Thornvale', type: 'forest', owner: 'ironforge', population: 5500, development: 40, buildings: BUILDINGS.thornvale, garrison: 200, color: '#4a8c3f', x: 0.25, y: 0.18, connectedTo: ['ironhold', 'stormwatch', 'frostpeak'] },
-  { id: 'goldmere', name: 'Goldmere', type: 'city', owner: 'ironforge', population: 8000, development: 60, buildings: BUILDINGS.goldmere, garrison: 300, color: '#e8b94a', x: 0.58, y: 0.20, connectedTo: ['ironhold', 'ashford', 'silverdale'] },
-  { id: 'ashford', name: 'Ashford', type: 'farmland', owner: 'ironforge', population: 6500, development: 50, buildings: BUILDINGS.ashford, garrison: 150, color: '#7bc96a', x: 0.50, y: 0.40, connectedTo: ['ironhold', 'goldmere', 'stormwatch', 'sunspear'] },
-  { id: 'stormwatch', name: 'Stormwatch', type: 'castle', owner: 'ironforge', population: 4000, development: 55, buildings: BUILDINGS.stormwatch, garrison: 450, color: '#6b7b95', x: 0.30, y: 0.38, connectedTo: ['thornvale', 'ashford', 'blackmoor'] },
-  { id: 'ravenspire', name: 'Ravenspire', type: 'temple', owner: 'ironforge', population: 3500, development: 65, buildings: BUILDINGS.ravenspire, garrison: 100, color: '#9b6fd0', x: 0.65, y: 0.32, connectedTo: ['goldmere', 'highgarden'] },
+  // ═══════════════════════════════════════════
+  // IRONFORGE KINGDOM (8 provinces) — Center-North
+  // ═══════════════════════════════════════════
+  { id: 'ironhold', name: 'Ironhold', type: 'capital', owner: 'ironforge', population: 12000, development: 75, buildings: BUILDINGS.ironhold, garrison: 500, color: '#d4a574', x: 0.38, y: 0.22, connectedTo: ['thornvale', 'goldmere', 'ashford', 'kingsbridge'] },
+  { id: 'thornvale', name: 'Thornvale', type: 'forest', owner: 'ironforge', population: 5500, development: 40, buildings: BUILDINGS.thornvale, garrison: 200, color: '#4a8c3f', x: 0.26, y: 0.15, connectedTo: ['ironhold', 'stormwatch', 'frostpeak', 'greymarch'] },
+  { id: 'goldmere', name: 'Goldmere', type: 'city', owner: 'ironforge', population: 8000, development: 60, buildings: BUILDINGS.goldmere, garrison: 300, color: '#e8b94a', x: 0.52, y: 0.16, connectedTo: ['ironhold', 'ashford', 'silverdale', 'millhaven'] },
+  { id: 'ashford', name: 'Ashford', type: 'farmland', owner: 'ironforge', population: 6500, development: 50, buildings: BUILDINGS.ashford, garrison: 150, color: '#7bc96a', x: 0.45, y: 0.32, connectedTo: ['ironhold', 'goldmere', 'stormwatch', 'thecrossing'] },
+  { id: 'stormwatch', name: 'Stormwatch', type: 'castle', owner: 'ironforge', population: 4000, development: 55, buildings: BUILDINGS.stormwatch, garrison: 450, color: '#6b7b95', x: 0.28, y: 0.30, connectedTo: ['thornvale', 'ashford', 'blackmoor', 'kingsbridge'] },
+  { id: 'ravenspire', name: 'Ravenspire', type: 'temple', owner: 'ironforge', population: 3500, development: 65, buildings: BUILDINGS.ravenspire, garrison: 100, color: '#9b6fd0', x: 0.58, y: 0.25, connectedTo: ['goldmere', 'millhaven', 'highgarden'] },
+  { id: 'kingsbridge', name: 'Kingsbridge', type: 'city', owner: 'ironforge', population: 7000, development: 55, buildings: [], garrison: 250, color: '#c4956a', x: 0.32, y: 0.25, connectedTo: ['ironhold', 'stormwatch', 'thornvale'] },
+  { id: 'millhaven', name: 'Millhaven', type: 'farmland', owner: 'ironforge', population: 5000, development: 45, buildings: [], garrison: 180, color: '#8bc47a', x: 0.62, y: 0.18, connectedTo: ['goldmere', 'ravenspire', 'silverdale'] },
 
-  // Valkorian provinces
-  { id: 'blackmoor', name: 'Blackmoor', type: 'mountain', owner: 'valkorian', population: 7000, development: 45, buildings: BUILDINGS.blackmoor, garrison: 600, color: '#555e6e', x: 0.15, y: 0.52, connectedTo: ['stormwatch', 'dragonfall', 'shadowfen'] },
-  { id: 'dragonfall', name: 'Dragonfall', type: 'capital', owner: 'valkorian', population: 11000, development: 70, buildings: BUILDINGS.dragonfall, garrison: 800, color: '#c41e3a', x: 0.28, y: 0.65, connectedTo: ['blackmoor', 'sunspear', 'shadowfen', 'bloodhollow'] },
-  { id: 'shadowfen', name: 'Shadowfen', type: 'forest', owner: 'valkorian', population: 4500, development: 35, buildings: [], garrison: 350, color: '#3a4a3a', x: 0.10, y: 0.70, connectedTo: ['blackmoor', 'dragonfall'] },
-  { id: 'bloodhollow', name: 'Bloodhollow', type: 'castle', owner: 'valkorian', population: 5000, development: 50, buildings: [], garrison: 550, color: '#8a2233', x: 0.35, y: 0.78, connectedTo: ['dragonfall', 'dusthaven'] },
+  // ═══════════════════════════════════════════
+  // VALKORIAN EMPIRE (7 provinces) — West/Southwest
+  // ═══════════════════════════════════════════
+  { id: 'blackmoor', name: 'Blackmoor', type: 'mountain', owner: 'valkorian', population: 7000, development: 45, buildings: BUILDINGS.blackmoor, garrison: 600, color: '#555e6e', x: 0.14, y: 0.40, connectedTo: ['stormwatch', 'dragonfall', 'shadowfen', 'greymarch'] },
+  { id: 'dragonfall', name: 'Dragonfall', type: 'capital', owner: 'valkorian', population: 11000, development: 70, buildings: BUILDINGS.dragonfall, garrison: 800, color: '#c41e3a', x: 0.22, y: 0.52, connectedTo: ['blackmoor', 'shadowfen', 'bloodhollow', 'crimsonkeep', 'thecrossing'] },
+  { id: 'shadowfen', name: 'Shadowfen', type: 'forest', owner: 'valkorian', population: 4500, development: 35, buildings: [], garrison: 350, color: '#3a4a3a', x: 0.08, y: 0.55, connectedTo: ['blackmoor', 'dragonfall', 'ashenmarsh'] },
+  { id: 'bloodhollow', name: 'Bloodhollow', type: 'castle', owner: 'valkorian', population: 5000, development: 50, buildings: [], garrison: 550, color: '#8a2233', x: 0.28, y: 0.64, connectedTo: ['dragonfall', 'dusthaven', 'ironclad', 'hollowmere'] },
+  { id: 'crimsonkeep', name: 'Crimson Keep', type: 'castle', owner: 'valkorian', population: 6000, development: 55, buildings: BUILDINGS.crimsonkeep, garrison: 700, color: '#a82030', x: 0.16, y: 0.48, connectedTo: ['dragonfall', 'ashenmarsh'] },
+  { id: 'ashenmarsh', name: 'Ashen Marsh', type: 'forest', owner: 'valkorian', population: 3500, development: 25, buildings: [], garrison: 250, color: '#4a3a3a', x: 0.05, y: 0.46, connectedTo: ['shadowfen', 'crimsonkeep'] },
+  { id: 'ironclad', name: 'Ironclad Pass', type: 'mountain', owner: 'valkorian', population: 4000, development: 40, buildings: [], garrison: 500, color: '#6a5e5e', x: 0.18, y: 0.62, connectedTo: ['bloodhollow', 'dragonfall'] },
 
-  // Solarian provinces
-  { id: 'sunspear', name: 'Sunspear', type: 'capital', owner: 'solarian', population: 13000, development: 80, buildings: BUILDINGS.sunspear, garrison: 400, color: '#e8a832', x: 0.52, y: 0.58, connectedTo: ['dragonfall', 'ashford', 'highgarden', 'oasisrest'] },
-  { id: 'highgarden', name: 'Highgarden', type: 'farmland', owner: 'solarian', population: 7500, development: 55, buildings: BUILDINGS.highgarden, garrison: 200, color: '#56b849', x: 0.72, y: 0.48, connectedTo: ['sunspear', 'ravenspire', 'silverdale'] },
-  { id: 'oasisrest', name: 'Oasis Rest', type: 'city', owner: 'solarian', population: 6000, development: 50, buildings: [], garrison: 250, color: '#d4a040', x: 0.60, y: 0.72, connectedTo: ['sunspear', 'dusthaven', 'coralport'] },
+  // ═══════════════════════════════════════════
+  // SOLARIAN DOMINION (6 provinces) — Center/Southeast
+  // ═══════════════════════════════════════════
+  { id: 'sunspear', name: 'Sunspear', type: 'capital', owner: 'solarian', population: 13000, development: 80, buildings: BUILDINGS.sunspear, garrison: 400, color: '#e8a832', x: 0.48, y: 0.48, connectedTo: ['thecrossing', 'highgarden', 'oasisrest', 'gildedreach'] },
+  { id: 'highgarden', name: 'Highgarden', type: 'farmland', owner: 'solarian', population: 7500, development: 55, buildings: BUILDINGS.highgarden, garrison: 200, color: '#56b849', x: 0.62, y: 0.38, connectedTo: ['sunspear', 'ravenspire', 'silverdale', 'seabreeze'] },
+  { id: 'oasisrest', name: 'Oasis Rest', type: 'city', owner: 'solarian', population: 6000, development: 50, buildings: [], garrison: 250, color: '#d4a040', x: 0.55, y: 0.58, connectedTo: ['sunspear', 'dusthaven', 'coralport', 'palmharbor'] },
+  { id: 'gildedreach', name: 'Gilded Reach', type: 'city', owner: 'solarian', population: 8000, development: 60, buildings: [], garrison: 300, color: '#daa520', x: 0.40, y: 0.42, connectedTo: ['sunspear', 'thecrossing', 'hollowmere'] },
+  { id: 'palmharbor', name: 'Palm Harbor', type: 'city', owner: 'solarian', population: 7000, development: 55, buildings: BUILDINGS.palmharbor, garrison: 280, color: '#c8963a', x: 0.62, y: 0.55, connectedTo: ['oasisrest', 'coralport', 'seabreeze'] },
+  { id: 'sandcitadel', name: 'Sandstone Citadel', type: 'castle', owner: 'solarian', population: 5500, development: 50, buildings: [], garrison: 400, color: '#b8862d', x: 0.50, y: 0.55, connectedTo: ['sunspear', 'oasisrest', 'hollowmere'] },
 
-  // Nordheim provinces
-  { id: 'frostpeak', name: 'Frostpeak', type: 'capital', owner: 'nordheim', population: 8000, development: 50, buildings: [], garrison: 700, color: '#4488cc', x: 0.12, y: 0.10, connectedTo: ['thornvale', 'glacierhold', 'windshear'] },
-  { id: 'glacierhold', name: 'Glacierhold', type: 'mountain', owner: 'nordheim', population: 4000, development: 35, buildings: [], garrison: 500, color: '#6699bb', x: 0.05, y: 0.30, connectedTo: ['frostpeak', 'windshear'] },
-  { id: 'windshear', name: 'Windshear', type: 'castle', owner: 'nordheim', population: 5000, development: 45, buildings: [], garrison: 600, color: '#3377aa', x: 0.18, y: 0.05, connectedTo: ['frostpeak', 'glacierhold'] },
+  // ═══════════════════════════════════════════
+  // NORDHEIM CONFEDERACY (6 provinces) — Northwest
+  // ═══════════════════════════════════════════
+  { id: 'frostpeak', name: 'Frostpeak', type: 'capital', owner: 'nordheim', population: 8000, development: 50, buildings: [], garrison: 700, color: '#4488cc', x: 0.12, y: 0.10, connectedTo: ['thornvale', 'glacierhold', 'windshear', 'wolfden'] },
+  { id: 'glacierhold', name: 'Glacierhold', type: 'mountain', owner: 'nordheim', population: 4000, development: 35, buildings: [], garrison: 500, color: '#6699bb', x: 0.05, y: 0.25, connectedTo: ['frostpeak', 'windshear', 'frostveil'] },
+  { id: 'windshear', name: 'Windshear', type: 'castle', owner: 'nordheim', population: 5000, development: 45, buildings: [], garrison: 600, color: '#3377aa', x: 0.18, y: 0.04, connectedTo: ['frostpeak', 'glacierhold', 'icereach'] },
+  { id: 'wolfden', name: 'Wolfden', type: 'forest', owner: 'nordheim', population: 3500, development: 30, buildings: BUILDINGS.wolfden, garrison: 350, color: '#5588aa', x: 0.20, y: 0.12, connectedTo: ['frostpeak', 'greymarch', 'icereach'] },
+  { id: 'frostveil', name: 'Frostveil', type: 'mountain', owner: 'nordheim', population: 3000, development: 25, buildings: [], garrison: 400, color: '#779cc0', x: 0.04, y: 0.14, connectedTo: ['glacierhold', 'icereach'] },
+  { id: 'icereach', name: 'Icereach', type: 'castle', owner: 'nordheim', population: 4500, development: 40, buildings: [], garrison: 550, color: '#4477aa', x: 0.10, y: 0.04, connectedTo: ['windshear', 'wolfden', 'frostveil'] },
 
-  // Crimson Horde provinces
-  { id: 'dusthaven', name: 'Dusthaven', type: 'capital', owner: 'crimsonhorde', population: 9000, development: 40, buildings: [], garrison: 650, color: '#cc5533', x: 0.45, y: 0.85, connectedTo: ['bloodhollow', 'oasisrest', 'scorchlands'] },
-  { id: 'scorchlands', name: 'Scorchlands', type: 'farmland', owner: 'crimsonhorde', population: 5500, development: 30, buildings: [], garrison: 300, color: '#aa4422', x: 0.32, y: 0.92, connectedTo: ['dusthaven'] },
+  // ═══════════════════════════════════════════
+  // CRIMSON HORDE (5 provinces) — South
+  // ═══════════════════════════════════════════
+  { id: 'dusthaven', name: 'Dusthaven', type: 'capital', owner: 'crimsonhorde', population: 9000, development: 40, buildings: [], garrison: 650, color: '#cc5533', x: 0.38, y: 0.72, connectedTo: ['bloodhollow', 'oasisrest', 'scorchlands', 'emberwaste', 'hollowmere'] },
+  { id: 'scorchlands', name: 'Scorchlands', type: 'farmland', owner: 'crimsonhorde', population: 5500, development: 30, buildings: [], garrison: 300, color: '#aa4422', x: 0.28, y: 0.80, connectedTo: ['dusthaven', 'redthorn'] },
+  { id: 'emberwaste', name: 'Ember Wastes', type: 'farmland', owner: 'crimsonhorde', population: 4000, development: 25, buildings: [], garrison: 280, color: '#b54428', x: 0.48, y: 0.78, connectedTo: ['dusthaven', 'blazefort'] },
+  { id: 'redthorn', name: 'Redthorn', type: 'forest', owner: 'crimsonhorde', population: 3500, development: 30, buildings: [], garrison: 320, color: '#993322', x: 0.20, y: 0.76, connectedTo: ['scorchlands', 'ironclad'] },
+  { id: 'blazefort', name: 'Blazefort', type: 'castle', owner: 'crimsonhorde', population: 5000, development: 45, buildings: BUILDINGS.blazefort, garrison: 500, color: '#cc4422', x: 0.55, y: 0.75, connectedTo: ['emberwaste', 'oldwatch'] },
 
-  // Emerald League provinces
-  { id: 'silverdale', name: 'Silverdale', type: 'capital', owner: 'emeraldleague', population: 10000, development: 65, buildings: [], garrison: 350, color: '#33aa66', x: 0.82, y: 0.30, connectedTo: ['goldmere', 'highgarden', 'coralport', 'jadecrest'] },
-  { id: 'coralport', name: 'Coral Port', type: 'city', owner: 'emeraldleague', population: 8500, development: 60, buildings: [], garrison: 280, color: '#44bb77', x: 0.88, y: 0.55, connectedTo: ['silverdale', 'oasisrest', 'jadecrest'] },
-  { id: 'jadecrest', name: 'Jade Crest', type: 'temple', owner: 'emeraldleague', population: 4500, development: 55, buildings: [], garrison: 200, color: '#228855', x: 0.92, y: 0.15, connectedTo: ['silverdale', 'coralport'] },
+  // ═══════════════════════════════════════════
+  // EMERALD LEAGUE (6 provinces) — East
+  // ═══════════════════════════════════════════
+  { id: 'silverdale', name: 'Silverdale', type: 'capital', owner: 'emeraldleague', population: 10000, development: 65, buildings: [], garrison: 350, color: '#33aa66', x: 0.78, y: 0.22, connectedTo: ['goldmere', 'millhaven', 'highgarden', 'jadecrest', 'tidecrest'] },
+  { id: 'coralport', name: 'Coral Port', type: 'city', owner: 'emeraldleague', population: 8500, development: 60, buildings: [], garrison: 280, color: '#44bb77', x: 0.82, y: 0.48, connectedTo: ['silverdale', 'oasisrest', 'palmharbor', 'seabreeze', 'mosshollow'] },
+  { id: 'jadecrest', name: 'Jade Crest', type: 'temple', owner: 'emeraldleague', population: 4500, development: 55, buildings: [], garrison: 200, color: '#228855', x: 0.88, y: 0.12, connectedTo: ['silverdale', 'tidecrest'] },
+  { id: 'mosshollow', name: 'Mosshollow', type: 'forest', owner: 'emeraldleague', population: 4000, development: 40, buildings: BUILDINGS.mosshollow, garrison: 220, color: '#2a8844', x: 0.92, y: 0.38, connectedTo: ['coralport', 'tidecrest'] },
+  { id: 'seabreeze', name: 'Seabreeze', type: 'farmland', owner: 'emeraldleague', population: 5500, development: 50, buildings: [], garrison: 200, color: '#55cc88', x: 0.75, y: 0.38, connectedTo: ['highgarden', 'coralport', 'palmharbor'] },
+  { id: 'tidecrest', name: 'Tidecrest', type: 'city', owner: 'emeraldleague', population: 6500, development: 55, buildings: [], garrison: 260, color: '#44aa77', x: 0.92, y: 0.25, connectedTo: ['silverdale', 'jadecrest', 'mosshollow'] },
+
+  // ═══════════════════════════════════════════
+  // NEUTRAL / UNCLAIMED TERRITORIES (7 provinces)
+  // ═══════════════════════════════════════════
+  { id: 'greymarch', name: 'Greymarch', type: 'farmland', owner: 'neutral', population: 2500, development: 20, buildings: [], garrison: 150, color: '#666666', x: 0.18, y: 0.28, connectedTo: ['thornvale', 'blackmoor', 'wolfden'] },
+  { id: 'thecrossing', name: 'The Crossing', type: 'city', owner: 'neutral', population: 4000, development: 35, buildings: [], garrison: 200, color: '#777777', x: 0.36, y: 0.40, connectedTo: ['ashford', 'dragonfall', 'sunspear', 'gildedreach'] },
+  { id: 'oldwatch', name: 'Oldwatch', type: 'castle', owner: 'neutral', population: 3000, development: 30, buildings: [], garrison: 300, color: '#888888', x: 0.65, y: 0.68, connectedTo: ['blazefort', 'coralport', 'palmharbor'] },
+  { id: 'hollowmere', name: 'Hollowmere', type: 'forest', owner: 'neutral', population: 2000, development: 15, buildings: [], garrison: 120, color: '#5a5a5a', x: 0.40, y: 0.58, connectedTo: ['bloodhollow', 'dusthaven', 'gildedreach', 'sandcitadel'] },
+  { id: 'wyrmrest', name: 'Wyrmrest', type: 'temple', owner: 'neutral', population: 2800, development: 25, buildings: [], garrison: 180, color: '#707070', x: 0.50, y: 0.08, connectedTo: ['goldmere', 'millhaven', 'windshear'] },
+  { id: 'duskwood', name: 'Duskwood', type: 'forest', owner: 'neutral', population: 1800, development: 15, buildings: [], garrison: 100, color: '#606060', x: 0.08, y: 0.35, connectedTo: ['glacierhold', 'blackmoor', 'greymarch'] },
+  { id: 'stonehearth', name: 'Stonehearth', type: 'mountain', owner: 'neutral', population: 3200, development: 30, buildings: [], garrison: 250, color: '#7a7a7a', x: 0.72, y: 0.60, connectedTo: ['coralport', 'oldwatch', 'palmharbor'] },
 ];
 
 export const INITIAL_PROVINCES: Province[] = ALL_PROVINCES;
@@ -219,62 +274,67 @@ const EMERALD_RULER: Ruler = {
 export const INITIAL_KINGDOMS: Kingdom[] = [
   {
     id: 'valkorian', name: 'Valkorian Empire', ruler: VALKORIAN_RULER,
-    provinces: ['blackmoor', 'dragonfall', 'shadowfen', 'bloodhollow'], relation: -40,
-    attitude: 'hostile', color: '#c41e3a', strength: 2800,
+    provinces: ['blackmoor', 'dragonfall', 'shadowfen', 'bloodhollow', 'crimsonkeep', 'ashenmarsh', 'ironclad'], relation: -40,
+    attitude: 'hostile', color: '#c41e3a', strength: 4200,
     armies: [
       { id: 'valk_army1', name: 'Blood Wolves', owner: 'valkorian', troops: 900, maxTroops: 1200, morale: 85, commander: 'Warlord Krath', location: 'dragonfall', status: 'idle' },
       { id: 'valk_army2', name: 'Blackmoor Raiders', owner: 'valkorian', troops: 500, maxTroops: 800, morale: 70, commander: 'Captain Vex', location: 'blackmoor', status: 'idle' },
       { id: 'valk_army3', name: 'Shadow Stalkers', owner: 'valkorian', troops: 350, maxTroops: 600, morale: 65, commander: 'Lord Shade', location: 'shadowfen', status: 'idle' },
+      { id: 'valk_army4', name: 'Crimson Vanguard', owner: 'valkorian', troops: 450, maxTroops: 700, morale: 75, commander: 'Warchief Rook', location: 'crimsonkeep', status: 'idle' },
     ],
-    treasury: 800,
+    treasury: 1000,
     crest: '🐺',
     description: 'A brutal military empire built on conquest and blood.',
   },
   {
     id: 'solarian', name: 'Solarian Dominion', ruler: SOLARIAN_RULER,
-    provinces: ['sunspear', 'highgarden', 'oasisrest'], relation: 25,
-    attitude: 'neutral', color: '#e8a832', strength: 1200,
+    provinces: ['sunspear', 'highgarden', 'oasisrest', 'gildedreach', 'palmharbor', 'sandcitadel'], relation: 25,
+    attitude: 'neutral', color: '#e8a832', strength: 2400,
     armies: [
       { id: 'sol_army1', name: 'Sunguard', owner: 'solarian', troops: 500, maxTroops: 700, morale: 80, commander: 'Empress Lyanna', location: 'sunspear', status: 'idle' },
       { id: 'sol_army2', name: 'Golden Legion', owner: 'solarian', troops: 350, maxTroops: 500, morale: 75, commander: 'Commander Theron', location: 'highgarden', status: 'idle' },
+      { id: 'sol_army3', name: 'Dune Wardens', owner: 'solarian', troops: 400, maxTroops: 600, morale: 78, commander: 'Captain Soraya', location: 'sandcitadel', status: 'idle' },
     ],
-    treasury: 1500,
+    treasury: 2000,
     crest: '☀️',
     description: 'A wealthy dominion of trade, diplomacy, and golden cities.',
   },
   {
     id: 'nordheim', name: 'Nordheim Confederacy', ruler: NORDHEIM_RULER,
-    provinces: ['frostpeak', 'glacierhold', 'windshear'], relation: 10,
-    attitude: 'neutral', color: '#58a6ff', strength: 1800,
+    provinces: ['frostpeak', 'glacierhold', 'windshear', 'wolfden', 'frostveil', 'icereach'], relation: 10,
+    attitude: 'neutral', color: '#58a6ff', strength: 3200,
     armies: [
       { id: 'nord_army1', name: 'Frost Raiders', owner: 'nordheim', troops: 600, maxTroops: 900, morale: 75, commander: 'Jarl Bjorn', location: 'frostpeak', status: 'idle' },
       { id: 'nord_army2', name: 'Ice Wardens', owner: 'nordheim', troops: 400, maxTroops: 600, morale: 70, commander: 'Thane Erik', location: 'glacierhold', status: 'idle' },
+      { id: 'nord_army3', name: 'Wolf Hunters', owner: 'nordheim', troops: 350, maxTroops: 550, morale: 72, commander: 'Huskarl Sven', location: 'wolfden', status: 'idle' },
     ],
-    treasury: 600,
+    treasury: 800,
     crest: '❄️',
     description: 'Hardy northern warriors united by frost and steel.',
   },
   {
     id: 'crimsonhorde', name: 'Crimson Horde', ruler: CRIMSON_RULER,
-    provinces: ['dusthaven', 'scorchlands'], relation: -20,
-    attitude: 'hostile', color: '#cc5533', strength: 1400,
+    provinces: ['dusthaven', 'scorchlands', 'emberwaste', 'redthorn', 'blazefort'], relation: -20,
+    attitude: 'hostile', color: '#cc5533', strength: 2800,
     armies: [
       { id: 'crim_army1', name: 'Scorched Legion', owner: 'crimsonhorde', troops: 700, maxTroops: 1000, morale: 80, commander: 'Khan Darius', location: 'dusthaven', status: 'idle' },
       { id: 'crim_army2', name: 'Desert Riders', owner: 'crimsonhorde', troops: 400, maxTroops: 600, morale: 70, commander: 'Warlord Zara', location: 'scorchlands', status: 'idle' },
+      { id: 'crim_army3', name: 'Ember Guard', owner: 'crimsonhorde', troops: 350, maxTroops: 550, morale: 68, commander: 'Chieftain Raze', location: 'blazefort', status: 'idle' },
     ],
-    treasury: 500,
+    treasury: 700,
     crest: '🔥',
     description: 'Fierce nomadic warriors from the scorched southern wastes.',
   },
   {
     id: 'emeraldleague', name: 'Emerald League', ruler: EMERALD_RULER,
-    provinces: ['silverdale', 'coralport', 'jadecrest'], relation: 30,
-    attitude: 'friendly', color: '#33aa66', strength: 900,
+    provinces: ['silverdale', 'coralport', 'jadecrest', 'mosshollow', 'seabreeze', 'tidecrest'], relation: 30,
+    attitude: 'friendly', color: '#33aa66', strength: 1800,
     armies: [
       { id: 'emer_army1', name: 'Jade Sentinels', owner: 'emeraldleague', troops: 400, maxTroops: 600, morale: 85, commander: 'Archon Selene', location: 'silverdale', status: 'idle' },
       { id: 'emer_army2', name: 'Coral Marines', owner: 'emeraldleague', troops: 300, maxTroops: 500, morale: 80, commander: 'Admiral Kai', location: 'coralport', status: 'idle' },
+      { id: 'emer_army3', name: 'Tide Wardens', owner: 'emeraldleague', troops: 280, maxTroops: 450, morale: 82, commander: 'Warden Lira', location: 'tidecrest', status: 'idle' },
     ],
-    treasury: 2000,
+    treasury: 2500,
     crest: '💎',
     description: 'A league of scholar-merchants who value knowledge and gold.',
   },
@@ -290,7 +350,7 @@ export const KINGDOM_CHOICES: KingdomChoice[] = [
     crest: '⚔️',
     ruler: IRONFORGE_RULER,
     difficulty: 'easy',
-    startingProvinces: ['ironhold', 'thornvale', 'goldmere', 'ashford', 'stormwatch', 'ravenspire'],
+    startingProvinces: ['ironhold', 'thornvale', 'goldmere', 'ashford', 'stormwatch', 'ravenspire', 'kingsbridge', 'millhaven'],
     bonuses: '+10% Gold income, Balanced stats',
   },
   {
@@ -302,7 +362,7 @@ export const KINGDOM_CHOICES: KingdomChoice[] = [
     crest: '🐺',
     ruler: VALKORIAN_RULER,
     difficulty: 'medium',
-    startingProvinces: ['blackmoor', 'dragonfall', 'shadowfen', 'bloodhollow'],
+    startingProvinces: ['blackmoor', 'dragonfall', 'shadowfen', 'bloodhollow', 'crimsonkeep', 'ashenmarsh', 'ironclad'],
     bonuses: '+20% Army strength, -10% Gold income',
   },
   {
@@ -314,7 +374,7 @@ export const KINGDOM_CHOICES: KingdomChoice[] = [
     crest: '☀️',
     ruler: SOLARIAN_RULER,
     difficulty: 'medium',
-    startingProvinces: ['sunspear', 'highgarden', 'oasisrest'],
+    startingProvinces: ['sunspear', 'highgarden', 'oasisrest', 'gildedreach', 'palmharbor', 'sandcitadel'],
     bonuses: '+30% Gold income, High diplomacy',
   },
   {
@@ -326,7 +386,7 @@ export const KINGDOM_CHOICES: KingdomChoice[] = [
     crest: '❄️',
     ruler: NORDHEIM_RULER,
     difficulty: 'hard',
-    startingProvinces: ['frostpeak', 'glacierhold', 'windshear'],
+    startingProvinces: ['frostpeak', 'glacierhold', 'windshear', 'wolfden', 'frostveil', 'icereach'],
     bonuses: '+25% Garrison defense, -15% Food',
   },
   {
@@ -338,8 +398,8 @@ export const KINGDOM_CHOICES: KingdomChoice[] = [
     crest: '🔥',
     ruler: CRIMSON_RULER,
     difficulty: 'hard',
-    startingProvinces: ['dusthaven', 'scorchlands'],
-    bonuses: '+30% Army speed, Fewer starting provinces',
+    startingProvinces: ['dusthaven', 'scorchlands', 'emberwaste', 'redthorn', 'blazefort'],
+    bonuses: '+30% Army speed, Fierce warriors',
   },
   {
     id: 'emeraldleague',
@@ -350,7 +410,7 @@ export const KINGDOM_CHOICES: KingdomChoice[] = [
     crest: '💎',
     ruler: EMERALD_RULER,
     difficulty: 'medium',
-    startingProvinces: ['silverdale', 'coralport', 'jadecrest'],
+    startingProvinces: ['silverdale', 'coralport', 'jadecrest', 'mosshollow', 'seabreeze', 'tidecrest'],
     bonuses: '-2 turns on research, Highest starting gold',
   },
 ];

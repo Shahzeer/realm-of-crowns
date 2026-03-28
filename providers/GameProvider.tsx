@@ -1002,6 +1002,39 @@ function processAITurn(kingdoms: Kingdom[], provinces: Province[], playerArmies:
       }
     }
 
+    const myProvinces = updatedProvinces.filter(p => p.owner === kingdom.id);
+    const adjacentNeutrals = updatedProvinces.filter(p =>
+      p.owner === 'neutral' &&
+      p.connectedTo.some(c => myProvinces.some(mp => mp.id === c))
+    );
+    if (adjacentNeutrals.length > 0 && Math.random() > 0.55) {
+      const target = adjacentNeutrals[Math.floor(Math.random() * adjacentNeutrals.length)];
+      const claimArmy = kingdom.armies.find(a => a.troops > 150 && a.status === 'idle');
+      if (claimArmy) {
+        const defArmy: Army = {
+          id: 'neutral_def', name: `Militia of ${target.name}`, owner: 'neutral',
+          troops: target.garrison, maxTroops: target.garrison, morale: 40,
+          commander: 'Local Elder', location: target.id, status: 'fighting',
+        };
+        const battle = resolveBattle(claimArmy, defArmy, 0, target);
+        if (battle.conquered) {
+          updatedProvinces = updatedProvinces.map(p =>
+            p.id === target.id ? { ...p, owner: kingdom.id, garrison: 80 } : p
+          );
+          logs.push(`🏴 ${kingdom.name} claimed the unclaimed territory of ${target.name}!`);
+        }
+        const kidx = updatedKingdoms.findIndex(k => k.id === kingdom.id);
+        if (kidx >= 0) {
+          updatedKingdoms[kidx] = {
+            ...updatedKingdoms[kidx],
+            armies: updatedKingdoms[kidx].armies.map(a =>
+              a.id === claimArmy.id ? { ...a, troops: Math.max(50, a.troops - battle.attackerLosses) } : a
+            ),
+          };
+        }
+      }
+    }
+
     const expansionProfile = getPersonalityProfile(kingdom);
     const aiWarChance = 0.92 - (expansionProfile.expansionAggression * 0.15);
     if (kingdom.attitude !== 'war' && Math.random() > aiWarChance) {

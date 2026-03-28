@@ -1,49 +1,50 @@
-# Starter Buildings & Research-Based Blueprint Unlocks
+# Expand the Realm Map with Many More Regions & Larger Territories
 
 ## Overview
 
-When starting a new game, the player will only have **3 starter buildings** across their capital province. All other building types must be **unlocked through research** before they can be built. 
-
-Also need to fix an issue user mentioned, "when sieging using multiple armies, after the siege is complete all armies attacking should march back".
-
-After each turn the summary should also show updates on what has been completed in building and others, as well as mentioning hints.
+Massively expand the game map from **21 provinces to ~50 provinces**, giving each kingdom more territory and adding unclaimed/neutral regions to conquer. The map itself gets bigger so everything has room to breathe and no overlapping.
 
 ---
 
-## Features
+## Current → New Province Counts
 
-### Starter Buildings (New Game)
+---
 
-- **Castle Keep** — already built in the player's capital (level 1)
-- **Barracks** — already built in the player's capital (level 1)
-- **Farmstead** — already built in the player's capital (level 1)
-- All other provinces owned by the player start with **no buildings** (empty)
-- AI kingdoms keep their existing building setups 
+## New Provinces (examples of what gets added)
 
-### Blueprint Unlock System
+- **Valkorian** gains: Crimson Keep, Ashen Marsh, Ironclad Pass, plus additional frontier lands
+- **Solarian** gains: Gilded Reach, Palm Harbor, Sandstone Citadel, and desert outskirts
+- **Nordheim** gains: Wolfden, Frostveil, Icereach — deeper into the frozen north
+- **Crimson Horde** gains: Ember Wastes, Redthorn, Blazefort — filling out the southern desert
+- **Emerald League** gains: Mosshollow, Seabreeze, Tidecrest — expanding the eastern coast
+- **Ironforge** gains: Millhaven, Kingsbridge — filling gaps between existing provinces
+- **Neutral lands** scattered across the map (e.g. Greymarch, The Crossing, Oldwatch, Hollowmere) — unclaimed and available for any kingdom to seize
 
-- A new "Unlocked Blueprints" list is tracked per game save
-- Only **Castle Keep, Barracks, and Farmstead** are unlocked from the start
-- The remaining blueprints (Marketplace, Temple, Stone Walls, Mine, Library, Tavern, Grand Cathedral, Granary, Lumber Mill, Monastery) are **locked** by default
-- Each blueprint is tied to a specific **research technology** — once that tech is researched, the blueprint becomes available to build
+---
 
-### Blueprint ↔ Research Mapping
+## Map Changes
 
-### Province Building Screen Changes
+- The map area increases from **520px tall to ~800px tall**, and becomes **wider** (scrollable both horizontally and vertically)
+- All existing province positions are re-spaced so they don't feel cramped
+- New provinces are placed logically — each kingdom's territory forms a coherent region on the map
+- Neutral provinces sit at border zones between kingdoms, creating natural battlegrounds
+- Connection lines between provinces are updated to form a proper road/route network
 
-- Locked blueprints show as **greyed out** with a 🔒 lock icon
-- Tapping a locked blueprint shows which research is needed to unlock it
-- Unlocked blueprints work exactly as they do now (pay gold to build)
+---
 
-### AI Kingdoms
+## Kingdom & Army Updates
 
-- AI kingdoms are **not restricted** by this system — they use their own separate building pool as before, so they can still build and claim freely
+- Each AI kingdom gets **1–2 additional armies** stationed in their new provinces
+- New provinces come with appropriate buildings, garrisons, and population based on their type
+- Kingdom `startingProvinces` lists are updated for the kingdom selection screen
+- Kingdom `strength` values are rebalanced to reflect their larger territories
 
 ---
 
 ## Design
 
-- Locked blueprints appear in the build menu with a dark, dimmed style and a lock icon overlay
-- A small tag under each locked blueprint says something like *"Requires: Iron Working"*
-- When a tech is researched that unlocks new blueprints, the turn summary log mentions *"🔓 New blueprint unlocked: Marketplace"*
+- The map stays the same visual style (dark background, glowing territory nodes, colored borders)
+- Scrollable in both directions so the larger map fits on any screen
+- Province nodes stay the same size — capitals slightly larger, regular provinces standard
+- Neutral/unclaimed provinces appear with a **grey** color and no owner badge
 

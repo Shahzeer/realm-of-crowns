@@ -6,8 +6,8 @@ import Colors from '@/constants/colors';
 import { PROVINCE_TYPE_ICONS } from '@/mocks/gameData';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const MAP_WIDTH = Math.max(SCREEN_WIDTH - 40, 340);
-const MAP_HEIGHT = 520;
+const MAP_WIDTH = Math.max(SCREEN_WIDTH * 1.4, 520);
+const MAP_HEIGHT = 820;
 
 export { MAP_WIDTH, MAP_HEIGHT, OWNER_COLORS, OWNER_LABELS };
 
@@ -27,6 +27,7 @@ const OWNER_COLORS: Record<string, string> = {
   nordheim: '#58a6ff',
   crimsonhorde: '#cc5533',
   emeraldleague: '#33aa66',
+  neutral: '#666677',
 };
 
 const OWNER_LABELS: Record<string, string> = {
@@ -37,6 +38,7 @@ const OWNER_LABELS: Record<string, string> = {
   nordheim: 'Nordheim',
   crimsonhorde: 'Crimson Horde',
   emeraldleague: 'Emerald League',
+  neutral: 'Unclaimed',
 };
 
 const FOG_COLOR = '#080a10';
@@ -456,7 +458,7 @@ export default React.memo(function MapView({ provinces, armies, onProvincePress,
 
   return (
     <View style={styles.mapContainer}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} nestedScrollEnabled>
         <View style={styles.mapBg}>
           <TerritoryGlow provinces={provinces} visibilityMap={visibilityMap} />
           {foggedProvinces.map(p => (
