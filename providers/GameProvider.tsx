@@ -1242,7 +1242,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   const userIdRef = useRef<string | null>(null);
   const cloudSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSaveRef = useRef<GameState | null>(null);
-  const lastLoadedUserRef = useRef<string | null | undefined>(undefined);
+  const prevUserIdRef = useRef<string | null>(user?.id ?? null);
 
   useEffect(() => {
     if (user?.id) {
@@ -1255,14 +1255,13 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
   useEffect(() => {
     const currentUserId = user?.id ?? null;
-    if (lastLoadedUserRef.current === undefined) {
-      lastLoadedUserRef.current = currentUserId;
-      return;
-    }
-    if (currentUserId !== lastLoadedUserRef.current) {
-      console.log('[Game] User changed, resetting isLoaded to re-fetch save');
-      lastLoadedUserRef.current = currentUserId;
+    const previousUserId = prevUserIdRef.current;
+    prevUserIdRef.current = currentUserId;
+
+    if (currentUserId !== previousUserId) {
+      console.log('[Game] User changed from', previousUserId, 'to', currentUserId, '- resetting load state');
       setIsLoaded(false);
+      setState(defaultState);
     }
   }, [user?.id]);
 
@@ -1357,7 +1356,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
       if (localState) return localState;
       return null;
     },
-    enabled: !authLoading,
+    enabled: !authLoading && !!user?.id,
+    staleTime: 0,
   });
 
   const debouncedCloudSave = useCallback((gameState: GameState) => {
@@ -1388,16 +1388,24 @@ export const [GameProvider, useGame] = createContextHook(() => {
   });
 
   useEffect(() => {
+    if (!user?.id) {
+      if (!isLoaded) {
+        console.log('[Game] No user, marking as loaded with defaults');
+        setIsLoaded(true);
+      }
+      return;
+    }
+
     if (loadQuery.data && !isLoaded) {
-      console.log('[Game] Loaded save');
+      console.log('[Game] Loaded save for user:', user.id, 'turn:', loadQuery.data.turn);
       const merged = mergeLoadedState(loadQuery.data);
       setState(merged);
       setIsLoaded(true);
     } else if (loadQuery.isSuccess && !loadQuery.data && !isLoaded) {
-      console.log('[Game] No save found, using defaults');
+      console.log('[Game] No save found for user:', user.id, '- using defaults');
       setIsLoaded(true);
     }
-  }, [loadQuery.data, loadQuery.isSuccess, isLoaded]);
+  }, [loadQuery.data, loadQuery.isSuccess, isLoaded, user?.id]);
 
   const selectKingdom = useCallback((kingdomId: string, difficulty?: 'easy' | 'normal' | 'hard') => {
     const choice = KINGDOM_CHOICES.find(k => k.id === kingdomId);
@@ -1455,22 +1463,24 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
-  const startSpyMission = useCallback((missionId: string, targetId: string) => {
+  const startSpyMission = useCallback((missionId: string, targetId: string, isUndiscovered?: boolean) => {
     setState(prev => {
       if (prev.activeSpyMission) return prev;
       const mission = SPY_MISSIONS.find(m => m.id === missionId);
       if (!mission || prev.resources.gold < mission.cost) return prev;
       const spymaster = prev.council.find(c => c.role === 'spymaster');
       const intrigueBonus = Math.max(0, (prev.ruler.intrigue - 10) + ((spymaster?.skill ?? 0) - 10));
-      const adjustedTurns = Math.max(1, mission.turnsToComplete - Math.floor(intrigueBonus / 5));
+      const baseTurns = Math.max(1, mission.turnsToComplete - Math.floor(intrigueBonus / 5));
+      const adjustedTurns = isUndiscovered ? baseTurns + 2 : baseTurns;
       const activeMission: ActiveSpyMission = {
         missionId, targetId, turnsRemaining: adjustedTurns, totalTurns: adjustedTurns,
       };
+      const label = isUndiscovered ? `🕵️ Launched spy mission: ${mission.name} (undiscovered region, +2 turns)` : `🕵️ Launched spy mission: ${mission.name}`;
       const newState: GameState = {
         ...prev,
         activeSpyMission: activeMission,
         resources: { ...prev.resources, gold: prev.resources.gold - mission.cost },
-        log: [`🕵️ Launched spy mission: ${mission.name}`, ...prev.log].slice(0, 50),
+        log: [label, ...prev.log].slice(0, 50),
       };
       saveMutation.mutate(newState);
       return newState;

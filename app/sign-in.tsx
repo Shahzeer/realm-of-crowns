@@ -38,12 +38,11 @@ export default function SignInScreen() {
 
     try {
       await signIn({ email: email.trim(), password });
-      console.log('[SignIn] Success, navigating to home');
-      router.replace('/');
+      console.log('[SignIn] Success — auth state change will handle navigation');
     } catch (e: unknown) {
       console.log('[SignIn] Error:', e);
     }
-  }, [email, password, signIn, resetSignInError, router]);
+  }, [email, password, signIn, resetSignInError]);
 
   const displayError = localError || signInError;
 
