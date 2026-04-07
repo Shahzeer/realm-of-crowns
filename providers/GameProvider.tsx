@@ -2,8 +2,7 @@ import React, { useEffect, useCallback, useMemo, useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
-import { loadCloudSave, saveToCloud, deleteCloudSave } from '@/utils/supabase';
-import { useAuth } from '@/providers/AuthProvider';
+
 import { computeVisibility, VisibilityMap } from '@/utils/fogOfWar';
 import {
   GameState,
@@ -1235,35 +1234,8 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
 }
 
 export const [GameProvider, useGame] = createContextHook(() => {
-  const { user, isLoading: authLoading } = useAuth();
   const [state, setState] = React.useState<GameState>(defaultState);
   const [isLoaded, setIsLoaded] = React.useState(false);
-  const [cloudStatus, setCloudStatus] = React.useState<'idle' | 'syncing' | 'synced' | 'offline'>('idle');
-  const userIdRef = useRef<string | null>(null);
-  const cloudSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingSaveRef = useRef<GameState | null>(null);
-  const prevUserIdRef = useRef<string | null>(user?.id ?? null);
-
-  useEffect(() => {
-    if (user?.id) {
-      userIdRef.current = user.id;
-      console.log('[Game] User ID set:', user.id);
-    } else {
-      userIdRef.current = null;
-    }
-  }, [user?.id]);
-
-  useEffect(() => {
-    const currentUserId = user?.id ?? null;
-    const previousUserId = prevUserIdRef.current;
-    prevUserIdRef.current = currentUserId;
-
-    if (currentUserId !== previousUserId) {
-      console.log('[Game] User changed from', previousUserId, 'to', currentUserId, '- resetting load state');
-      setIsLoaded(false);
-      setState(defaultState);
-    }
-  }, [user?.id]);
 
   function mergeLoadedState(loaded: Partial<GameState>): GameState {
     return {
@@ -1307,105 +1279,37 @@ export const [GameProvider, useGame] = createContextHook(() => {
     };
   }
 
-  const loadQuery = useQuery({
-    queryKey: ['game-save', user?.id ?? 'anonymous'],
-    queryFn: async () => {
-      const userId = user?.id;
-      console.log('[Game] Loading save, userId:', userId ?? 'anonymous');
-
-      let cloudState: Record<string, unknown> | null = null;
-      if (userId) {
-        try {
-          cloudState = await loadCloudSave(userId);
-          if (cloudState) {
-            console.log('[Game] Found cloud save, turn:', (cloudState as { turn?: number }).turn);
-            setCloudStatus('synced');
-          }
-        } catch (e) {
-          console.warn('[Game] Cloud load failed, falling back to local:', e);
-          setCloudStatus('offline');
-        }
-      }
-
-      let localState: GameState | null = null;
-      const userKey = userId ? STORAGE_KEY + '_' + userId : null;
-      const keysToTry = userKey ? [userKey, STORAGE_KEY] : [STORAGE_KEY];
-      for (const key of keysToTry) {
-        try {
-          const saved = await AsyncStorage.getItem(key);
-          if (saved) {
-            const parsed = JSON.parse(saved) as GameState;
-            if (!localState || (parsed.turn ?? 0) > (localState.turn ?? 0)) {
-              localState = parsed;
-              console.log('[Game] Found local save at key:', key, 'turn:', parsed.turn);
-            }
-          }
-        } catch (e) {
-          console.warn('[Game] Local load failed for key', key, ':', e);
-        }
-      }
-
-      if (cloudState && localState) {
-        const cloudTurn = (cloudState as { turn?: number }).turn ?? 0;
-        const localTurn = localState.turn ?? 0;
-        console.log(`[Game] Cloud turn: ${cloudTurn}, Local turn: ${localTurn}`);
-        return cloudTurn >= localTurn ? (cloudState as unknown as GameState) : localState;
-      }
-
-      if (cloudState) return cloudState as unknown as GameState;
-      if (localState) return localState;
-      return null;
-    },
-    enabled: !authLoading && !!user?.id,
-    staleTime: 0,
-  });
-
-  const debouncedCloudSave = useCallback((gameState: GameState) => {
-    pendingSaveRef.current = gameState;
-    if (cloudSaveTimerRef.current) clearTimeout(cloudSaveTimerRef.current);
-    cloudSaveTimerRef.current = setTimeout(async () => {
-      const toSave = pendingSaveRef.current;
-      if (!toSave || !userIdRef.current) return;
-      pendingSaveRef.current = null;
-      setCloudStatus('syncing');
-      const ok = await saveToCloud(userIdRef.current, toSave as unknown as Record<string, unknown>);
-      setCloudStatus(ok ? 'synced' : 'offline');
-      if (!ok) {
-        console.warn('[Game] Cloud save failed, will retry on next save');
-      }
-    }, CLOUD_SAVE_DEBOUNCE_MS);
-  }, []);
-
   const saveMutation = useMutation({
     mutationFn: async (gameState: GameState) => {
-      const userId = userIdRef.current;
-      const storageKey = userId ? STORAGE_KEY + '_' + userId : STORAGE_KEY;
-      console.log('[Game] Saving to', storageKey, 'turn:', gameState.turn);
-      await AsyncStorage.setItem(storageKey, JSON.stringify(gameState));
+      console.log('[Game] Saving to AsyncStorage, turn:', gameState.turn);
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
-      if (userId) debouncedCloudSave(gameState);
     },
   });
 
   useEffect(() => {
-    if (!user?.id) {
-      if (!isLoaded) {
-        console.log('[Game] No user, marking as loaded with defaults');
+    if (isLoaded) return;
+    console.log('[Game] Loading save from AsyncStorage...');
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((saved) => {
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved) as GameState;
+            console.log('[Game] Found local save, turn:', parsed.turn, 'gameStarted:', parsed.gameStarted);
+            const merged = mergeLoadedState(parsed);
+            setState(merged);
+          } catch (e) {
+            console.warn('[Game] Failed to parse local save:', e);
+          }
+        } else {
+          console.log('[Game] No save found, using defaults');
+        }
         setIsLoaded(true);
-      }
-      return;
-    }
-
-    if (loadQuery.data && !isLoaded) {
-      console.log('[Game] Loaded save for user:', user.id, 'turn:', loadQuery.data.turn);
-      const merged = mergeLoadedState(loadQuery.data);
-      setState(merged);
-      setIsLoaded(true);
-    } else if (loadQuery.isSuccess && !loadQuery.data && !isLoaded) {
-      console.log('[Game] No save found for user:', user.id, '- using defaults');
-      setIsLoaded(true);
-    }
-  }, [loadQuery.data, loadQuery.isSuccess, isLoaded, user?.id]);
+      })
+      .catch((e) => {
+        console.warn('[Game] AsyncStorage load error:', e);
+        setIsLoaded(true);
+      });
+  }, [isLoaded]);
 
   const selectKingdom = useCallback((kingdomId: string, difficulty?: 'easy' | 'normal' | 'hard') => {
     const choice = KINGDOM_CHOICES.find(k => k.id === kingdomId);
@@ -2931,22 +2835,9 @@ export const [GameProvider, useGame] = createContextHook(() => {
   }, [saveMutation]);
 
   const resetGame = useCallback(async () => {
-    const userId = userIdRef.current;
-    const storageKey = userId ? STORAGE_KEY + '_' + userId : STORAGE_KEY;
-    await AsyncStorage.removeItem(storageKey);
-    if (userId) {
-      await deleteCloudSave(userId);
-    }
+    await AsyncStorage.removeItem(STORAGE_KEY);
     setState({ ...defaultState, gameStarted: false });
   }, []);
-
-  const forceCloudSync = useCallback(async () => {
-    if (!userIdRef.current) return false;
-    setCloudStatus('syncing');
-    const ok = await saveToCloud(userIdRef.current, state as unknown as Record<string, unknown>);
-    setCloudStatus(ok ? 'synced' : 'offline');
-    return ok;
-  }, [state]);
 
   const unseenEvents = useMemo(() => state.events.filter(e => !e.seen), [state.events]);
   const playerProvinces = useMemo(() => state.provinces.filter(p => p.owner === 'player'), [state.provinces]);
@@ -2975,7 +2866,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     selectKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
-    arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
+    arrangeMarriage, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle,
@@ -2987,7 +2878,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     selectKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
-    arrangeMarriage, cloudStatus, forceCloudSync, mergeArmies, educateHeir,
+    arrangeMarriage, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle,

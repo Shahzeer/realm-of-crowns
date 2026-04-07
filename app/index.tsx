@@ -7,7 +7,7 @@ import * as Haptics from "expo-haptics";
 import { Swords, Globe, ScrollText, Crown, ChevronRight, Play, BookOpen, Users, Shield, Flame, RotateCcw, ArrowRightLeft, Eye, Sparkles, Trophy, X, TrendingUp, Settings, ShieldAlert, AlertTriangle, Bug, Wheat, Skull } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
-import { useAuth } from "@/providers/AuthProvider";
+
 import ResourceBar from "@/components/ResourceBar";
 import MapView from "@/components/MapView";
 import GameToast from "@/components/GameToast";
@@ -132,17 +132,6 @@ function TurnSummaryModal({ visible, onClose, summary }: { visible: boolean; onC
 }
 
 export default function KingdomScreenGuard() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
-
-  if (authLoading) {
-    return (
-      <View style={idx.root}>
-        <LinearGradient colors={[Colors.bg.primary, Colors.bg.secondary, Colors.bg.primary]} style={StyleSheet.absoluteFill} />
-      </View>
-    );
-  }
-  if (!isAuthenticated) return <Redirect href="/sign-in" />;
-
   return <KingdomScreen />;
 }
 

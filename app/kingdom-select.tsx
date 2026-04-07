@@ -1,12 +1,12 @@
 import React, { useRef, useEffect, useCallback, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform } from "react-native";
-import { useRouter, Redirect } from "expo-router";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Shield, Star, ChevronRight } from "lucide-react-native";
 import Colors from "@/constants/colors";
-import { useAuth } from "@/providers/AuthProvider";
+
 import { useGame } from "@/providers/GameProvider";
 import { KINGDOM_CHOICES } from "@/mocks/gameData";
 import { KingdomChoice } from "@/types/game";
@@ -120,9 +120,6 @@ const GAME_DIFFICULTY_COLORS: Record<string, string> = {
 };
 
 export default function KingdomSelectGuard() {
-  const { isAuthenticated, isLoading } = useAuth();
-  if (isLoading) return <View style={{ flex: 1, backgroundColor: Colors.bg.primary }} />;
-  if (!isAuthenticated) return <Redirect href="/sign-in" />;
   return <KingdomSelectScreen />;
 }
 

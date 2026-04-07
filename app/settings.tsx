@@ -4,10 +4,10 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, Settings, RotateCcw, Crown, Shield, Swords, BookOpen, MapPin, Calendar, Flame, Cloud, CloudOff, RefreshCw, LogOut } from "lucide-react-native";
+import { X, Settings, RotateCcw, Crown, Shield, Swords, BookOpen, MapPin, Calendar, Flame, Cloud } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
-import { useAuth } from "@/providers/AuthProvider";
+
 
 const DIFFICULTY_META: Record<string, { label: string; color: string; desc: string }> = {
   easy: { label: 'EASY', color: Colors.status.success, desc: 'More resources, weaker AI opponents' },
@@ -39,8 +39,8 @@ export default function SettingsScreen() {
   console.log("[RealmOfCrowns] Settings render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, resetGame, playerProvinces, cloudStatus, forceCloudSync } = useGame();
-  const { user, signOut } = useAuth();
+  const { state, resetGame, playerProvinces } = useGame();
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -119,32 +119,11 @@ export default function SettingsScreen() {
 
           <View style={st.cloudCard}>
             <View style={st.cloudRow}>
-              {cloudStatus === 'synced' ? (
-                <Cloud size={18} color={Colors.status.success} />
-              ) : cloudStatus === 'syncing' ? (
-                <RefreshCw size={18} color={Colors.status.warning} />
-              ) : (
-                <CloudOff size={18} color={Colors.text.dim} />
-              )}
+              <Cloud size={18} color={Colors.status.success} />
               <View style={st.cloudInfo}>
-                <Text style={st.cloudTitle}>Cloud Save</Text>
-                <Text style={[st.cloudStatusText, {
-                  color: cloudStatus === 'synced' ? Colors.status.success
-                    : cloudStatus === 'syncing' ? Colors.status.warning
-                    : Colors.text.dim
-                }]}>
-                  {cloudStatus === 'synced' ? 'Synced' : cloudStatus === 'syncing' ? 'Syncing...' : cloudStatus === 'offline' ? 'Offline' : 'Idle'}
-                </Text>
+                <Text style={st.cloudTitle}>Local Save</Text>
+                <Text style={[st.cloudStatusText, { color: Colors.status.success }]}>Active</Text>
               </View>
-              <TouchableOpacity
-                onPress={() => { void forceCloudSync(); }}
-                style={st.syncBtn}
-                activeOpacity={0.7}
-                testID="force-sync-btn"
-              >
-                <RefreshCw size={14} color={Colors.gold.bright} />
-                <Text style={st.syncBtnText}>Sync Now</Text>
-              </TouchableOpacity>
             </View>
           </View>
 
@@ -200,26 +179,7 @@ export default function SettingsScreen() {
             ))}
           </View>
 
-          <Text style={st.sectionTitle}>Account</Text>
-          <View style={st.accountCard}>
-            <View style={st.accountRow}>
-              <Text style={st.accountEmail}>{user?.email ?? 'Not signed in'}</Text>
-            </View>
-            <TouchableOpacity
-              style={st.signOutBtn}
-              onPress={() => {
-                Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: 'Sign Out', style: 'destructive', onPress: () => { void signOut(); } },
-                ]);
-              }}
-              activeOpacity={0.7}
-              testID="sign-out-btn"
-            >
-              <LogOut size={16} color={Colors.text.secondary} />
-              <Text style={st.signOutText}>Sign Out</Text>
-            </TouchableOpacity>
-          </View>
+
 
           <View style={st.dangerZone}>
             <TouchableOpacity style={st.newGameBtn} onPress={handleNewGame} activeOpacity={0.7} testID="new-game-btn">
