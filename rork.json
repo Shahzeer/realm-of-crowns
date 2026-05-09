@@ -4,11 +4,6 @@
       "name": "Realm of Crowns",
       "path": ".",
       "framework": "react-native"
-    },
-    {
-      "name": "Realm of Crowns",
-      "path": "expo",
-      "framework": "react-native"
     }
   ]
 }
