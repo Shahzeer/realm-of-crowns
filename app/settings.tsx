@@ -4,9 +4,10 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, Settings, RotateCcw, Crown, Shield, Swords, BookOpen, MapPin, Calendar, Flame, Cloud } from "lucide-react-native";
+import { X, Settings, RotateCcw, Crown, Shield, Swords, BookOpen, MapPin, Calendar, Flame, Cloud, PlayCircle } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
+import TutorialOverlay from "@/components/TutorialOverlay";
 
 
 const DIFFICULTY_META: Record<string, { label: string; color: string; desc: string }> = {
@@ -42,6 +43,7 @@ export default function SettingsScreen() {
   const { state, resetGame, playerProvinces } = useGame();
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [showTutorial, setShowTutorial] = React.useState<boolean>(false);
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
@@ -53,6 +55,11 @@ export default function SettingsScreen() {
   const techResearched = state.technologies.filter(t => t.researched).length;
   const totalTech = state.technologies.length;
   const unlockedAch = state.achievements.filter(a => a.unlocked).length;
+
+  const handleReplayTutorial = useCallback(() => {
+    if (Platform.OS !== "web") { void Haptics.selectionAsync(); }
+    setShowTutorial(true);
+  }, []);
 
   const handleNewGame = useCallback(() => {
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }
@@ -116,6 +123,15 @@ export default function SettingsScreen() {
               </View>
             </View>
           </View>
+
+          <TouchableOpacity style={st.tutorialCard} onPress={handleReplayTutorial} activeOpacity={0.75} testID="replay-tutorial-btn">
+            <LinearGradient colors={[Colors.gold.bright + '18', Colors.bg.card]} style={StyleSheet.absoluteFill} />
+            <View style={st.tutorialIcon}><PlayCircle size={22} color={Colors.bg.primary} /></View>
+            <View style={st.tutorialInfo}>
+              <Text style={st.tutorialTitle}>Replay Tutorial</Text>
+              <Text style={st.tutorialDesc}>Walk through resources, the map, buildings, armies, spies, council, events, and turns.</Text>
+            </View>
+          </TouchableOpacity>
 
           <View style={st.cloudCard}>
             <View style={st.cloudRow}>
@@ -189,6 +205,7 @@ export default function SettingsScreen() {
           </View>
         </Animated.View>
       </ScrollView>
+      <TutorialOverlay visible={showTutorial} onFinish={() => setShowTutorial(false)} />
     </View>
   );
 }
@@ -200,6 +217,11 @@ const st = StyleSheet.create({
   title: { fontSize: 20, fontWeight: "800" as const, color: Colors.text.primary },
   closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.bg.card, alignItems: "center", justifyContent: "center" },
   infoCard: { marginHorizontal: 16, marginTop: 16, backgroundColor: Colors.bg.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.gold.dim + '40', overflow: "hidden" },
+  tutorialCard: { marginHorizontal: 16, marginTop: 16, backgroundColor: Colors.bg.card, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: Colors.gold.dim + '55', overflow: "hidden" as const, flexDirection: "row" as const, alignItems: "center" as const, gap: 14 },
+  tutorialIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: Colors.gold.primary, alignItems: "center" as const, justifyContent: "center" as const },
+  tutorialInfo: { flex: 1, gap: 4 },
+  tutorialTitle: { fontSize: 16, fontWeight: "800" as const, color: Colors.gold.bright },
+  tutorialDesc: { fontSize: 12, color: Colors.text.secondary, lineHeight: 17 },
   infoHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 14 },
   infoTitle: { fontSize: 16, fontWeight: "700" as const, color: Colors.gold.bright },
   infoGrid: { flexDirection: "row", gap: 12 },

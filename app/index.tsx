@@ -14,6 +14,7 @@ import GameToast from "@/components/GameToast";
 import AchievementPopup from "@/components/AchievementPopup";
 import ProvinceActionPopup from "@/components/ProvinceActionPopup";
 import RumorCards from "@/components/RumorCards";
+import TutorialOverlay from "@/components/TutorialOverlay";
 import { Province, Achievement, TurnSummary } from "@/types/game";
 import { SEASON_EFFECTS } from "@/mocks/gameData";
 
@@ -168,7 +169,6 @@ function KingdomScreen() {
   }, [unseenEvents.length, pulseAnim]);
 
   useEffect(() => { if (state.gameOver || state.victory) setShowGameOver(true); }, [state.gameOver, state.victory]);
-  useEffect(() => { if (state.gameStarted && !state.tutorialSeen) dismissTutorial(); }, [state.gameStarted, state.tutorialSeen]);
 
   useEffect(() => {
     if (state.turn > prevTurn.current && state.lastTurnSummary) {
@@ -366,6 +366,7 @@ function KingdomScreen() {
         </Animated.View>
       </ScrollView>
       <ProvinceActionPopup province={selectedProvince} armies={state.armies} kingdoms={state.kingdoms} onAction={handlePopupAction} onClose={handlePopupClose} visibilityMap={visibilityMap} />
+      <TutorialOverlay visible={state.gameStarted && !state.tutorialSeen} onFinish={dismissTutorial} />
       <View style={[idx.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <TouchableOpacity style={idx.endTurnButton} onPress={handleAdvanceTurn} activeOpacity={0.8} testID="advance-turn-button" disabled={state.gameOver || state.victory}>
           <LinearGradient colors={state.gameOver || state.victory ? ['#333', '#444', '#333'] : ["#8b6914", "#d4a574", "#8b6914"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={idx.endTurnGradient}>

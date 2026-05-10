@@ -1,12 +1,26 @@
-# Completely remove sign-in/sign-up screens and auth provider
+# Add a replayable new-player walkthrough
 
-**What's happening:** The sign-in and sign-up screens still exist as files in the project. Even though the main layout no longer uses authentication, Expo Router can still navigate to these screens, and on some devices the app may land on the sign-in page.
+**Features**
 
-**What will be done:**
+- [x] Show a walkthrough automatically the first time a player starts a new game.
+- [x] Use a hybrid flow with cinematic kingdom cards and a few guided highlights.
+- [x] Cover resources, turns, the map, fog of war, buildings, armies, spies, scouting, council decisions, and events.
+- [x] Keep the tutorial medium length at about 10–12 steps.
+- [x] Let players skip the tutorial if they already understand the game.
+- [x] Remember when the tutorial has been completed so it does not keep appearing.
+- [x] Reset tutorial availability cleanly when starting a new game.
+- [x] Add a prominent “Replay Tutorial” button near the top of Settings.
 
-- Delete the sign-in screen
-- Delete the sign-up screen
-- Delete the authentication provider file
-- Delete the Supabase utility file (if only used for auth)
-- Ensure the app always goes straight to the game (kingdom select or continue) with no login required
+**Design**
 
+- [x] Use a dark medieval parchment-and-gold overlay that feels like royal counsel rather than a generic help popup.
+- [x] Start with cinematic cards written like advice from the royal council.
+- [x] Use subtle glow highlights for important areas like resources, the map, turn actions, and navigation choices.
+- [x] Add clear Back, Next, Skip, and Finish actions with strong tap targets for phone use.
+- [x] Include step progress so players know how much remains.
+
+**Pages / Screens**
+
+- [x] **Home screen**: The tutorial appears automatically after a new game begins.
+- [x] **Main game screen**: Key areas are introduced in context while the player can see the kingdom behind the overlay.
+- [x] **Settings screen**: A clear “Replay Tutorial” button lets players launch the walkthrough again anytime.
