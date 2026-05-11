@@ -26,6 +26,8 @@ type ProvinceAction =
   | 'spy'
   | 'diplomacy'
   | 'trade'
+  | 'lay_claim'
+  | 'send_troops'
   | 'info';
 
 interface ProvinceActionPopupProps {
@@ -116,6 +118,14 @@ function getActionsForProvince(
     });
 
     return actions;
+  }
+
+  if (province.owner === 'neutral') {
+    return [
+      { id: 'lay_claim', label: 'Lay Claim', icon: <FlagIcon color={Colors.gold.bright} />, color: Colors.gold.bright, bgColor: Colors.gold.bright + '15' },
+      { id: 'send_troops', label: 'Send Troops', icon: <Swords size={18} color={Colors.crimson.bright} />, color: Colors.crimson.bright, bgColor: Colors.crimson.dark + '25' },
+      { id: 'spy', label: 'Scout', icon: <Eye size={18} color="#8b5cf6" />, color: '#8b5cf6', bgColor: '#8b5cf620' },
+    ];
   }
 
   if (ownership === 'enemy') {
@@ -334,7 +344,7 @@ export default React.memo(function ProvinceActionPopup({
         {isFogged && (
           <View style={styles.fogWarning}>
             <Text style={styles.fogWarningIcon}>👁️</Text>
-            <Text style={styles.fogWarningText}>Hidden by Fog of War — Send spies for intel</Text>
+            <Text style={styles.fogWarningText}>Hidden by Fog of War — Send spies for intel. Undiscovered scouting takes 2 turns.</Text>
           </View>
         )}
 
@@ -371,6 +381,10 @@ export default React.memo(function ProvinceActionPopup({
     </Animated.View>
   );
 });
+
+function FlagIcon({ color }: { color: string }) {
+  return <Text style={{ color, fontSize: 16 }}>⚑</Text>;
+}
 
 const styles = StyleSheet.create({
   backdrop: {

@@ -4,15 +4,17 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, Gift, AlertTriangle, Handshake, Flame, Flag, DollarSign, Eye } from "lucide-react-native";
+import { X, Gift, AlertTriangle, Handshake, Flame, Flag, DollarSign, Eye, Heart, Megaphone } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { Kingdom, AIPersonality } from "@/types/game";
 import { PERSONALITY_LABELS } from "@/mocks/gameData";
 
+type DiplomacyAction = 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war';
+
 function KingdomCard({ kingdom, onAction, index }: {
   kingdom: Kingdom;
-  onAction: (id: string, action: 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute') => void;
+  onAction: (id: string, action: DiplomacyAction) => void;
   index: number;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -132,6 +134,9 @@ function KingdomCard({ kingdom, onAction, index }: {
               <TouchableOpacity style={[d.actionBtn, d.allyBtn]} onPress={() => onAction(kingdom.id, 'ally')} activeOpacity={0.7}>
                 <Handshake size={14} color={Colors.status.info} /><Text style={d.allyText}>Ally (200g)</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={[d.actionBtn, d.marriageBtn]} onPress={() => onAction(kingdom.id, 'propose_marriage')} activeOpacity={0.7}>
+                <Heart size={14} color="#f472b6" /><Text style={d.marriageText}>Marriage</Text>
+              </TouchableOpacity>
             </>
           ) : (
             <>
@@ -146,6 +151,11 @@ function KingdomCard({ kingdom, onAction, index }: {
             </>
           )}
         </View>
+        {!isAtWar && kingdom.attitude === 'allied' && (
+          <TouchableOpacity style={d.callWarBtn} onPress={() => onAction(kingdom.id, 'call_to_war')} activeOpacity={0.7}>
+            <Megaphone size={14} color={Colors.gold.bright} /><Text style={d.callWarText}>Call Ally to War</Text>
+          </TouchableOpacity>
+        )}
         {!isAtWar && kingdom.attitude !== 'allied' && (
           <TouchableOpacity style={d.warBtn} onPress={() => onAction(kingdom.id, 'declare_war')} activeOpacity={0.7}>
             <Flame size={14} color="#ff4444" /><Text style={d.warBtnText}>Declare War</Text>
@@ -162,7 +172,7 @@ export default function DiplomacyScreen() {
   const insets = useSafeAreaInsets();
   const { state, sendDiplomacy, activeWars } = useGame();
 
-  const handleAction = useCallback((kingdomId: string, action: 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute') => {
+  const handleAction = useCallback((kingdomId: string, action: DiplomacyAction) => {
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
 
     if (action === 'declare_war') {
@@ -178,7 +188,7 @@ export default function DiplomacyScreen() {
       return;
     }
 
-    const costs: Record<string, number> = { gift: 100, threaten: 0, ally: 200, peace: 150, demand_tribute: 0 };
+    const costs: Record<DiplomacyAction, number> = { gift: 100, threaten: 0, ally: 200, peace: 150, demand_tribute: 0, declare_war: 0, propose_marriage: 150, call_to_war: 0 };
     if (state.resources.gold < (costs[action] || 0)) {
       Alert.alert("Insufficient Gold", `You need ${costs[action]} gold.`);
       return;
@@ -271,6 +281,10 @@ const d = StyleSheet.create({
   peaceText: { fontSize: 11, fontWeight: "600" as const, color: Colors.status.success },
   tributeBtn: { borderColor: Colors.gold.dim, backgroundColor: Colors.gold.dim + '15' },
   tributeText: { fontSize: 11, fontWeight: "600" as const, color: Colors.gold.bright },
+  marriageBtn: { borderColor: '#f472b650', backgroundColor: '#f472b615' },
+  marriageText: { fontSize: 11, fontWeight: "600" as const, color: '#f472b6' },
+  callWarBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.gold.bright + '40', backgroundColor: Colors.gold.bright + '12' },
+  callWarText: { fontSize: 12, fontWeight: "700" as const, color: Colors.gold.bright },
   warBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#ff000030', backgroundColor: '#ff000008' },
   warBtnText: { fontSize: 12, fontWeight: "600" as const, color: '#ff4444' },
 });

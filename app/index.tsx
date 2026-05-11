@@ -140,7 +140,7 @@ function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, visibilityMap, investigateRumor, dismissRumor } = useGame();
+  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, visibilityMap, investigateRumor, dismissRumor } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -219,12 +219,22 @@ function KingdomScreen() {
         setToast({ visible: true, message: `+100 garrison at ${province.name}`, type: 'success' });
         break;
       }
+      case 'lay_claim': {
+        claimNeutralProvince?.(province.id, 'lay_claim');
+        setToast({ visible: true, message: `Envoys sent to lay claim to ${province.name}.`, type: 'info' });
+        break;
+      }
+      case 'send_troops': {
+        claimNeutralProvince?.(province.id, 'send_troops');
+        setToast({ visible: true, message: `Troops dispatched to secure ${province.name}.`, type: 'info' });
+        break;
+      }
       case 'attack': router.push('/armies' as any); break;
       case 'spy': router.push('/espionage' as any); break;
       case 'diplomacy': router.push('/diplomacy' as any); break;
       case 'trade': router.push('/trade' as any); break;
     }
-  }, [router, state.resources, recruitArmy, reinforceGarrison]);
+  }, [router, state.resources, recruitArmy, reinforceGarrison, claimNeutralProvince]);
   const handlePopupClose = useCallback(() => setSelectedProvince(null), []);
   const navigateTo = useCallback((path: string) => {
     if (Platform.OS !== "web") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

@@ -159,7 +159,7 @@ export function getUnlockedBlueprintIds(researchedTechIds: string[]): string[] {
   return unlocked;
 }
 
-export const ALL_PROVINCES: Province[] = [
+const BASE_PROVINCES: Province[] = [
   // ═══════════════════════════════════════════
   // IRONFORGE KINGDOM (8 provinces) — Center-North
   // ═══════════════════════════════════════════
@@ -234,6 +234,58 @@ export const ALL_PROVINCES: Province[] = [
   { id: 'stonehearth', name: 'Stonehearth', type: 'mountain', owner: 'neutral', population: 3200, development: 30, buildings: [], garrison: 250, color: '#7a7a7a', x: 0.72, y: 0.60, connectedTo: ['coralport', 'oldwatch', 'palmharbor'] },
 ];
 
+const EXPANSION_KINGDOM_IDS = ['obsidiancrown', 'moonveil', 'riverlands', 'stormcoast', 'ivoryorder'] as const;
+const EXPANSION_KINGDOM_NAMES: Record<typeof EXPANSION_KINGDOM_IDS[number], string> = {
+  obsidiancrown: 'Obsidian Crown',
+  moonveil: 'Moonveil Realm',
+  riverlands: 'Riverland Marches',
+  stormcoast: 'Stormcoast Thanes',
+  ivoryorder: 'Ivory Order',
+};
+const EXPANSION_COLORS: Record<typeof EXPANSION_KINGDOM_IDS[number], string> = {
+  obsidiancrown: '#7c2d12',
+  moonveil: '#7c3aed',
+  riverlands: '#0f766e',
+  stormcoast: '#0369a1',
+  ivoryorder: '#d6d3d1',
+};
+const PROVINCE_TYPES: Province['type'][] = ['city', 'castle', 'temple', 'farmland', 'forest', 'mountain'];
+const EXPANSION_NAMES = [
+  'Amberfall', 'Briarwatch', 'Cinderbay', 'Dawnmere', 'Ebonridge', 'Foxglade', 'Griffonrest', 'Hearthglen', 'Ironfen', 'Juniper Hold',
+  'Kingshollow', 'Larkspur', 'Mistvale', 'Northbarrow', 'Oakenshield', 'Pineford', 'Quartzgate', 'Ravenbrook', 'Stonefield', 'Thistleford',
+  'Umberwatch', 'Valewick', 'Westmere', 'Yarrowden', 'Zephyr Point', 'Aldercrest', 'Brackenport', 'Coldwater', 'Deepmire', 'Eagleford',
+  'Fallowmere', 'Glimmerfen', 'High Tor', 'Ivybridge', 'Jadeford', 'Kelproot', 'Lioncross', 'Mournstead', 'Nightfen', 'Orchard Gate',
+  'Pearlwatch', 'Quillhaven', 'Rosebarrow', 'Saltspire', 'Tallowmere', 'Umbral Fen', 'Violet Shoals', 'Wardenfall', 'Xylar Grove', 'Yewholt',
+  'Zincross', 'Ashenford', 'Brightwater', 'Cragmill', 'Dovefield'
+];
+
+const EXPANSION_PROVINCES: Province[] = EXPANSION_NAMES.map((name, index) => {
+  const owner = index < 35 ? EXPANSION_KINGDOM_IDS[index % EXPANSION_KINGDOM_IDS.length] : 'neutral';
+  const row = Math.floor(index / 11);
+  const col = index % 11;
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const type = index % 13 === 0 && owner !== 'neutral' ? 'capital' : PROVINCE_TYPES[index % PROVINCE_TYPES.length];
+  const leftNeighbor = index > 0 ? EXPANSION_NAMES[index - 1].toLowerCase().replace(/[^a-z0-9]+/g, '') : undefined;
+  const rightNeighbor = index < EXPANSION_NAMES.length - 1 ? EXPANSION_NAMES[index + 1].toLowerCase().replace(/[^a-z0-9]+/g, '') : undefined;
+  const baseLink = index % 5 === 0 ? 'stonehearth' : index % 5 === 1 ? 'wyrmrest' : index % 5 === 2 ? 'oldwatch' : index % 5 === 3 ? 'duskwood' : 'tidecrest';
+  return {
+    id,
+    name,
+    type,
+    owner,
+    population: 1800 + (index % 9) * 650,
+    development: 18 + (index % 8) * 6,
+    buildings: [],
+    garrison: 90 + (index % 7) * 45,
+    color: owner === 'neutral' ? '#6f6f6f' : EXPANSION_COLORS[owner],
+    x: Math.min(0.98, 0.03 + col * 0.088 + (row % 2) * 0.018),
+    y: Math.min(0.98, 0.86 + row * 0.03),
+    connectedTo: [baseLink, leftNeighbor, rightNeighbor].filter(Boolean) as string[],
+  };
+});
+
+export const ALL_PROVINCES: Province[] = [...BASE_PROVINCES, ...EXPANSION_PROVINCES];
+
 export const INITIAL_PROVINCES: Province[] = ALL_PROVINCES;
 
 export const INITIAL_ARMIES: Army[] = [
@@ -270,6 +322,12 @@ const EMERALD_RULER: Ruler = {
   health: 95, maxHealth: 100, diplomacy: 16, martial: 8, stewardship: 18,
   intrigue: 14, learning: 16, traits: [TRAITS[6], TRAITS[13]], avatar: '👤',
 };
+
+const OBSIDIAN_RULER: Ruler = { id: 'obs_ruler', name: 'Queen Maela', dynasty: 'Ashen Crown', age: 41, health: 82, maxHealth: 100, diplomacy: 9, martial: 17, stewardship: 11, intrigue: 16, learning: 8, traits: [TRAITS[4], TRAITS[8]], avatar: '👤' };
+const MOONVEIL_RULER: Ruler = { id: 'moon_ruler', name: 'Duchess Veyra', dynasty: 'Moonveil', age: 33, health: 88, maxHealth: 100, diplomacy: 18, martial: 7, stewardship: 13, intrigue: 18, learning: 14, traits: [TRAITS[9], TRAITS[10]], avatar: '👤' };
+const RIVERLAND_RULER: Ruler = { id: 'river_ruler', name: 'Lord Perrin', dynasty: 'Reedwater', age: 46, health: 78, maxHealth: 100, diplomacy: 13, martial: 10, stewardship: 19, intrigue: 9, learning: 12, traits: [TRAITS[1], TRAITS[5]], avatar: '👤' };
+const STORMCOAST_RULER: Ruler = { id: 'storm_ruler', name: 'Thane Corvin', dynasty: 'Stormwake', age: 39, health: 86, maxHealth: 100, diplomacy: 8, martial: 19, stewardship: 10, intrigue: 12, learning: 7, traits: [TRAITS[0], TRAITS[12]], avatar: '👤' };
+const IVORY_RULER: Ruler = { id: 'ivory_ruler', name: 'High Prior Oren', dynasty: 'Ivory Order', age: 55, health: 72, maxHealth: 100, diplomacy: 15, martial: 11, stewardship: 14, intrigue: 10, learning: 20, traits: [TRAITS[3], TRAITS[13]], avatar: '👤' };
 
 export const INITIAL_KINGDOMS: Kingdom[] = [
   {
@@ -338,6 +396,11 @@ export const INITIAL_KINGDOMS: Kingdom[] = [
     crest: '💎',
     description: 'A league of scholar-merchants who value knowledge and gold.',
   },
+  { id: 'obsidiancrown', name: 'Obsidian Crown', ruler: OBSIDIAN_RULER, provinces: ALL_PROVINCES.filter(p => p.owner === 'obsidiancrown').map(p => p.id), relation: -15, attitude: 'hostile', color: '#7c2d12', strength: 2600, armies: [{ id: 'obs_army1', name: 'Ashen Host', owner: 'obsidiancrown', troops: 650, maxTroops: 900, morale: 78, commander: 'Queen Maela', location: 'amberfall', status: 'idle' }], treasury: 900, crest: '🜃', description: 'A volcanic border crown hardened by ash and intrigue.' },
+  { id: 'moonveil', name: 'Moonveil Realm', ruler: MOONVEIL_RULER, provinces: ALL_PROVINCES.filter(p => p.owner === 'moonveil').map(p => p.id), relation: 15, attitude: 'neutral', color: '#7c3aed', strength: 1900, armies: [{ id: 'moon_army1', name: 'Veiled Guard', owner: 'moonveil', troops: 520, maxTroops: 760, morale: 82, commander: 'Duchess Veyra', location: 'briarwatch', status: 'idle' }], treasury: 1700, crest: '🌙', description: 'A secretive realm of envoys, spies, and moonlit treaties.' },
+  { id: 'riverlands', name: 'Riverland Marches', ruler: RIVERLAND_RULER, provinces: ALL_PROVINCES.filter(p => p.owner === 'riverlands').map(p => p.id), relation: 5, attitude: 'neutral', color: '#0f766e', strength: 2100, armies: [{ id: 'river_army1', name: 'Reedwater Levies', owner: 'riverlands', troops: 560, maxTroops: 820, morale: 74, commander: 'Lord Perrin', location: 'cinderbay', status: 'idle' }], treasury: 1600, crest: '🌊', description: 'Fertile river provinces bound by toll bridges and grain wealth.' },
+  { id: 'stormcoast', name: 'Stormcoast Thanes', ruler: STORMCOAST_RULER, provinces: ALL_PROVINCES.filter(p => p.owner === 'stormcoast').map(p => p.id), relation: -5, attitude: 'neutral', color: '#0369a1', strength: 2800, armies: [{ id: 'storm_army1', name: 'Coastal Reavers', owner: 'stormcoast', troops: 700, maxTroops: 950, morale: 80, commander: 'Thane Corvin', location: 'dawnmere', status: 'idle' }], treasury: 850, crest: '🌩️', description: 'Storm-battered jarls who respect strength above ceremony.' },
+  { id: 'ivoryorder', name: 'Ivory Order', ruler: IVORY_RULER, provinces: ALL_PROVINCES.filter(p => p.owner === 'ivoryorder').map(p => p.id), relation: 20, attitude: 'friendly', color: '#d6d3d1', strength: 1700, armies: [{ id: 'ivory_army1', name: 'Ivory Lancers', owner: 'ivoryorder', troops: 480, maxTroops: 720, morale: 86, commander: 'High Prior Oren', location: 'ebonridge', status: 'idle' }], treasury: 1400, crest: '🕯️', description: 'A militant holy order guarding relic roads and ancient vows.' },
 ];
 
 export const KINGDOM_CHOICES: KingdomChoice[] = [
@@ -629,6 +692,11 @@ export const DEFAULT_KINGDOM_PERSONALITIES: Record<string, AIPersonality> = {
   nordheim: 'religious',
   crimsonhorde: 'expansionist',
   emeraldleague: 'diplomatic',
+  obsidiancrown: 'espionage_focused',
+  moonveil: 'diplomatic',
+  riverlands: 'trade_focused',
+  stormcoast: 'expansionist',
+  ivoryorder: 'religious',
   ironforge: 'diplomatic',
 };
 

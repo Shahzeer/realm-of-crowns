@@ -71,6 +71,49 @@ import { enrichBattleResult } from '@/utils/battleNarrative';
 const STORAGE_KEY = 'realm_of_crowns_save';
 const CLOUD_SAVE_DEBOUNCE_MS = 2000;
 
+function getEmptyPressures(): KingdomPressures {
+  return {
+    corruption: 0,
+    overstretch: 0,
+    famine: 0,
+    plague: { active: false, severity: 0, infectedProvinces: [], turnStarted: 0, contained: false },
+    nobleDisputes: [],
+  };
+}
+
+function getBuildingBoosts(buildings: Building[]): Partial<Resources> {
+  return buildings.reduce((acc, building) => {
+    Object.entries(building.production).forEach(([key, value]) => {
+      const resourceKey = key as keyof Resources;
+      acc[resourceKey] = ((acc[resourceKey] ?? 0) + ((value ?? 0) * building.level)) as never;
+    });
+    return acc;
+  }, {} as Partial<Resources>);
+}
+
+function formatResourceBoosts(boosts: Partial<Resources>): string {
+  const labels: Record<keyof Resources, string> = {
+    gold: 'gold', food: 'food', military: 'military', faith: 'faith',
+    goldPerTurn: 'gold/turn', foodPerTurn: 'food/turn', militaryPerTurn: 'military/turn', faithPerTurn: 'faith/turn',
+  };
+  return (Object.entries(boosts) as Array<[keyof Resources, number]>)
+    .filter(([, value]) => value > 0)
+    .map(([key, value]) => `+${value} ${labels[key]}`)
+    .join(', ');
+}
+
+function applyResourceBoosts(resources: Resources, boosts: Partial<Resources>): Resources {
+  const next = { ...resources };
+  (Object.entries(boosts) as Array<[keyof Resources, number]>).forEach(([key, value]) => {
+    next[key] = ((next[key] ?? 0) + value) as never;
+  });
+  return next;
+}
+
+function claimProvinceForPlayer(province: Province): Province {
+  return { ...province, owner: 'player', garrison: 50, underSiege: false, siegeProgress: 0, siegeAttacker: undefined, loyalty: province.owner === 'neutral' ? 55 : 30, unrest: province.owner === 'neutral' ? 15 : 40 };
+}
+
 const defaultState: GameState = {
   turn: 1,
   year: 1066,
@@ -96,13 +139,7 @@ const defaultState: GameState = {
   tutorialSeen: false,
   difficulty: 'normal',
   rumors: [],
-  pressures: {
-    corruption: 0,
-    overstretch: 0,
-    famine: 0,
-    plague: { active: false, severity: 0, infectedProvinces: [], turnStarted: 0, contained: false },
-    nobleDisputes: [],
-  },
+  pressures: getEmptyPressures(),
   reignChronicles: [],
   rulerStartTurn: 1,
   rulerStartYear: 1066,
@@ -1209,13 +1246,7 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
     tutorialSeen: false,
     difficulty,
     rumors: [],
-    pressures: {
-      corruption: 0,
-      overstretch: 0,
-      famine: 0,
-      plague: { active: false, severity: 0, infectedProvinces: [], turnStarted: 0, contained: false },
-      nobleDisputes: [],
-    },
+    pressures: getEmptyPressures(),
     reignChronicles: [],
     rulerStartTurn: 1,
     rulerStartYear: 1066,
@@ -1244,7 +1275,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       technologies: loaded.technologies ?? INITIAL_TECHNOLOGIES,
       council: loaded.council ?? INITIAL_COUNCIL,
       battles: loaded.battles ?? [],
-      heir: loaded.heir ?? INITIAL_HEIR,
+      heir: loaded.heir ?? null,
       gameOver: loaded.gameOver ?? false,
       victory: loaded.victory ?? false,
       gameStarted: loaded.gameStarted ?? false,
@@ -1255,13 +1286,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       tutorialSeen: loaded.tutorialSeen ?? false,
       difficulty: loaded.difficulty ?? 'normal',
       rumors: loaded.rumors ?? [],
-      pressures: loaded.pressures ?? {
-        corruption: 0,
-        overstretch: 0,
-        famine: 0,
-        plague: { active: false, severity: 0, infectedProvinces: [], turnStarted: 0, contained: false },
-        nobleDisputes: [],
-      },
+      pressures: loaded.pressures ?? getEmptyPressures(),
       reignChronicles: loaded.reignChronicles ?? [],
       rulerStartTurn: loaded.rulerStartTurn ?? 1,
       rulerStartYear: loaded.rulerStartYear ?? loaded.year ?? 1066,
@@ -1693,7 +1718,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         }
       }
 
-      if (!newHeir && Math.random() > 0.85) {
+      if (!newHeir && newRuler.spouse && Math.random() > 0.85) {
         const name = HEIR_NAMES[Math.floor(Math.random() * HEIR_NAMES.length)];
         newHeir = {
           id: `heir_${nextTurn}`, name, age: 0,
@@ -1794,9 +1819,13 @@ export const [GameProvider, useGame] = createContextHook(() => {
             newBattlesFromSiege.push(battle);
 
             if (battle.conquered) {
+              const buildingBoosts = getBuildingBoosts(targetProvince.buildings);
+              newResources = applyResourceBoosts(newResources, buildingBoosts);
+              const boostText = formatResourceBoosts(buildingBoosts);
               newProvinces = newProvinces.map(p =>
-                p.id === targetProvince.id ? { ...p, owner: 'player', garrison: 50, underSiege: false, siegeProgress: 0, siegeAttacker: undefined, loyalty: 30, unrest: 40 } : p
+                p.id === targetProvince.id ? claimProvinceForPlayer(p) : p
               );
+              if (boostText) allLogs.unshift(`🏗️ Captured ${targetProvince.name}'s buildings: ${boostText}`);
               const lossPerArmy = Math.ceil(battle.attackerLosses / allSiegersHere.length);
               const siegeArmyIds = new Set(allSiegersHere.map(a => a.id));
               newArmies = newArmies.map(a =>
@@ -2114,6 +2143,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       if (summary.techCompleted) rulerTechResearched += 1;
 
+      let freshPressures: KingdomPressures | undefined;
       if (newRuler.health <= 0) {
         const chronicle = buildReignChronicle(
           { ...prev, rulerPeakProvinces, rulerPeakGold, rulerBuildingsConstructed, rulerTechResearched, rulerWarsFought, rulerBattlesWon, rulerBattlesLost, rulerProvincesConquered, rulerProvincesLost },
@@ -2134,7 +2164,10 @@ export const [GameProvider, useGame] = createContextHook(() => {
             traits: newHeir.traits, avatar: '👤',
           };
           newHeir = null;
-          allLogs.unshift(`👑 ${prev.ruler.name} has died. Long live ${newRuler.name}!`);
+          newEvents = newEvents.filter(e => e.id.startsWith(`succession_${nextTurn}`) || e.turn >= nextTurn);
+          newCouncil = newCouncil.map(c => ({ ...c, task: undefined }));
+          freshPressures = getEmptyPressures();
+          allLogs.unshift(`👑 ${prev.ruler.name} has died. Long live ${newRuler.name}! Pressures and ruler tasks have been cleared for a fresh reign.`);
           newEvents.push({
             id: `succession_${nextTurn}`, title: 'Succession',
             description: `${prev.ruler.name} has passed away. ${newRuler.name} ascends to the throne.`,
@@ -2218,7 +2251,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         faithCooldowns: newFaithCooldowns,
         pendingChainEvents: remainingChains,
         rumors: allRumors,
-        pressures: pressureResult.pressures,
+        pressures: typeof freshPressures !== 'undefined' ? freshPressures : pressureResult.pressures,
         reignChronicles: newReignChronicles,
         latestReignChronicle: latestReignChronicle,
         rulerStartTurn,
@@ -2411,8 +2444,11 @@ export const [GameProvider, useGame] = createContextHook(() => {
       let newKingdoms = prev.kingdoms;
 
       if (battle.conquered) {
+        const buildingBoosts = getBuildingBoosts(province.buildings);
+        const boostText = formatResourceBoosts(buildingBoosts);
+        const boostedResources = applyResourceBoosts(prev.resources, buildingBoosts);
         newProvinces = prev.provinces.map(p =>
-          p.id === province.id ? { ...p, owner: 'player', garrison: 50, underSiege: false, siegeProgress: 0, siegeAttacker: undefined, loyalty: 30, unrest: 40 } : p
+          p.id === province.id ? claimProvinceForPlayer(p) : p
         );
         newKingdoms = prev.kingdoms.map(k =>
           k.id === province.owner ? { ...k, provinces: k.provinces.filter(pid => pid !== province.id), warScore: (k.warScore ?? 0) - 25 } : k
@@ -2427,11 +2463,12 @@ export const [GameProvider, useGame] = createContextHook(() => {
       }
 
       const logMsg = battle.conquered
-        ? `⚔️ VICTORY! ${army.name} conquered ${province.name}!`
+        ? `⚔️ VICTORY! ${army.name} conquered ${province.name}!${boostText ? ` Captured building boosts: ${boostText}.` : ''}`
         : `❌ ${army.name} failed to take ${province.name}`;
 
       const newState: GameState = {
         ...prev, armies: newArmies, provinces: newProvinces, kingdoms: newKingdoms,
+        resources: battle.conquered ? boostedResources : prev.resources,
         battles: [...prev.battles, battle].slice(-20),
         log: [logMsg, ...prev.log].slice(0, 50),
       };
@@ -2515,7 +2552,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
-  const sendDiplomacy = useCallback((kingdomId: string, action: 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute') => {
+  const sendDiplomacy = useCallback((kingdomId: string, action: 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war') => {
     setState(prev => {
       const kingdom = prev.kingdoms.find(k => k.id === kingdomId);
       if (!kingdom) return prev;
@@ -2539,28 +2576,69 @@ export const [GameProvider, useGame] = createContextHook(() => {
             return prev;
           }
           break;
+        case 'propose_marriage':
+          if (prev.ruler.spouse) return prev;
+          goldCost = 150;
+          relationChange = 25;
+          logMsg = `💍 Marriage pact sealed with ${kingdom.name}. Heirs may now be born.`;
+          break;
+        case 'call_to_war':
+          if (kingdom.attitude !== 'allied') return prev;
+          relationChange = -10;
+          logMsg = `📯 Called ${kingdom.name} to war. Your ally musters against your enemies.`;
+          break;
       }
       if (prev.resources.gold < goldCost) return prev;
+      const warTargets = prev.kingdoms.filter(k => k.attitude === 'war').map(k => k.id);
+      const marriageBonus = action === 'propose_marriage' ? {
+        spouse: `Consort of ${kingdom.name}`,
+        spouseBonuses: { diplomacy: 2, goldPerTurn: 3 },
+      } : {};
       const newKingdoms = prev.kingdoms.map(k => {
         if (k.id !== kingdomId) return k;
         const newRelation = Math.max(-100, Math.min(100, k.relation + relationChange));
         let newAttitude = k.attitude;
         if (action === 'declare_war') { newAttitude = 'war'; }
+        else if (action === 'call_to_war') { newAttitude = 'allied'; }
         else if (action === 'peace' && k.attitude === 'war' && newRelation > -30) { newAttitude = 'hostile'; }
-        else if (action === 'ally' && newRelation > 30) { newAttitude = 'allied'; }
+        else if ((action === 'ally' || action === 'propose_marriage') && newRelation > 30) { newAttitude = 'allied'; }
         else if (action !== 'demand_tribute') {
           if (newRelation > 50) newAttitude = 'friendly';
           else if (newRelation > 0) newAttitude = 'neutral';
           else if (newRelation > -50) newAttitude = 'hostile';
         }
-        return { ...k, relation: newRelation, attitude: newAttitude, warScore: action === 'peace' ? 0 : k.warScore };
+        return { ...k, relation: newRelation, attitude: newAttitude, warScore: action === 'peace' ? 0 : k.warScore, allyOf: action === 'call_to_war' ? [...new Set([...(k.allyOf ?? []), ...warTargets])] : k.allyOf };
       });
       const newState: GameState = {
         ...prev,
-        resources: { ...prev.resources, gold: prev.resources.gold - goldCost + goldGain },
+        resources: { ...prev.resources, gold: prev.resources.gold - goldCost + goldGain, goldPerTurn: prev.resources.goldPerTurn + (action === 'propose_marriage' ? 3 : 0) },
+        ruler: { ...prev.ruler, ...marriageBonus },
         kingdoms: newKingdoms,
         log: [logMsg, ...prev.log].slice(0, 50),
       };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
+  const claimNeutralProvince = useCallback((provinceId: string, method: 'lay_claim' | 'send_troops') => {
+    setState(prev => {
+      const province = prev.provinces.find(p => p.id === provinceId);
+      if (!province || province.owner !== 'neutral') return prev;
+      const cost = method === 'lay_claim' ? { gold: 120, faith: 20, military: 0 } : { gold: 40, faith: 0, military: Math.max(80, Math.floor(province.garrison * 0.75)) };
+      if (prev.resources.gold < cost.gold || prev.resources.faith < cost.faith || prev.resources.military < cost.military) return prev;
+      const successChance = method === 'lay_claim'
+        ? Math.min(90, 55 + Math.floor(prev.ruler.diplomacy * 1.5) + Math.floor(prev.ruler.stewardship))
+        : Math.min(95, 65 + Math.floor(prev.ruler.martial * 1.2));
+      const success = Math.random() * 100 <= successChance;
+      const newResources: Resources = { ...prev.resources, gold: prev.resources.gold - cost.gold, faith: prev.resources.faith - cost.faith, military: prev.resources.military - cost.military };
+      const newProvinces = success
+        ? prev.provinces.map(p => p.id === provinceId ? claimProvinceForPlayer(p) : p)
+        : prev.provinces.map(p => p.id === provinceId ? { ...p, unrest: Math.min(100, (p.unrest ?? 0) + 10), garrison: Math.max(25, p.garrison - Math.floor(cost.military / 2)) } : p);
+      const logMsg = success
+        ? (method === 'lay_claim' ? `⚑ Your envoys laid lawful claim to ${province.name}.` : `⚔️ Troops secured unclaimed ${province.name}.`)
+        : (method === 'lay_claim' ? `⚑ ${province.name} rejected your claim for now.` : `⚔️ Your troops failed to secure ${province.name}.`);
+      const newState: GameState = { ...prev, resources: newResources, provinces: newProvinces, log: [logMsg, ...prev.log].slice(0, 50) };
       saveMutation.mutate(newState);
       return newState;
     });
@@ -2861,7 +2939,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   return useMemo(() => ({
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
-    sendDiplomacy, assignCouncilTask, resetGame, unseenEvents,
+    sendDiplomacy, claimNeutralProvince, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
     selectKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
@@ -2873,7 +2951,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
-    sendDiplomacy, assignCouncilTask, resetGame, unseenEvents,
+    sendDiplomacy, claimNeutralProvince, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
     selectKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
