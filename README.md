@@ -1,6 +1,24 @@
 # Realm of Crowns
 
-A medieval grand strategy game built with React Native and Expo. Rule your kingdom, wage wars, forge alliances, and expand your realm across a dynamic map of rival kingdoms.
+Realm of Crowns is a cross-platform medieval grand strategy game built with React Native, Expo, and Supabase. Players manage kingdoms through warfare, diplomacy, trade, espionage, dynastic succession, and resource management across a dynamic map of rival AI kingdoms.
+
+The project focuses heavily on interconnected gameplay systems including province management, army combat, diplomacy, technology progression, council management, random events, dynasty mechanics, cloud saves, and seasonal strategy systems.
+
+Built using:
+
+* React Native + Expo SDK 54
+* Expo Router
+* React Context state architecture
+* AsyncStorage persistence
+* Supabase cloud sync
+* Cross-platform support for iOS, Android, and Web
+  
+<img width="250" alt="image 1" src="https://github.com/user-attachments/assets/1e5e5a39-b66d-4807-b37f-6f08edb7bc5a" /> <img width="250" alt="image 2" src="https://github.com/user-attachments/assets/ff8e69db-217c-409a-b959-e533085656f1" /> <img width="250" alt="image 3" src="https://github.com/user-attachments/assets/6cb1e924-317f-4d4f-8a44-eef2ba08f518" /> <img width="250" alt="image 4" src="https://github.com/user-attachments/assets/18a92dbe-89fe-407d-9e6d-d4b6223dae90" /> <img width="250" alt="image 5" src="https://github.com/user-attachments/assets/c60d8182-d857-47ae-b723-c4925d94e3f4" />
+
+
+
+
+
 
 ## Game Overview
 
