@@ -12,10 +12,12 @@ import { PERSONALITY_LABELS } from "@/mocks/gameData";
 
 type DiplomacyAction = 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war';
 
-function KingdomCard({ kingdom, onAction, index }: {
+function KingdomCard({ kingdom, onAction, index, rulerMarried, hasPendingProposal }: {
   kingdom: Kingdom;
   onAction: (id: string, action: DiplomacyAction) => void;
   index: number;
+  rulerMarried: boolean;
+  hasPendingProposal: boolean;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -40,6 +42,9 @@ function KingdomCard({ kingdom, onAction, index }: {
   const attColor = getAttitudeColor(kingdom.attitude);
   const relColor = kingdom.relation > 0 ? Colors.status.success : kingdom.relation < 0 ? Colors.status.danger : Colors.text.secondary;
   const isAtWar = kingdom.attitude === 'war';
+  const isHostile = kingdom.attitude === 'hostile';
+  const hasProposal = !!kingdom.marriageProposal;
+  const canMarry = !rulerMarried && !hasPendingProposal && !isAtWar && !isHostile && !hasProposal;
   const totalArmyStrength = kingdom.armies.reduce((sum, a) => sum + a.troops, 0);
   const warScore = kingdom.warScore ?? 0;
   const canDemandTribute = isAtWar && warScore <= -30;
@@ -134,9 +139,15 @@ function KingdomCard({ kingdom, onAction, index }: {
               <TouchableOpacity style={[d.actionBtn, d.allyBtn]} onPress={() => onAction(kingdom.id, 'ally')} activeOpacity={0.7}>
                 <Handshake size={14} color={Colors.status.info} /><Text style={d.allyText}>Ally (200g)</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[d.actionBtn, d.marriageBtn]} onPress={() => onAction(kingdom.id, 'propose_marriage')} activeOpacity={0.7}>
-                <Heart size={14} color="#f472b6" /><Text style={d.marriageText}>Marriage</Text>
-              </TouchableOpacity>
+              {hasProposal ? (
+                <View style={[d.actionBtn, d.marriageProposedBtn]}>
+                  <Heart size={14} color="#f472b6" /><Text style={d.marriageProposedText}>Awaiting Reply…</Text>
+                </View>
+              ) : canMarry ? (
+                <TouchableOpacity style={[d.actionBtn, d.marriageBtn]} onPress={() => onAction(kingdom.id, 'propose_marriage')} activeOpacity={0.7}>
+                  <Heart size={14} color="#f472b6" /><Text style={d.marriageText}>Propose (150g)</Text>
+                </TouchableOpacity>
+              ) : rulerMarried ? null : null}
             </>
           ) : (
             <>
@@ -216,7 +227,10 @@ export default function DiplomacyScreen() {
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 20 }} showsVerticalScrollIndicator={false}>
         {state.kingdoms.map((kingdom, idx) => (
-          <KingdomCard key={kingdom.id} kingdom={kingdom} onAction={handleAction} index={idx} />
+          <KingdomCard key={kingdom.id} kingdom={kingdom} onAction={handleAction} index={idx}
+            rulerMarried={!!state.ruler.spouse}
+            hasPendingProposal={state.kingdoms.some(k => k.marriageProposal)}
+          />
         ))}
       </ScrollView>
     </View>
@@ -283,6 +297,8 @@ const d = StyleSheet.create({
   tributeText: { fontSize: 11, fontWeight: "600" as const, color: Colors.gold.bright },
   marriageBtn: { borderColor: '#f472b650', backgroundColor: '#f472b615' },
   marriageText: { fontSize: 11, fontWeight: "600" as const, color: '#f472b6' },
+  marriageProposedBtn: { borderColor: '#f472b630', backgroundColor: '#f472b608', opacity: 0.8 },
+  marriageProposedText: { fontSize: 11, fontWeight: "600" as const, color: '#f472b6', fontStyle: 'italic' as const },
   callWarBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.gold.bright + '40', backgroundColor: Colors.gold.bright + '12' },
   callWarText: { fontSize: 12, fontWeight: "700" as const, color: Colors.gold.bright },
   warBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#ff000030', backgroundColor: '#ff000008' },

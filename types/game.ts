@@ -202,6 +202,9 @@ export interface Kingdom {
   allyOf?: string[];
   personality?: AIPersonality;
   intel?: KingdomIntel;
+  marriageProposal?: {
+    proposedTurn: number;
+  };
 }
 
 export type VictoryTitle = 

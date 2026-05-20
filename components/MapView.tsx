@@ -28,6 +28,11 @@ const OWNER_COLORS: Record<string, string> = {
   crimsonhorde: '#cc5533',
   emeraldleague: '#33aa66',
   neutral: '#666677',
+  obsidiancrown: '#7c2d12',
+  moonveil: '#7c3aed',
+  riverlands: '#0f766e',
+  stormcoast: '#0369a1',
+  ivoryorder: '#d6d3d1',
 };
 
 const OWNER_LABELS: Record<string, string> = {
@@ -39,6 +44,11 @@ const OWNER_LABELS: Record<string, string> = {
   crimsonhorde: 'Crimson Horde',
   emeraldleague: 'Emerald League',
   neutral: 'Unclaimed',
+  obsidiancrown: 'Obsidian Crown',
+  moonveil: 'Moonveil Realm',
+  riverlands: 'Riverland Marches',
+  stormcoast: 'Stormcoast Thanes',
+  ivoryorder: 'Ivory Order',
 };
 
 const FOG_COLOR = '#080a10';
@@ -63,7 +73,10 @@ function TerritoryGlow({ provinces, visibilityMap }: { provinces: Province[]; vi
           const cx = p.x * (MAP_WIDTH - 20);
           const cy = p.y * MAP_HEIGHT;
           const isCapital = p.type === 'capital';
-          const radius = isCapital ? 42 : 34;
+          const isPlayerOwned = p.owner === 'player';
+          const radius = isPlayerOwned
+            ? (isCapital ? 42 : 34)
+            : (isCapital ? 30 : 24);
           return (
             <View
               key={`glow-${p.id}`}
@@ -314,9 +327,9 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
           style={[
             styles.selectedRing,
             {
-              width: isCapital ? 68 : 56,
-              height: isCapital ? 68 : 56,
-              borderRadius: isCapital ? 34 : 28,
+              width: isPlayer ? (isCapital ? 68 : 56) : (isCapital ? 50 : 40),
+              height: isPlayer ? (isCapital ? 68 : 56) : (isCapital ? 50 : 40),
+              borderRadius: isPlayer ? (isCapital ? 34 : 28) : (isCapital ? 25 : 20),
               borderColor: Colors.gold.bright,
               opacity: selectGlow,
             },
@@ -339,9 +352,9 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
                 : isUnderSiege
                   ? '#ff4444'
                   : borderColor,
-            width: isCapital ? 60 : 48,
-            height: isCapital ? 60 : 48,
-            borderRadius: isCapital ? 30 : 24,
+            width: isPlayer ? (isCapital ? 60 : 48) : (isCapital ? 42 : 34),
+            height: isPlayer ? (isCapital ? 60 : 48) : (isCapital ? 42 : 34),
+            borderRadius: isPlayer ? (isCapital ? 30 : 24) : (isCapital ? 21 : 17),
             borderWidth: isFogged ? 1 : isSelected ? 3 : isCapital ? 3 : 2,
           },
         ]}

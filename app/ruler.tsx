@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Animated, Platform, Modal } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Animated, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -7,14 +7,12 @@ import * as Haptics from "expo-haptics";
 import { X, Heart, RotateCcw, Baby, Crown, Clock, ArrowUpCircle, Gem, HeartHandshake, Award, Swords, BookOpen, Handshake } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
-import { MARRIAGE_CANDIDATES } from "@/mocks/gameData";
 
 export default function RulerScreen() {
   console.log("[RealmOfCrowns] Ruler render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, resetGame, startRulerUpgrade, arrangeMarriage, educateHeir, setHeirPath } = useGame();
-  const [showMarriage, setShowMarriage] = useState(false);
+  const { state, resetGame, startRulerUpgrade, educateHeir, setHeirPath } = useGame();
   const ruler = state.ruler;
   const heir = state.heir;
   const healthColor = ruler.health > 70 ? Colors.status.success : ruler.health > 40 ? Colors.status.warning : Colors.status.danger;
@@ -47,23 +45,6 @@ export default function RulerScreen() {
       { text: "Reset", style: "destructive", onPress: async () => { await resetGame(); router.replace('/kingdom-select'); } },
     ]);
   };
-
-  const handleMarriage = useCallback((index: number) => {
-    if (state.resources.gold < 300) {
-      Alert.alert("Insufficient Gold", "Need 300 gold for the marriage ceremony.");
-      return;
-    }
-    const candidate = MARRIAGE_CANDIDATES[index];
-    if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }
-    Alert.alert(
-      "Arrange Marriage",
-      `Marry ${candidate.name}?\n\n${candidate.description}\n\nCost: 300 gold\n+20 relations with ${candidate.kingdom}`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Marry!", onPress: () => { arrangeMarriage(index); setShowMarriage(false); } },
-      ]
-    );
-  }, [state.resources.gold, arrangeMarriage]);
 
   const handleUpgradeStat = useCallback((stat: 'diplomacy' | 'martial' | 'stewardship' | 'intrigue' | 'learning') => {
     if (ruler.activeUpgrade) {
@@ -203,49 +184,23 @@ export default function RulerScreen() {
                 </View>
               )}
             </View>
-          ) : (
-            <TouchableOpacity style={r.marriageBtn} onPress={() => setShowMarriage(true)} activeOpacity={0.7}>
-              <HeartHandshake size={16} color={Colors.crimson.bright} />
-              <Text style={r.marriageBtnText}>Arrange Royal Marriage (300g)</Text>
-            </TouchableOpacity>
-          )}
-
-          <Modal visible={showMarriage} transparent animationType="fade">
-            <View style={r.marriageOverlay}>
-              <View style={r.marriageModal}>
-                <LinearGradient colors={['#1a1215', '#0d1117']} style={StyleSheet.absoluteFill} />
-                <View style={r.marriageModalHeader}>
-                  <Text style={r.marriageModalTitle}>💍 Marriage Candidates</Text>
-                  <TouchableOpacity onPress={() => setShowMarriage(false)} style={r.marriageCloseBtn}>
-                    <X size={18} color={Colors.text.secondary} />
-                  </TouchableOpacity>
+          ) : (() => {
+            const pendingKingdom = state.kingdoms.find(k => k.marriageProposal);
+            if (pendingKingdom) {
+              return (
+                <View style={r.marriagePendingCard}>
+                  <HeartHandshake size={16} color="#f472b6" />
+                  <Text style={r.marriagePendingText}>💌 Proposal sent to {pendingKingdom.name}. Awaiting their response next turn…</Text>
                 </View>
-                <ScrollView showsVerticalScrollIndicator={false}>
-                  {MARRIAGE_CANDIDATES.map((candidate, idx) => (
-                    <TouchableOpacity
-                      key={idx}
-                      style={r.candidateCard}
-                      onPress={() => handleMarriage(idx)}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={r.candidateName}>{candidate.name}</Text>
-                      <Text style={r.candidateDesc}>{candidate.description}</Text>
-                      <View style={r.candidateBonuses}>
-                        {candidate.diplomacyBonus ? <Text style={r.candidateBonus}>+{candidate.diplomacyBonus} Diplomacy</Text> : null}
-                        {candidate.martialBonus ? <Text style={r.candidateBonus}>+{candidate.martialBonus} Martial</Text> : null}
-                        {candidate.stewardshipBonus ? <Text style={r.candidateBonus}>+{candidate.stewardshipBonus} Stewardship</Text> : null}
-                        {candidate.intrigueBonus ? <Text style={r.candidateBonus}>+{candidate.intrigueBonus} Intrigue</Text> : null}
-                        {candidate.learningBonus ? <Text style={r.candidateBonus}>+{candidate.learningBonus} Learning</Text> : null}
-                        {candidate.goldBonus ? <Text style={r.candidateBonus}>+{candidate.goldBonus} Gold/turn</Text> : null}
-                        {candidate.militaryBonus ? <Text style={r.candidateBonus}>+{candidate.militaryBonus} Military/turn</Text> : null}
-                        {candidate.faithBonus ? <Text style={r.candidateBonus}>+{candidate.faithBonus} Faith/turn</Text> : null}
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            </View>
-          </Modal>
+              );
+            }
+            return (
+              <TouchableOpacity style={r.marriageBtn} onPress={() => router.push('/diplomacy')} activeOpacity={0.7}>
+                <HeartHandshake size={16} color={Colors.crimson.bright} />
+                <Text style={r.marriageBtnText}>Propose Marriage via Diplomacy</Text>
+              </TouchableOpacity>
+            );
+          })()}
 
           <Text style={r.sectionTitle}>
             <Text>👶 </Text>Succession
@@ -518,15 +473,8 @@ const r = StyleSheet.create({
   spouseBonusText: { fontSize: 11, fontWeight: "600" as const, color: Colors.status.success },
   marriageBtn: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, marginHorizontal: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: Colors.crimson.bright + '40', borderStyle: "dashed" as const, backgroundColor: Colors.crimson.bright + '08' },
   marriageBtnText: { fontSize: 13, fontWeight: "600" as const, color: Colors.crimson.bright },
-  marriageOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: "center" as const, justifyContent: "center" as const, padding: 20 },
-  marriageModal: { width: "100%" as const, maxWidth: 380, maxHeight: "80%" as const, borderRadius: 20, padding: 20, overflow: "hidden" as const, borderWidth: 1, borderColor: Colors.crimson.bright + '40' },
-  marriageModalHeader: { flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, marginBottom: 14 },
-  marriageModalTitle: { fontSize: 18, fontWeight: "800" as const, color: Colors.crimson.bright },
-  marriageCloseBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: Colors.bg.tertiary, alignItems: "center" as const, justifyContent: "center" as const },
-  candidateCard: { backgroundColor: Colors.bg.card, borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: Colors.border.primary },
-  candidateName: { fontSize: 14, fontWeight: "700" as const, color: Colors.text.primary, marginBottom: 4 },
-  candidateDesc: { fontSize: 11, color: Colors.text.secondary, lineHeight: 16, marginBottom: 8 },
-  candidateBonuses: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 6 },
+  marriagePendingCard: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, marginHorizontal: 16, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#f472b640', backgroundColor: '#f472b610' },
+  marriagePendingText: { flex: 1, fontSize: 13, fontWeight: "500" as const, color: '#f472b6', lineHeight: 18 },
   candidateBonus: { fontSize: 10, fontWeight: "600" as const, color: Colors.status.success, backgroundColor: Colors.status.success + '15', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, overflow: "hidden" as const },
   heirEduActive: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: Colors.border.primary },
   heirEduHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginBottom: 8 },

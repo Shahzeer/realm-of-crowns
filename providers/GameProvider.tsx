@@ -119,7 +119,7 @@ const defaultState: GameState = {
   year: 1066,
   season: 'Spring',
   ruler: INITIAL_RULER,
-  heir: INITIAL_HEIR,
+  heir: null,
   resources: INITIAL_RESOURCES,
   provinces: INITIAL_PROVINCES,
   armies: INITIAL_ARMIES,
@@ -1226,7 +1226,7 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
   return {
     turn: 1, year: 1066, season: 'Spring',
     ruler: { ...choice.ruler, id: 'player_ruler' },
-    heir: { ...INITIAL_HEIR, name: HEIR_NAMES[Math.floor(Math.random() * HEIR_NAMES.length)] },
+    heir: null,
     resources,
     provinces,
     armies: startArmies,
@@ -1766,6 +1766,20 @@ export const [GameProvider, useGame] = createContextHook(() => {
       newResources.military += (techBonuses.militaryPerTurn || 0);
       newResources.faith += (techBonuses.faithPerTurn || 0);
 
+      const playerBuildingBoosts = prev.provinces
+        .filter(p => p.owner === 'player')
+        .reduce((acc, p) => {
+          const boosts = getBuildingBoosts(p.buildings);
+          (Object.keys(boosts) as Array<keyof typeof boosts>).forEach(key => {
+            (acc as Record<string, number>)[key] = ((acc as Record<string, number>)[key] || 0) + (boosts[key] ?? 0);
+          });
+          return acc;
+        }, {} as Partial<Resources>);
+      if (playerBuildingBoosts.goldPerTurn) newResources.gold += playerBuildingBoosts.goldPerTurn;
+      if (playerBuildingBoosts.foodPerTurn) newResources.food += playerBuildingBoosts.foodPerTurn;
+      if (playerBuildingBoosts.militaryPerTurn) newResources.military += playerBuildingBoosts.militaryPerTurn;
+      if (playerBuildingBoosts.faithPerTurn) newResources.faith += playerBuildingBoosts.faithPerTurn;
+
       const hasProfessionalArmy = newTechnologies.find(t => t.id === 'tech_professional_army')?.researched ?? false;
       let newArmies = prev.armies.map(army => {
         if (army.status === 'marching' && army.destination && army.marchTurnsLeft !== undefined) {
@@ -1792,6 +1806,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         return p;
       });
 
+      const captureBoostLogs: string[] = [];
       const siegingArmies = newArmies.filter(a => a.owner === 'player' && a.status === 'sieging');
       const newBattlesFromSiege: BattleResult[] = [];
       const resolvedSiegeProvinces = new Set<string>();
@@ -1825,7 +1840,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
               newProvinces = newProvinces.map(p =>
                 p.id === targetProvince.id ? claimProvinceForPlayer(p) : p
               );
-              if (boostText) allLogs.unshift(`🏗️ Captured ${targetProvince.name}'s buildings: ${boostText}`);
+              if (boostText) captureBoostLogs.push(`🏗️ Captured ${targetProvince.name}'s buildings: ${boostText}`);
               const lossPerArmy = Math.ceil(battle.attackerLosses / allSiegersHere.length);
               const siegeArmyIds = new Set(allSiegersHere.map(a => a.id));
               newArmies = newArmies.map(a =>
@@ -1897,6 +1912,32 @@ export const [GameProvider, useGame] = createContextHook(() => {
         provinces: newProvinces.filter(p => p.owner === k.id).map(p => p.id),
         strength: k.armies.reduce((sum, a) => sum + a.troops, 0) + newProvinces.filter(p => p.owner === k.id).reduce((sum, p) => sum + p.garrison, 0),
       }));
+
+      const marriageResolutionLogs: string[] = [];
+      if (!newRuler.spouse) {
+        newKingdoms = newKingdoms.map(k => {
+          if (!k.marriageProposal) return k;
+          if (k.attitude === 'war') {
+            marriageResolutionLogs.push(`💔 ${k.name} rejected your marriage proposal (at war).`);
+            return { ...k, marriageProposal: undefined };
+          }
+          const acceptChance = Math.max(5, Math.min(90,
+            30 + k.relation * 0.4 + newRuler.diplomacy * 1.5
+            + (k.attitude === 'hostile' ? -40 : 0)
+            + (k.attitude === 'friendly' || k.attitude === 'allied' ? 20 : 0)
+          ));
+          const accepted = Math.random() * 100 < acceptChance;
+          if (accepted) {
+            newRuler = { ...newRuler, spouse: `Consort of ${k.name}`, spouseBonuses: { diplomacy: 2, goldPerTurn: 3 } };
+            newResources.goldPerTurn = (newResources.goldPerTurn || 0) + 3;
+            marriageResolutionLogs.push(`💍 ${k.name} accepted your marriage proposal! Heirs may now be born.`);
+            return { ...k, marriageProposal: undefined, relation: Math.min(100, k.relation + 20) };
+          } else {
+            marriageResolutionLogs.push(`💔 ${k.name} rejected your marriage proposal.`);
+            return { ...k, marriageProposal: undefined };
+          }
+        });
+      }
 
       let newCouncil = prev.council.map(c => {
         const loyaltyDrift = Math.floor(Math.random() * 5) - 2;
@@ -2096,6 +2137,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       const allBattles = [...prev.battles, ...newBattlesFromSiege, ...aiBattles].slice(-20);
       const allLogs = [
+        ...captureBoostLogs,
+        ...marriageResolutionLogs,
         ...unlockLogs,
         ...(heirEduCompleteLog ? [heirEduCompleteLog] : []),
         ...(heirComingOfAge && newHeir ? [`🎂 ${newHeir.name} has come of age! Choose their path.`] : []),
@@ -2578,9 +2621,11 @@ export const [GameProvider, useGame] = createContextHook(() => {
           break;
         case 'propose_marriage':
           if (prev.ruler.spouse) return prev;
+          if (prev.kingdoms.some(k => k.marriageProposal)) return prev;
+          if (kingdom.attitude === 'war' || kingdom.attitude === 'hostile') return prev;
           goldCost = 150;
-          relationChange = 25;
-          logMsg = `💍 Marriage pact sealed with ${kingdom.name}. Heirs may now be born.`;
+          relationChange = 10;
+          logMsg = `💍 Marriage proposal sent to ${kingdom.name}. They will respond next turn.`;
           break;
         case 'call_to_war':
           if (kingdom.attitude !== 'allied') return prev;
@@ -2590,10 +2635,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
       }
       if (prev.resources.gold < goldCost) return prev;
       const warTargets = prev.kingdoms.filter(k => k.attitude === 'war').map(k => k.id);
-      const marriageBonus = action === 'propose_marriage' ? {
-        spouse: `Consort of ${kingdom.name}`,
-        spouseBonuses: { diplomacy: 2, goldPerTurn: 3 },
-      } : {};
       const newKingdoms = prev.kingdoms.map(k => {
         if (k.id !== kingdomId) return k;
         const newRelation = Math.max(-100, Math.min(100, k.relation + relationChange));
@@ -2601,18 +2642,18 @@ export const [GameProvider, useGame] = createContextHook(() => {
         if (action === 'declare_war') { newAttitude = 'war'; }
         else if (action === 'call_to_war') { newAttitude = 'allied'; }
         else if (action === 'peace' && k.attitude === 'war' && newRelation > -30) { newAttitude = 'hostile'; }
-        else if ((action === 'ally' || action === 'propose_marriage') && newRelation > 30) { newAttitude = 'allied'; }
-        else if (action !== 'demand_tribute') {
+        else if (action === 'ally' && newRelation > 30) { newAttitude = 'allied'; }
+        else if (action !== 'demand_tribute' && action !== 'propose_marriage') {
           if (newRelation > 50) newAttitude = 'friendly';
           else if (newRelation > 0) newAttitude = 'neutral';
           else if (newRelation > -50) newAttitude = 'hostile';
         }
-        return { ...k, relation: newRelation, attitude: newAttitude, warScore: action === 'peace' ? 0 : k.warScore, allyOf: action === 'call_to_war' ? [...new Set([...(k.allyOf ?? []), ...warTargets])] : k.allyOf };
+        const marriageProposal = action === 'propose_marriage' ? { proposedTurn: prev.turn } : k.marriageProposal;
+        return { ...k, relation: newRelation, attitude: newAttitude, warScore: action === 'peace' ? 0 : k.warScore, allyOf: action === 'call_to_war' ? [...new Set([...(k.allyOf ?? []), ...warTargets])] : k.allyOf, marriageProposal };
       });
       const newState: GameState = {
         ...prev,
-        resources: { ...prev.resources, gold: prev.resources.gold - goldCost + goldGain, goldPerTurn: prev.resources.goldPerTurn + (action === 'propose_marriage' ? 3 : 0) },
-        ruler: { ...prev.ruler, ...marriageBonus },
+        resources: { ...prev.resources, gold: prev.resources.gold - goldCost + goldGain },
         kingdoms: newKingdoms,
         log: [logMsg, ...prev.log].slice(0, 50),
       };
