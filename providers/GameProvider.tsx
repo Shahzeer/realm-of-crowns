@@ -1038,6 +1038,48 @@ function processAITurn(kingdoms: Kingdom[], provinces: Province[], playerArmies:
       }
     }
 
+    if (kingdom.allyOf && kingdom.allyOf.length > 0 && Math.random() > 0.45) {
+      kingdom.allyOf.forEach(enemyId => {
+        const allyProvinces = updatedProvinces.filter(p => p.owner === kingdom.id);
+        const enemyProvs = updatedProvinces.filter(p =>
+          p.owner === enemyId &&
+          p.connectedTo.some(c => allyProvinces.some(ap => ap.id === c))
+        );
+        if (enemyProvs.length === 0) return;
+        const target = enemyProvs[Math.floor(Math.random() * enemyProvs.length)];
+        const attackingArmy = kingdom.armies.find(a => a.troops > 200 && a.status === 'idle');
+        if (!attackingArmy) return;
+        const defArmy: Army = {
+          id: 'enemy_garrison', name: `Garrison of ${target.name}`, owner: enemyId,
+          troops: 0, maxTroops: 0, morale: 50, commander: 'Captain',
+          location: target.id, status: 'idle' as const,
+        };
+        const allyBattle = resolveBattle(
+          { ...attackingArmy, name: `${kingdom.name} ${attackingArmy.name}` },
+          defArmy, target.garrison, target
+        );
+        const kIdx = updatedKingdoms.findIndex(k => k.id === kingdom.id);
+        if (kIdx >= 0) {
+          updatedKingdoms[kIdx] = {
+            ...updatedKingdoms[kIdx],
+            armies: updatedKingdoms[kIdx].armies.map(a =>
+              a.id === attackingArmy.id
+                ? { ...a, troops: Math.max(50, a.troops - allyBattle.attackerLosses), morale: Math.max(20, a.morale - 10) }
+                : a
+            ),
+          };
+        }
+        if (allyBattle.conquered) {
+          updatedProvinces = updatedProvinces.map(p =>
+            p.id === target.id ? { ...p, owner: kingdom.id, garrison: 80, loyalty: 40, unrest: 30 } : p
+          );
+          logs.push(`⚔️ ${kingdom.name} (your ally) seized ${target.name} from your enemy!`);
+        } else {
+          logs.push(`🛡️ Your ally ${kingdom.name} attacked ${target.name} but was repelled.`);
+        }
+      });
+    }
+
     const myProvinces = updatedProvinces.filter(p => p.owner === kingdom.id);
     const adjacentNeutrals = updatedProvinces.filter(p =>
       p.owner === 'neutral' &&
@@ -1766,19 +1808,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
       newResources.military += (techBonuses.militaryPerTurn || 0);
       newResources.faith += (techBonuses.faithPerTurn || 0);
 
-      const playerBuildingBoosts = prev.provinces
-        .filter(p => p.owner === 'player')
-        .reduce((acc, p) => {
-          const boosts = getBuildingBoosts(p.buildings);
-          (Object.keys(boosts) as Array<keyof typeof boosts>).forEach(key => {
-            (acc as Record<string, number>)[key] = ((acc as Record<string, number>)[key] || 0) + (boosts[key] ?? 0);
-          });
-          return acc;
-        }, {} as Partial<Resources>);
-      if (playerBuildingBoosts.goldPerTurn) newResources.gold += playerBuildingBoosts.goldPerTurn;
-      if (playerBuildingBoosts.foodPerTurn) newResources.food += playerBuildingBoosts.foodPerTurn;
-      if (playerBuildingBoosts.militaryPerTurn) newResources.military += playerBuildingBoosts.militaryPerTurn;
-      if (playerBuildingBoosts.faithPerTurn) newResources.faith += playerBuildingBoosts.faithPerTurn;
 
       const hasProfessionalArmy = newTechnologies.find(t => t.id === 'tech_professional_army')?.researched ?? false;
       let newArmies = prev.armies.map(army => {
@@ -2532,8 +2561,17 @@ export const [GameProvider, useGame] = createContextHook(() => {
         return { ...p, buildings: p.buildings.map(b => b.id !== buildingId ? b : { ...b, level: b.level + 1 }), development: Math.min(100, p.development + 2) };
       });
       const logEntry = `🏗️ Upgraded ${building.name} to level ${building.level + 1} in ${province.name}`;
+      const prod = building.production;
+      const updatedResources: Resources = {
+        ...prev.resources,
+        gold: prev.resources.gold - upgradeCost,
+        goldPerTurn: prev.resources.goldPerTurn + (prod.goldPerTurn ?? 0),
+        foodPerTurn: prev.resources.foodPerTurn + (prod.foodPerTurn ?? 0),
+        militaryPerTurn: prev.resources.militaryPerTurn + (prod.militaryPerTurn ?? 0),
+        faithPerTurn: prev.resources.faithPerTurn + (prod.faithPerTurn ?? 0),
+      };
       const newState: GameState = {
-        ...prev, resources: { ...prev.resources, gold: prev.resources.gold - upgradeCost },
+        ...prev, resources: updatedResources,
         provinces: newProvinces, log: [logEntry, ...prev.log].slice(0, 50),
       };
       saveMutation.mutate(newState);
@@ -2559,8 +2597,17 @@ export const [GameProvider, useGame] = createContextHook(() => {
         p.id === provinceId ? { ...p, buildings: [...p.buildings, newBuilding], development: Math.min(100, p.development + 3) } : p
       );
       const logEntry = `🏗️ Built ${blueprint.name} in ${province.name}`;
+      const prod = blueprint.production;
+      const updatedResources: Resources = {
+        ...prev.resources,
+        gold: prev.resources.gold - blueprint.baseCost,
+        goldPerTurn: prev.resources.goldPerTurn + (prod.goldPerTurn ?? 0),
+        foodPerTurn: prev.resources.foodPerTurn + (prod.foodPerTurn ?? 0),
+        militaryPerTurn: prev.resources.militaryPerTurn + (prod.militaryPerTurn ?? 0),
+        faithPerTurn: prev.resources.faithPerTurn + (prod.faithPerTurn ?? 0),
+      };
       const newState: GameState = {
-        ...prev, resources: { ...prev.resources, gold: prev.resources.gold - blueprint.baseCost },
+        ...prev, resources: updatedResources,
         provinces: newProvinces, log: [logEntry, ...prev.log].slice(0, 50),
         rulerBuildingsConstructed: (prev.rulerBuildingsConstructed ?? 0) + 1,
       };
