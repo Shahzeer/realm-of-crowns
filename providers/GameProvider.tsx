@@ -1245,8 +1245,28 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
   else if (choice.id === 'nordheim') { resources.food = 200; resources.foodPerTurn = 20; resources.military = 300; }
   else if (choice.id === 'valkorian') { resources.military = 350; resources.militaryPerTurn = 15; resources.goldPerTurn = 35; }
 
-  if (difficulty === 'easy') { resources.gold += 200; resources.goldPerTurn += 10; }
-  if (difficulty === 'hard') { resources.gold -= 100; resources.goldPerTurn -= 5; }
+  const buildingBoostTotals = provinces
+    .filter(p => p.owner === 'player')
+    .reduce((acc: Partial<Resources>, p) => {
+      const boosts = getBuildingBoosts(p.buildings);
+      (Object.keys(boosts) as Array<keyof Resources>).forEach(key => {
+        (acc as Record<string, number>)[key] = ((acc as Record<string, number>)[key] || 0) + ((boosts[key] as number) ?? 0);
+      });
+      return acc;
+    }, {} as Partial<Resources>);
+  if (buildingBoostTotals.goldPerTurn) resources.goldPerTurn += buildingBoostTotals.goldPerTurn;
+  if (buildingBoostTotals.foodPerTurn) resources.foodPerTurn += buildingBoostTotals.foodPerTurn;
+  if (buildingBoostTotals.militaryPerTurn) resources.militaryPerTurn += buildingBoostTotals.militaryPerTurn;
+  if (buildingBoostTotals.faithPerTurn) resources.faithPerTurn += buildingBoostTotals.faithPerTurn;
+
+  if (difficulty === 'easy') {
+    resources.gold += 200; resources.goldPerTurn += 10; resources.militaryPerTurn += 5; resources.foodPerTurn += 5;
+  }
+  if (difficulty === 'hard') {
+    resources.gold -= 150; resources.goldPerTurn -= 10; resources.militaryPerTurn -= 5; resources.foodPerTurn -= 5;
+    resources.militaryPerTurn = Math.max(2, resources.militaryPerTurn);
+    resources.foodPerTurn = Math.max(2, resources.foodPerTurn);
+  }
 
   const capitalProvince = provinces.find(p => choice.startingProvinces.includes(p.id) && p.type === 'capital');
   const startArmies: Army[] = [
@@ -1942,6 +1962,17 @@ export const [GameProvider, useGame] = createContextHook(() => {
         strength: k.armies.reduce((sum, a) => sum + a.troops, 0) + newProvinces.filter(p => p.owner === k.id).reduce((sum, p) => sum + p.garrison, 0),
       }));
 
+      const vassalLogs: string[] = [];
+      const vassals = newKingdoms.filter(k => k.isVassal);
+      if (vassals.length > 0) {
+        const tributeTotal = vassals.reduce((sum, k) => {
+          const amount = Math.max(40, Math.min(150, k.provinces.length * 20));
+          vassalLogs.push(`💎 ${k.name} paid ${amount}g vassal tribute.`);
+          return sum + amount;
+        }, 0);
+        newResources.gold += tributeTotal;
+      }
+
       const marriageResolutionLogs: string[] = [];
       if (!newRuler.spouse) {
         newKingdoms = newKingdoms.map(k => {
@@ -2167,6 +2198,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const allBattles = [...prev.battles, ...newBattlesFromSiege, ...aiBattles].slice(-20);
       const allLogs = [
         ...captureBoostLogs,
+        ...vassalLogs,
         ...marriageResolutionLogs,
         ...unlockLogs,
         ...(heirEduCompleteLog ? [heirEduCompleteLog] : []),
@@ -3001,7 +3033,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   }, [saveMutation]);
 
   const negotiatePeace = useCallback((kingdomId: string, terms: {
-    type: 'white_peace' | 'reparations' | 'demand_province' | 'pay_reparations' | 'cede_province';
+    type: 'white_peace' | 'reparations' | 'demand_province' | 'pay_reparations' | 'cede_province' | 'vassalize';
     provinceId?: string;
     gold?: number;
   }) => {
@@ -3030,13 +3062,16 @@ export const [GameProvider, useGame] = createContextHook(() => {
           p.id === terms.provinceId ? { ...p, owner: kingdomId as typeof p.owner, loyalty: 40, unrest: 30 } : p
         );
         logMsg = `☮️ Peace with ${kingdom.name}. Ceded ${pName}.`;
+      } else if (terms.type === 'vassalize') {
+        logMsg = `👑 ${kingdom.name} has been vassalized! They will pay tribute each turn.`;
       } else {
         logMsg = `☮️ White peace reached with ${kingdom.name}.`;
       }
       const newKingdoms = prev.kingdoms.map(k => {
         const updatedProvinces = newProvinces.filter(p => p.owner === k.id).map(p => p.id);
         if (k.id === kingdomId) {
-          return { ...k, attitude: 'hostile' as const, warScore: 0, relation: Math.min(100, k.relation + 15), provinces: updatedProvinces };
+          const isVassal = terms.type === 'vassalize';
+          return { ...k, attitude: isVassal ? 'friendly' as const : 'hostile' as const, warScore: 0, relation: Math.min(100, k.relation + (isVassal ? 0 : 15)), isVassal, provinces: updatedProvinces };
         }
         return { ...k, provinces: k.id === 'player' ? k.provinces : updatedProvinces };
       });

@@ -44,6 +44,8 @@ function KingdomCard({ kingdom, onAction, onNegotiate, index, rulerMarried, hasP
   const relColor = kingdom.relation > 0 ? Colors.status.success : kingdom.relation < 0 ? Colors.status.danger : Colors.text.secondary;
   const isAtWar = kingdom.attitude === 'war';
   const isHostile = kingdom.attitude === 'hostile';
+  const isVassal = !!kingdom.isVassal;
+  const vassalTribute = isVassal ? Math.max(40, Math.min(150, kingdom.provinces.length * 20)) : 0;
   const hasProposal = !!kingdom.marriageProposal;
   const canMarry = !rulerMarried && !hasPendingProposal && !isAtWar && !isHostile && !hasProposal;
   const totalArmyStrength = kingdom.armies.reduce((sum, a) => sum + a.troops, 0);
@@ -53,6 +55,14 @@ function KingdomCard({ kingdom, onAction, onNegotiate, index, rulerMarried, hasP
   return (
     <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
       <View style={[d.kingdomCard, isAtWar && d.warCard]}>
+        {isVassal && (
+          <View style={d.vassalStrip}>
+            <Text style={d.vassalStripText}>👑 VASSAL STATE</Text>
+            <View style={d.vassalTributeBadge}>
+              <Text style={d.vassalTributeText}>+{vassalTribute}g tribute/turn</Text>
+            </View>
+          </View>
+        )}
         {isAtWar && (
           <View style={d.warStrip}>
             <Flame size={12} color="#ff4444" />
@@ -178,7 +188,7 @@ function KingdomCard({ kingdom, onAction, onNegotiate, index, rulerMarried, hasP
   );
 }
 
-type PeaceTermType = 'white_peace' | 'reparations' | 'demand_province' | 'pay_reparations' | 'cede_province';
+type PeaceTermType = 'white_peace' | 'reparations' | 'demand_province' | 'pay_reparations' | 'cede_province' | 'vassalize';
 
 export default function DiplomacyScreen() {
   console.log("[RealmOfCrowns] Diplomacy render");
@@ -296,6 +306,13 @@ export default function DiplomacyScreen() {
       desc: 'Give up one of your border provinces to secure peace.',
       color: Colors.crimson.bright,
       available: isLosing && playerBorderProvinces.length > 0,
+    },
+    {
+      type: 'vassalize',
+      label: '👑 Demand Vassalization',
+      desc: `${peaceKingdom?.name ?? 'Enemy'} becomes your vassal, paying tribute each turn. They keep their lands but serve your crown.`,
+      color: Colors.gold.bright,
+      available: warScore < -60 && enemyProvinces.length > 0,
     },
   ].filter(t => t.available);
 
@@ -436,6 +453,18 @@ export default function DiplomacyScreen() {
                   </View>
                 )}
 
+                {peaceTermType === 'vassalize' && peaceKingdom && (
+                  <View style={d.vassalPreview}>
+                    <Text style={d.vassalPreviewTitle}>Vassal Terms</Text>
+                    <Text style={d.vassalPreviewDesc}>
+                      {peaceKingdom.name} will pay{' '}
+                      <Text style={d.vassalPreviewGold}>
+                        {Math.max(40, Math.min(150, peaceKingdom.provinces.length * 20))}g
+                      </Text>
+                      {' '}each turn as tribute. They retain their provinces and armies but cannot declare war on you.
+                    </Text>
+                  </View>
+                )}
                 <View style={d.modalActions}>
                   <TouchableOpacity style={d.cancelBtn} onPress={closePeaceModal} activeOpacity={0.7}>
                     <Text style={d.cancelBtnText}>Cancel</Text>
@@ -470,6 +499,14 @@ const d = StyleSheet.create({
   allyCountText: { fontSize: 10, fontWeight: "700" as const, color: Colors.status.success },
   kingdomCard: { marginHorizontal: 16, marginTop: 14, backgroundColor: Colors.bg.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: Colors.border.primary },
   warCard: { borderColor: '#ff000040' },
+  vassalStrip: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8, borderRadius: 6, backgroundColor: '#d4a02415' },
+  vassalStripText: { fontSize: 10, fontWeight: "800" as const, color: Colors.gold.bright, letterSpacing: 2 },
+  vassalTributeBadge: { backgroundColor: Colors.gold.bright + '25', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 },
+  vassalTributeText: { fontSize: 11, fontWeight: "700" as const, color: Colors.gold.bright },
+  vassalPreview: { marginTop: 10, marginBottom: 6, padding: 12, borderRadius: 8, backgroundColor: Colors.gold.bright + '12', borderWidth: 1, borderColor: Colors.gold.bright + '30' },
+  vassalPreviewTitle: { fontSize: 12, fontWeight: "700" as const, color: Colors.gold.bright, marginBottom: 4 },
+  vassalPreviewDesc: { fontSize: 12, color: Colors.text.secondary, lineHeight: 18 },
+  vassalPreviewGold: { color: Colors.gold.bright, fontWeight: "700" as const },
   warStrip: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 4, marginBottom: 8, borderRadius: 6, backgroundColor: '#ff000015' },
   warStripText: { fontSize: 10, fontWeight: "800" as const, color: '#ff4444', letterSpacing: 2 },
   warScoreBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, backgroundColor: Colors.bg.tertiary },

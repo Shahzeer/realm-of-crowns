@@ -205,6 +205,7 @@ export interface Kingdom {
   marriageProposal?: {
     proposedTurn: number;
   };
+  isVassal?: boolean;
 }
 
 export type VictoryTitle = 
