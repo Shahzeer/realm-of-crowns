@@ -1,5 +1,4 @@
 const { getDefaultConfig } = require("expo/metro-config");
-const { withRorkMetro } = require("@rork-ai/toolkit-sdk/metro");
 const path = require("path");
 
 const config = getDefaultConfig(__dirname);
@@ -14,4 +13,4 @@ config.resolver.blockList = [
   new RegExp(`${path.resolve(__dirname, ".local").replace(/\\/g, "\\\\")}.*`),
 ];
 
-module.exports = withRorkMetro(config);
+module.exports = config;
