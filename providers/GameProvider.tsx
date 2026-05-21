@@ -2151,21 +2151,141 @@ export const [GameProvider, useGame] = createContextHook(() => {
         }
       }
 
-      const councilBonuses = newCouncil.reduce((acc, c) => {
-        if (c.loyalty > 60) {
-          const bonus = Math.floor(c.skill / 5);
-          switch (c.role) {
-            case 'marshal': acc.military = (acc.military || 0) + bonus; break;
-            case 'steward': acc.gold = (acc.gold || 0) + bonus; break;
-            case 'chaplain': acc.faith = (acc.faith || 0) + bonus; break;
-            case 'chancellor': acc.diplomacy = (acc.diplomacy || 0) + bonus; break;
+      // Council bonuses: passive (role-based) + active (task-based)
+      const councilLogs: string[] = [];
+      newCouncil.forEach(c => {
+        if (c.loyalty <= 20) return; // disloyal councilors give nothing
+        const loyaltyMod = c.loyalty > 70 ? 1.0 : c.loyalty > 50 ? 0.75 : 0.5;
+        const passiveBonus = Math.max(1, Math.floor(c.skill / 6));
+        const taskBonus = Math.max(2, Math.floor(c.skill / 3));
+
+        // Passive role bonus (always active with sufficient loyalty)
+        switch (c.role) {
+          case 'marshal': newResources.military += Math.floor(passiveBonus * loyaltyMod); break;
+          case 'steward': newResources.gold += Math.floor(passiveBonus * loyaltyMod); break;
+          case 'chaplain': newResources.faith += Math.floor(passiveBonus * loyaltyMod); break;
+          case 'chancellor':
+            // Passive: improve relations with non-war kingdoms by 1
+            newKingdoms = newKingdoms.map(k =>
+              k.attitude !== 'war' ? { ...k, relation: Math.min(100, k.relation + 1) } : k
+            );
+            break;
+        }
+
+        if (!c.task) return;
+
+        // Task-specific active bonuses
+        switch (c.role) {
+          case 'marshal': {
+            if (c.task.startsWith('Train armies')) {
+              const mil = Math.floor(taskBonus * loyaltyMod);
+              newResources.military += mil;
+              if (mil > 0) councilLogs.push(`⚔️ ${c.name} trained armies (+${mil} military)`);
+            } else if (c.task.startsWith('Patrol borders')) {
+              const garBoost = Math.max(8, Math.floor(c.skill * 2 * loyaltyMod));
+              newProvinces = newProvinces.map(p =>
+                p.owner === 'player' ? { ...p, garrison: Math.min(1000, p.garrison + garBoost) } : p
+              );
+              councilLogs.push(`🛡️ ${c.name} patrolled borders (+${garBoost} garrison all provinces)`);
+            } else if (c.task.startsWith('Lead troops')) {
+              const moraleBoost = Math.max(3, Math.floor(c.skill * 0.5 * loyaltyMod));
+              newArmies = newArmies.map(a =>
+                a.owner === 'player' ? { ...a, morale: Math.min(100, a.morale + moraleBoost) } : a
+              );
+              councilLogs.push(`🏹 ${c.name} led the troops (+${moraleBoost} morale all armies)`);
+            }
+            break;
+          }
+          case 'steward': {
+            if (c.task.startsWith('Collect taxes')) {
+              const gold = Math.floor(taskBonus * 2 * loyaltyMod);
+              newResources.gold += gold;
+              councilLogs.push(`💰 ${c.name} collected taxes (+${gold} gold)`);
+            } else if (c.task.startsWith('Develop province')) {
+              const playerProvs = newProvinces.filter(p => p.owner === 'player');
+              if (playerProvs.length > 0) {
+                const target = playerProvs[Math.floor(Math.random() * playerProvs.length)];
+                newProvinces = newProvinces.map(p =>
+                  p.id === target.id ? { ...p, development: Math.min(100, p.development + 2) } : p
+                );
+                councilLogs.push(`🏗️ ${c.name} developed ${target.name} (+2 development)`);
+              }
+            } else if (c.task.startsWith('Manage supplies')) {
+              const food = Math.floor(taskBonus * 1.5 * loyaltyMod);
+              newResources.food += food;
+              councilLogs.push(`🌾 ${c.name} managed supplies (+${food} food)`);
+            }
+            break;
+          }
+          case 'spymaster': {
+            if (c.task.startsWith('Spy on rival')) {
+              if (Math.random() > 0.55 && newKingdoms.length > 0) {
+                const targetK = newKingdoms[Math.floor(Math.random() * newKingdoms.length)];
+                const troops = targetK.armies.reduce((s, a) => s + a.troops, 0);
+                councilLogs.push(`🕵️ ${c.name} reports: ${targetK.name} fields ${troops} troops (treasury ~${Math.round(targetK.treasury / 50) * 50}g)`);
+              }
+            } else if (c.task.startsWith('Counter espionage')) {
+              // Bonus gold from uncovering corruption + security
+              const gold = Math.floor(passiveBonus * loyaltyMod);
+              newResources.gold += gold;
+              councilLogs.push(`🔒 ${c.name} rooted out spies and corruption (+${gold} gold recovered)`);
+            } else if (c.task.startsWith('Scheme')) {
+              const gold = Math.floor(taskBonus * loyaltyMod);
+              newResources.gold += gold;
+              councilLogs.push(`🎭 ${c.name} ran schemes (+${gold} gold from intelligence networks)`);
+            }
+            break;
+          }
+          case 'chaplain': {
+            if (c.task.startsWith('Preach to masses')) {
+              const faith = Math.floor(taskBonus * loyaltyMod);
+              newResources.faith += faith;
+              councilLogs.push(`🙏 ${c.name} preached to the masses (+${faith} faith)`);
+            } else if (c.task.startsWith('Bless armies')) {
+              const moraleBoost = Math.max(2, Math.floor(c.skill * 0.4 * loyaltyMod));
+              newArmies = newArmies.map(a =>
+                a.owner === 'player' ? { ...a, morale: Math.min(100, a.morale + moraleBoost) } : a
+              );
+              councilLogs.push(`✨ ${c.name} blessed the armies (+${moraleBoost} morale all armies)`);
+            } else if (c.task.startsWith('Tend to sick')) {
+              const food = Math.floor(passiveBonus * 1.5 * loyaltyMod);
+              newResources.food += food;
+              if (newResources.food < 50) newResources.food += 15;
+              councilLogs.push(`💚 ${c.name} tended to the sick (+${food} food, illness contained)`);
+            }
+            break;
+          }
+          case 'chancellor': {
+            if (c.task.startsWith('Improve relations')) {
+              const relBoost = Math.max(2, Math.floor(c.skill * 0.5 * loyaltyMod));
+              newKingdoms = newKingdoms.map(k =>
+                k.attitude !== 'war' ? { ...k, relation: Math.min(100, k.relation + relBoost) } : k
+              );
+              councilLogs.push(`🤝 ${c.name} improved foreign relations (+${relBoost} with all peaceful kingdoms)`);
+            } else if (c.task.startsWith('Negotiate trade')) {
+              const gold = Math.floor(taskBonus * 1.5 * loyaltyMod);
+              newResources.gold += gold;
+              councilLogs.push(`💎 ${c.name} negotiated trade deals (+${gold} gold)`);
+            } else if (c.task.startsWith('Forge alliances')) {
+              const neutralKingdoms = newKingdoms.filter(k => k.attitude === 'neutral' || k.attitude === 'friendly');
+              if (neutralKingdoms.length > 0 && Math.random() > 0.6) {
+                const target = neutralKingdoms[Math.floor(Math.random() * neutralKingdoms.length)];
+                newKingdoms = newKingdoms.map(k =>
+                  k.id === target.id ? { ...k, relation: Math.min(100, k.relation + 6) } : k
+                );
+                councilLogs.push(`🕊️ ${c.name} advanced alliance negotiations with ${target.name} (+6 relations)`);
+              }
+            }
+            break;
           }
         }
-        return acc;
-      }, {} as Record<string, number>);
-      newResources.gold += councilBonuses.gold || 0;
-      newResources.faith += councilBonuses.faith || 0;
-      newResources.military += councilBonuses.military || 0;
+      });
+
+      // Dynamic difficulty modifier applied every turn
+      const diffMult = prev.difficulty === 'easy' ? 1 : prev.difficulty === 'hard' ? -1 : 0;
+      newResources.gold = Math.max(0, newResources.gold + diffMult * 8);
+      newResources.food = Math.max(0, newResources.food + diffMult * 5);
+      newResources.military = Math.max(0, newResources.military + diffMult * 3);
 
       const newFaithCooldowns: Record<string, number> = {};
       Object.entries(prev.faithCooldowns).forEach(([key, val]) => {
@@ -2198,6 +2318,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const allBattles = [...prev.battles, ...newBattlesFromSiege, ...aiBattles].slice(-20);
       const allLogs = [
         ...captureBoostLogs,
+        ...councilLogs,
         ...vassalLogs,
         ...marriageResolutionLogs,
         ...unlockLogs,

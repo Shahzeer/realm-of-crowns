@@ -25,13 +25,47 @@ const ROLE_LABELS: Record<string, string> = {
   chancellor: 'Chancellor',
 };
 
-const TASKS: Record<string, string[]> = {
-  marshal: ['Train armies (+Military)', 'Patrol borders (+Garrison)', 'Lead troops (Army morale)'],
-  steward: ['Collect taxes (+Gold)', 'Develop province (+Dev)', 'Manage supplies (+Food)'],
-  spymaster: ['Spy on rival kingdom', 'Counter espionage (+Security)', 'Scheme (+Intrigue)'],
-  chaplain: ['Preach to masses (+Faith)', 'Bless armies (+Morale)', 'Tend to sick (+Health)'],
-  chancellor: ['Improve relations (+Diplo)', 'Negotiate trade (+Gold)', 'Forge alliances'],
+const TASK_KEYS: Record<string, string[]> = {
+  marshal: ['Train armies', 'Patrol borders', 'Lead troops'],
+  steward: ['Collect taxes', 'Develop province', 'Manage supplies'],
+  spymaster: ['Spy on rival kingdom', 'Counter espionage', 'Scheme'],
+  chaplain: ['Preach to masses', 'Bless armies', 'Tend to sick'],
+  chancellor: ['Improve relations', 'Negotiate trade', 'Forge alliances'],
 };
+
+function getTaskLabel(role: string, task: string, skill: number, loyalty: number): string {
+  const loyaltyMod = loyalty > 70 ? 1.0 : loyalty > 50 ? 0.75 : 0.5;
+  const taskBonus = Math.max(2, Math.floor(skill / 3));
+  const passive = Math.max(1, Math.floor(skill / 6));
+  switch (role) {
+    case 'marshal':
+      if (task === 'Train armies') return `Train armies  (+${Math.floor(taskBonus * loyaltyMod)} military/turn)`;
+      if (task === 'Patrol borders') return `Patrol borders  (+${Math.max(8, Math.floor(skill * 2 * loyaltyMod))} garrison/turn)`;
+      if (task === 'Lead troops') return `Lead troops  (+${Math.max(3, Math.floor(skill * 0.5 * loyaltyMod))} morale/turn)`;
+      break;
+    case 'steward':
+      if (task === 'Collect taxes') return `Collect taxes  (+${Math.floor(taskBonus * 2 * loyaltyMod)} gold/turn)`;
+      if (task === 'Develop province') return `Develop province  (+2 dev/turn)`;
+      if (task === 'Manage supplies') return `Manage supplies  (+${Math.floor(taskBonus * 1.5 * loyaltyMod)} food/turn)`;
+      break;
+    case 'spymaster':
+      if (task === 'Spy on rival kingdom') return `Spy on rival kingdom  (intel reports)`;
+      if (task === 'Counter espionage') return `Counter espionage  (+${Math.floor(passive * loyaltyMod)} gold, blocks spies)`;
+      if (task === 'Scheme') return `Scheme  (+${Math.floor(taskBonus * loyaltyMod)} gold/turn)`;
+      break;
+    case 'chaplain':
+      if (task === 'Preach to masses') return `Preach to masses  (+${Math.floor(taskBonus * loyaltyMod)} faith/turn)`;
+      if (task === 'Bless armies') return `Bless armies  (+${Math.max(2, Math.floor(skill * 0.4 * loyaltyMod))} morale/turn)`;
+      if (task === 'Tend to sick') return `Tend to sick  (+${Math.floor(passive * 1.5 * loyaltyMod)} food/turn)`;
+      break;
+    case 'chancellor':
+      if (task === 'Improve relations') return `Improve relations  (+${Math.max(2, Math.floor(skill * 0.5 * loyaltyMod))} relations/turn)`;
+      if (task === 'Negotiate trade') return `Negotiate trade  (+${Math.floor(taskBonus * 1.5 * loyaltyMod)} gold/turn)`;
+      if (task === 'Forge alliances') return `Forge alliances  (chance to deepen ties)`;
+      break;
+  }
+  return task;
+}
 
 function CouncilorCard({ councilor, onAssignTask, onUpgrade, canUpgrade, index }: {
   councilor: Councilor;
@@ -53,7 +87,7 @@ function CouncilorCard({ councilor, onAssignTask, onUpgrade, canUpgrade, index }
   const roleColor = ROLE_COLORS[councilor.role] || Colors.text.secondary;
   const loyaltyColor = councilor.loyalty > 70 ? Colors.status.success : councilor.loyalty > 40 ? Colors.status.warning : Colors.status.danger;
   const betrayalRisk = councilor.loyalty < 20;
-  const tasks = TASKS[councilor.role] || [];
+  const taskKeys = TASK_KEYS[councilor.role] || [];
   const isTraining = !!councilor.activeUpgrade;
 
   return (
@@ -129,23 +163,29 @@ function CouncilorCard({ councilor, onAssignTask, onUpgrade, canUpgrade, index }
 
         {councilor.task && (
           <View style={[cc.currentTask, { borderColor: roleColor + '40' }]}>
-            <Text style={cc.currentTaskLabel}>Current Task</Text>
-            <Text style={[cc.currentTaskText, { color: roleColor }]}>{councilor.task}</Text>
+            <Text style={cc.currentTaskLabel}>Active Task</Text>
+            <Text style={[cc.currentTaskText, { color: roleColor }]}>
+              {getTaskLabel(councilor.role, councilor.task, councilor.skill, councilor.loyalty)}
+            </Text>
           </View>
         )}
 
         <View style={cc.tasksArea}>
           <Text style={cc.tasksLabel}>Assign Task</Text>
-          {tasks.map((task, idx) => (
-            <TouchableOpacity
-              key={idx}
-              style={[cc.taskBtn, councilor.task === task && cc.taskBtnActive]}
-              onPress={() => onAssignTask(task)}
-              activeOpacity={0.7}
-            >
-              <Text style={[cc.taskBtnText, councilor.task === task && { color: roleColor }]}>{task}</Text>
-            </TouchableOpacity>
-          ))}
+          {taskKeys.map((taskKey, idx) => {
+            const isActive = !!councilor.task && (councilor.task === taskKey || councilor.task.startsWith(taskKey));
+            const label = getTaskLabel(councilor.role, taskKey, councilor.skill, councilor.loyalty);
+            return (
+              <TouchableOpacity
+                key={idx}
+                style={[cc.taskBtn, isActive && cc.taskBtnActive]}
+                onPress={() => onAssignTask(taskKey)}
+                activeOpacity={0.7}
+              >
+                <Text style={[cc.taskBtnText, isActive && { color: roleColor }]}>{label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
     </Animated.View>
