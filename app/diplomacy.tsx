@@ -1,10 +1,10 @@
-import React, { useCallback, useRef, useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Animated } from "react-native";
+import React, { useCallback, useRef, useEffect, useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Animated, Modal } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, Gift, AlertTriangle, Handshake, Flame, Flag, DollarSign, Eye, Heart, Megaphone } from "lucide-react-native";
+import { X, Gift, AlertTriangle, Handshake, Flame, Flag, DollarSign, Eye, Heart, Megaphone, Scale, ChevronRight } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { Kingdom, AIPersonality } from "@/types/game";
@@ -12,9 +12,10 @@ import { PERSONALITY_LABELS } from "@/mocks/gameData";
 
 type DiplomacyAction = 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war';
 
-function KingdomCard({ kingdom, onAction, index, rulerMarried, hasPendingProposal }: {
+function KingdomCard({ kingdom, onAction, onNegotiate, index, rulerMarried, hasPendingProposal }: {
   kingdom: Kingdom;
   onAction: (id: string, action: DiplomacyAction) => void;
+  onNegotiate: (kingdom: Kingdom) => void;
   index: number;
   rulerMarried: boolean;
   hasPendingProposal: boolean;
@@ -151,8 +152,8 @@ function KingdomCard({ kingdom, onAction, index, rulerMarried, hasPendingProposa
             </>
           ) : (
             <>
-              <TouchableOpacity style={[d.actionBtn, d.peaceBtn]} onPress={() => onAction(kingdom.id, 'peace')} activeOpacity={0.7}>
-                <Flag size={14} color={Colors.status.success} /><Text style={d.peaceText}>Peace (150g)</Text>
+              <TouchableOpacity style={[d.actionBtn, d.negotiateBtn]} onPress={() => onNegotiate(kingdom)} activeOpacity={0.7}>
+                <Scale size={14} color={Colors.status.success} /><Text style={d.negotiateText}>Negotiate Peace</Text>
               </TouchableOpacity>
               {canDemandTribute && (
                 <TouchableOpacity style={[d.actionBtn, d.tributeBtn]} onPress={() => onAction(kingdom.id, 'demand_tribute')} activeOpacity={0.7}>
@@ -177,15 +178,63 @@ function KingdomCard({ kingdom, onAction, index, rulerMarried, hasPendingProposa
   );
 }
 
+type PeaceTermType = 'white_peace' | 'reparations' | 'demand_province' | 'pay_reparations' | 'cede_province';
+
 export default function DiplomacyScreen() {
   console.log("[RealmOfCrowns] Diplomacy render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, sendDiplomacy, activeWars } = useGame();
+  const { state, sendDiplomacy, negotiatePeace, activeWars } = useGame();
+  const [peaceKingdom, setPeaceKingdom] = useState<Kingdom | null>(null);
+  const [peaceTermType, setPeaceTermType] = useState<PeaceTermType>('white_peace');
+  const [peaceProvinceId, setPeaceProvinceId] = useState<string | null>(null);
+
+  const warScore = peaceKingdom?.warScore ?? 0;
+  const isWinning = warScore < -25;
+  const isLosing = warScore > 25;
+
+  const enemyProvinces = state.provinces.filter(p => peaceKingdom && p.owner === peaceKingdom.id);
+  const playerBorderProvinces = state.provinces.filter(p =>
+    p.owner === 'player' &&
+    p.connectedTo.some(c => {
+      const cp = state.provinces.find(pr => pr.id === c);
+      return cp && peaceKingdom && cp.owner === peaceKingdom.id;
+    })
+  );
+
+  const openPeaceModal = useCallback((kingdom: Kingdom) => {
+    if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
+    setPeaceKingdom(kingdom);
+    setPeaceTermType('white_peace');
+    setPeaceProvinceId(null);
+  }, []);
+
+  const closePeaceModal = useCallback(() => {
+    setPeaceKingdom(null);
+    setPeaceProvinceId(null);
+  }, []);
+
+  const confirmPeace = useCallback(() => {
+    if (!peaceKingdom) return;
+    if ((peaceTermType === 'demand_province' || peaceTermType === 'cede_province') && !peaceProvinceId) {
+      Alert.alert("Select a Province", "Please choose a province for the peace terms.");
+      return;
+    }
+    if (peaceTermType === 'pay_reparations' && state.resources.gold < 300) {
+      Alert.alert("Insufficient Gold", "You need 300 gold to pay reparations.");
+      return;
+    }
+    if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }
+    negotiatePeace(peaceKingdom.id, {
+      type: peaceTermType,
+      provinceId: peaceProvinceId ?? undefined,
+      gold: (peaceTermType === 'reparations' || peaceTermType === 'pay_reparations') ? 300 : undefined,
+    });
+    closePeaceModal();
+  }, [peaceKingdom, peaceTermType, peaceProvinceId, state.resources.gold, negotiatePeace, closePeaceModal]);
 
   const handleAction = useCallback((kingdomId: string, action: DiplomacyAction) => {
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
-
     if (action === 'declare_war') {
       const kingdom = state.kingdoms.find(k => k.id === kingdomId);
       Alert.alert(
@@ -198,7 +247,6 @@ export default function DiplomacyScreen() {
       );
       return;
     }
-
     const costs: Record<DiplomacyAction, number> = { gift: 100, threaten: 0, ally: 200, peace: 150, demand_tribute: 0, declare_war: 0, propose_marriage: 150, call_to_war: 0 };
     if (state.resources.gold < (costs[action] || 0)) {
       Alert.alert("Insufficient Gold", `You need ${costs[action]} gold.`);
@@ -208,6 +256,48 @@ export default function DiplomacyScreen() {
   }, [sendDiplomacy, state.resources.gold, state.kingdoms]);
 
   const allies = state.kingdoms.filter(k => k.attitude === 'allied');
+
+  const warScoreBarColor = warScore < -25 ? Colors.status.success : warScore > 25 ? Colors.crimson.bright : Colors.status.warning;
+  const warScoreBarWidth = Math.min(100, Math.abs(warScore) * 1.2);
+  const warScoreSide = warScore < 0 ? 'left' : 'right';
+
+  const termOptions: Array<{ type: PeaceTermType; label: string; desc: string; color: string; available: boolean }> = [
+    {
+      type: 'white_peace',
+      label: '🕊️ White Peace',
+      desc: 'End the war with no conditions. Both sides return to pre-war borders.',
+      color: Colors.text.secondary,
+      available: warScore < 60,
+    },
+    {
+      type: 'reparations',
+      label: '💰 Demand Reparations (+300g)',
+      desc: `${peaceKingdom?.name ?? 'Enemy'} pays 300 gold to end the war.`,
+      color: Colors.gold.bright,
+      available: isWinning,
+    },
+    {
+      type: 'demand_province',
+      label: '🏰 Demand Province',
+      desc: `Claim one of ${peaceKingdom?.name ?? "enemy"}'s provinces as the price of peace.`,
+      color: Colors.status.success,
+      available: isWinning && enemyProvinces.length > 0,
+    },
+    {
+      type: 'pay_reparations',
+      label: '💸 Pay Reparations (-300g)',
+      desc: 'Pay 300 gold to end the war on your terms.',
+      color: Colors.status.warning,
+      available: isLosing,
+    },
+    {
+      type: 'cede_province',
+      label: '📜 Cede Province',
+      desc: 'Give up one of your border provinces to secure peace.',
+      color: Colors.crimson.bright,
+      available: isLosing && playerBorderProvinces.length > 0,
+    },
+  ].filter(t => t.available);
 
   return (
     <View style={[d.root, { paddingTop: insets.top }]}>
@@ -227,12 +317,139 @@ export default function DiplomacyScreen() {
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 20 }} showsVerticalScrollIndicator={false}>
         {state.kingdoms.map((kingdom, idx) => (
-          <KingdomCard key={kingdom.id} kingdom={kingdom} onAction={handleAction} index={idx}
+          <KingdomCard key={kingdom.id} kingdom={kingdom} onAction={handleAction} onNegotiate={openPeaceModal} index={idx}
             rulerMarried={!!state.ruler.spouse}
             hasPendingProposal={state.kingdoms.some(k => k.marriageProposal)}
           />
         ))}
       </ScrollView>
+
+      <Modal visible={!!peaceKingdom} transparent animationType="slide" onRequestClose={closePeaceModal}>
+        <View style={d.modalOverlay}>
+          <View style={d.modalSheet}>
+            <LinearGradient colors={['#0e1520', '#0a0d14']} style={StyleSheet.absoluteFill} />
+            <View style={d.modalHandle} />
+
+            <View style={d.modalHeader}>
+              <Scale size={18} color={Colors.status.success} />
+              <Text style={d.modalTitle}>Peace Negotiations</Text>
+              <TouchableOpacity onPress={closePeaceModal} style={d.modalCloseBtn}>
+                <X size={18} color={Colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+
+            {peaceKingdom && (
+              <>
+                <View style={d.warSummaryCard}>
+                  <View style={d.warSummaryRow}>
+                    <View style={d.warSummaryKingdom}>
+                      <View style={[d.warSummaryCrest, { backgroundColor: peaceKingdom.color + '30' }]}>
+                        <Text style={[d.warSummaryCrestLetter, { color: peaceKingdom.color }]}>{peaceKingdom.name.charAt(0)}</Text>
+                      </View>
+                      <Text style={d.warSummaryName}>{peaceKingdom.name}</Text>
+                    </View>
+                    <View style={d.warSummaryVs}>
+                      <Flame size={14} color="#ff4444" />
+                      <Text style={d.warSummaryVsText}>vs</Text>
+                    </View>
+                    <View style={d.warSummaryKingdom}>
+                      <View style={[d.warSummaryCrest, { backgroundColor: Colors.crimson.dark + '40' }]}>
+                        <Text style={[d.warSummaryCrestLetter, { color: Colors.gold.bright }]}>Y</Text>
+                      </View>
+                      <Text style={d.warSummaryName}>You</Text>
+                    </View>
+                  </View>
+                  <View style={d.warBarContainer}>
+                    <Text style={d.warBarLabel}>{isWinning ? '⚔️ You are winning' : isLosing ? '💀 You are losing' : '⚖️ Stalemate'}</Text>
+                    <View style={d.warBarBg}>
+                      <View style={[
+                        d.warBarFill,
+                        {
+                          width: `${warScoreBarWidth}%` as any,
+                          backgroundColor: warScoreBarColor,
+                          alignSelf: warScoreSide === 'left' ? 'flex-start' : 'flex-end',
+                        }
+                      ]} />
+                    </View>
+                    <Text style={[d.warBarScore, { color: warScoreBarColor }]}>
+                      War Score: {warScore > 0 ? '+' : ''}{warScore}
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={d.termsSectionTitle}>Choose Peace Terms</Text>
+                {termOptions.map(opt => (
+                  <TouchableOpacity
+                    key={opt.type}
+                    style={[d.termOption, peaceTermType === opt.type && { borderColor: opt.color, backgroundColor: opt.color + '12' }]}
+                    onPress={() => { setPeaceTermType(opt.type); if (opt.type !== 'demand_province' && opt.type !== 'cede_province') setPeaceProvinceId(null); }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={d.termOptionLeft}>
+                      <View style={[d.termRadio, peaceTermType === opt.type && { backgroundColor: opt.color, borderColor: opt.color }]} />
+                      <View style={d.termOptionText}>
+                        <Text style={[d.termOptionLabel, peaceTermType === opt.type && { color: opt.color }]}>{opt.label}</Text>
+                        <Text style={d.termOptionDesc}>{opt.desc}</Text>
+                      </View>
+                    </View>
+                    {peaceTermType === opt.type && (opt.type === 'demand_province' || opt.type === 'cede_province') && (
+                      <ChevronRight size={16} color={opt.color} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+
+                {peaceTermType === 'demand_province' && enemyProvinces.length > 0 && (
+                  <View style={d.provincePickerSection}>
+                    <Text style={d.provincePickerTitle}>Select Province to Claim</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={d.provinceScroll}>
+                      {enemyProvinces.map(p => (
+                        <TouchableOpacity
+                          key={p.id}
+                          style={[d.provinceChip, peaceProvinceId === p.id && d.provinceChipSelected]}
+                          onPress={() => setPeaceProvinceId(p.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[d.provinceChipName, peaceProvinceId === p.id && d.provinceChipNameSelected]}>{p.name}</Text>
+                          <Text style={d.provinceChipPop}>Pop {p.population}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                {peaceTermType === 'cede_province' && playerBorderProvinces.length > 0 && (
+                  <View style={d.provincePickerSection}>
+                    <Text style={d.provincePickerTitle}>Select Province to Cede</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={d.provinceScroll}>
+                      {playerBorderProvinces.map(p => (
+                        <TouchableOpacity
+                          key={p.id}
+                          style={[d.provinceChip, d.provinceChipCede, peaceProvinceId === p.id && d.provinceChipCedeSelected]}
+                          onPress={() => setPeaceProvinceId(p.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={[d.provinceChipName, peaceProvinceId === p.id && { color: Colors.crimson.bright }]}>{p.name}</Text>
+                          <Text style={d.provinceChipPop}>Pop {p.population}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                <View style={d.modalActions}>
+                  <TouchableOpacity style={d.cancelBtn} onPress={closePeaceModal} activeOpacity={0.7}>
+                    <Text style={d.cancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={d.confirmBtn} onPress={confirmPeace} activeOpacity={0.7}>
+                    <Scale size={16} color="#fff" />
+                    <Text style={d.confirmBtnText}>Sign Treaty</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -291,6 +508,8 @@ const d = StyleSheet.create({
   threatenText: { fontSize: 11, fontWeight: "600" as const, color: Colors.crimson.bright },
   allyBtn: { borderColor: Colors.status.info + "40", backgroundColor: Colors.status.info + "10" },
   allyText: { fontSize: 11, fontWeight: "600" as const, color: Colors.status.info },
+  negotiateBtn: { borderColor: Colors.status.success + '50', backgroundColor: Colors.status.success + '12' },
+  negotiateText: { fontSize: 11, fontWeight: "700" as const, color: Colors.status.success },
   peaceBtn: { borderColor: Colors.status.success + '40', backgroundColor: Colors.status.success + '10' },
   peaceText: { fontSize: 11, fontWeight: "600" as const, color: Colors.status.success },
   tributeBtn: { borderColor: Colors.gold.dim, backgroundColor: Colors.gold.dim + '15' },
@@ -303,4 +522,45 @@ const d = StyleSheet.create({
   callWarText: { fontSize: 12, fontWeight: "700" as const, color: Colors.gold.bright },
   warBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#ff000030', backgroundColor: '#ff000008' },
   warBtnText: { fontSize: 12, fontWeight: "600" as const, color: '#ff4444' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.7)' },
+  modalSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingBottom: 40, overflow: 'hidden' as const, borderWidth: 1, borderColor: Colors.border.primary, borderBottomWidth: 0, maxHeight: '85%' as const },
+  modalHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: Colors.border.primary, alignSelf: 'center' as const, marginTop: 12, marginBottom: 16 },
+  modalHeader: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, marginBottom: 16 },
+  modalTitle: { flex: 1, fontSize: 18, fontWeight: '800' as const, color: Colors.text.primary },
+  modalCloseBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.bg.tertiary, alignItems: 'center' as const, justifyContent: 'center' as const },
+  warSummaryCard: { backgroundColor: Colors.bg.tertiary, borderRadius: 14, padding: 16, marginBottom: 18, borderWidth: 1, borderColor: '#ff000025' },
+  warSummaryRow: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, marginBottom: 14 },
+  warSummaryKingdom: { alignItems: 'center' as const, gap: 6 },
+  warSummaryCrest: { width: 40, height: 40, borderRadius: 20, alignItems: 'center' as const, justifyContent: 'center' as const },
+  warSummaryCrestLetter: { fontSize: 18, fontWeight: '800' as const },
+  warSummaryName: { fontSize: 12, fontWeight: '600' as const, color: Colors.text.secondary },
+  warSummaryVs: { alignItems: 'center' as const, gap: 2 },
+  warSummaryVsText: { fontSize: 10, fontWeight: '700' as const, color: Colors.text.dim },
+  warBarContainer: { gap: 6 },
+  warBarLabel: { fontSize: 12, fontWeight: '700' as const, color: Colors.text.primary, textAlign: 'center' as const },
+  warBarBg: { height: 8, borderRadius: 4, backgroundColor: Colors.bg.primary, overflow: 'hidden' as const },
+  warBarFill: { height: '100%' as const, borderRadius: 4 },
+  warBarScore: { fontSize: 11, fontWeight: '700' as const, textAlign: 'center' as const },
+  termsSectionTitle: { fontSize: 12, fontWeight: '700' as const, color: Colors.text.dim, textTransform: 'uppercase' as const, letterSpacing: 1, marginBottom: 10 },
+  termOption: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'space-between' as const, backgroundColor: Colors.bg.card, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1.5, borderColor: Colors.border.primary },
+  termOptionLeft: { flexDirection: 'row' as const, alignItems: 'flex-start' as const, gap: 12, flex: 1 },
+  termRadio: { width: 16, height: 16, borderRadius: 8, borderWidth: 2, borderColor: Colors.border.primary, marginTop: 2 },
+  termOptionText: { flex: 1, gap: 3 },
+  termOptionLabel: { fontSize: 14, fontWeight: '700' as const, color: Colors.text.primary },
+  termOptionDesc: { fontSize: 11, color: Colors.text.secondary, lineHeight: 16 },
+  provincePickerSection: { marginBottom: 14 },
+  provincePickerTitle: { fontSize: 12, fontWeight: '700' as const, color: Colors.text.secondary, marginBottom: 8 },
+  provinceScroll: { flexGrow: 0 },
+  provinceChip: { backgroundColor: Colors.bg.card, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, marginRight: 8, borderWidth: 1.5, borderColor: Colors.status.success + '40', alignItems: 'center' as const },
+  provinceChipSelected: { borderColor: Colors.status.success, backgroundColor: Colors.status.success + '15' },
+  provinceChipCede: { borderColor: Colors.crimson.dark + '40' },
+  provinceChipCedeSelected: { borderColor: Colors.crimson.bright, backgroundColor: Colors.crimson.bright + '15' },
+  provinceChipName: { fontSize: 12, fontWeight: '700' as const, color: Colors.text.primary },
+  provinceChipNameSelected: { color: Colors.status.success },
+  provinceChipPop: { fontSize: 10, color: Colors.text.dim, marginTop: 2 },
+  modalActions: { flexDirection: 'row' as const, gap: 12, marginTop: 6 },
+  cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: Colors.bg.tertiary, alignItems: 'center' as const },
+  cancelBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text.secondary },
+  confirmBtn: { flex: 2, flexDirection: 'row' as const, paddingVertical: 14, borderRadius: 12, backgroundColor: Colors.status.success, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8 },
+  confirmBtnText: { fontSize: 14, fontWeight: '800' as const, color: '#fff' },
 });

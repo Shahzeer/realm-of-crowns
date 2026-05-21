@@ -3000,6 +3000,55 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const negotiatePeace = useCallback((kingdomId: string, terms: {
+    type: 'white_peace' | 'reparations' | 'demand_province' | 'pay_reparations' | 'cede_province';
+    provinceId?: string;
+    gold?: number;
+  }) => {
+    setState(prev => {
+      const kingdom = prev.kingdoms.find(k => k.id === kingdomId);
+      if (!kingdom || kingdom.attitude !== 'war') return prev;
+      let newResources = { ...prev.resources };
+      let newProvinces = prev.provinces.map(p => ({ ...p }));
+      let logMsg = '';
+      if (terms.type === 'reparations' && terms.gold) {
+        newResources.gold += terms.gold;
+        logMsg = `☮️ Peace with ${kingdom.name}. They paid ${terms.gold}g reparations.`;
+      } else if (terms.type === 'demand_province' && terms.provinceId) {
+        const pName = newProvinces.find(p => p.id === terms.provinceId)?.name ?? 'province';
+        newProvinces = newProvinces.map(p =>
+          p.id === terms.provinceId ? { ...p, owner: 'player' as const, loyalty: 50, unrest: 20 } : p
+        );
+        logMsg = `☮️ Peace with ${kingdom.name}. Gained ${pName}.`;
+      } else if (terms.type === 'pay_reparations' && terms.gold) {
+        if (prev.resources.gold < terms.gold) return prev;
+        newResources.gold -= terms.gold;
+        logMsg = `☮️ Peace with ${kingdom.name}. Paid ${terms.gold}g reparations.`;
+      } else if (terms.type === 'cede_province' && terms.provinceId) {
+        const pName = newProvinces.find(p => p.id === terms.provinceId)?.name ?? 'province';
+        newProvinces = newProvinces.map(p =>
+          p.id === terms.provinceId ? { ...p, owner: kingdomId as typeof p.owner, loyalty: 40, unrest: 30 } : p
+        );
+        logMsg = `☮️ Peace with ${kingdom.name}. Ceded ${pName}.`;
+      } else {
+        logMsg = `☮️ White peace reached with ${kingdom.name}.`;
+      }
+      const newKingdoms = prev.kingdoms.map(k => {
+        const updatedProvinces = newProvinces.filter(p => p.owner === k.id).map(p => p.id);
+        if (k.id === kingdomId) {
+          return { ...k, attitude: 'hostile' as const, warScore: 0, relation: Math.min(100, k.relation + 15), provinces: updatedProvinces };
+        }
+        return { ...k, provinces: k.id === 'player' ? k.provinces : updatedProvinces };
+      });
+      const newState: GameState = {
+        ...prev, resources: newResources, provinces: newProvinces,
+        kingdoms: newKingdoms, log: [logMsg, ...prev.log].slice(0, 50),
+      };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const resetGame = useCallback(async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
     setState({ ...defaultState, gameStarted: false });
@@ -3027,7 +3076,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   return useMemo(() => ({
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
-    sendDiplomacy, claimNeutralProvince, assignCouncilTask, resetGame, unseenEvents,
+    sendDiplomacy, negotiatePeace, claimNeutralProvince, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
     selectKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
@@ -3039,7 +3088,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
-    sendDiplomacy, claimNeutralProvince, assignCouncilTask, resetGame, unseenEvents,
+    sendDiplomacy, negotiatePeace, claimNeutralProvince, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
     selectKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
