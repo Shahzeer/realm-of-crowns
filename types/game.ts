@@ -104,6 +104,10 @@ export interface Resources {
   foodPerTurn: number;
   militaryPerTurn: number;
   faithPerTurn: number;
+  baseGoldPerTurn?: number;
+  baseFoodPerTurn?: number;
+  baseMilitaryPerTurn?: number;
+  baseFaithPerTurn?: number;
 }
 
 export interface Building {

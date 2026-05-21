@@ -1259,13 +1259,18 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
   if (buildingBoostTotals.militaryPerTurn) resources.militaryPerTurn += buildingBoostTotals.militaryPerTurn;
   if (buildingBoostTotals.faithPerTurn) resources.faithPerTurn += buildingBoostTotals.faithPerTurn;
 
+  // Store base per-turn rates (before difficulty or council adjustments)
+  resources.baseGoldPerTurn = resources.goldPerTurn;
+  resources.baseFoodPerTurn = resources.foodPerTurn;
+  resources.baseMilitaryPerTurn = resources.militaryPerTurn;
+  resources.baseFaithPerTurn = resources.faithPerTurn;
+
+  // Difficulty: starting gold bonus/penalty only — per-turn rates are handled dynamically each turn
   if (difficulty === 'easy') {
-    resources.gold += 200; resources.goldPerTurn += 10; resources.militaryPerTurn += 5; resources.foodPerTurn += 5;
+    resources.gold += 200;
   }
   if (difficulty === 'hard') {
-    resources.gold -= 150; resources.goldPerTurn -= 10; resources.militaryPerTurn -= 5; resources.foodPerTurn -= 5;
-    resources.militaryPerTurn = Math.max(2, resources.militaryPerTurn);
-    resources.foodPerTurn = Math.max(2, resources.foodPerTurn);
+    resources.gold -= 150;
   }
 
   const capitalProvince = provinces.find(p => choice.startingProvinces.includes(p.id) && p.type === 'capital');
@@ -1696,17 +1701,21 @@ export const [GameProvider, useGame] = createContextHook(() => {
       summary.year = nextYear;
 
       const seasonEffect = SEASON_EFFECTS[nextSeason];
+      const baseGPT = prev.resources.baseGoldPerTurn ?? prev.resources.goldPerTurn;
+      const baseFPT = prev.resources.baseFoodPerTurn ?? prev.resources.foodPerTurn;
+      const baseMPT = prev.resources.baseMilitaryPerTurn ?? prev.resources.militaryPerTurn;
+      const baseFaithPT = prev.resources.baseFaithPerTurn ?? prev.resources.faithPerTurn;
       const newResources: Resources = {
         ...prev.resources,
-        gold: Math.max(0, prev.resources.gold + prev.resources.goldPerTurn + seasonEffect.gold),
-        food: Math.max(0, prev.resources.food + prev.resources.foodPerTurn + seasonEffect.food),
-        military: Math.max(0, prev.resources.military + prev.resources.militaryPerTurn + seasonEffect.military),
-        faith: Math.max(0, prev.resources.faith + prev.resources.faithPerTurn),
+        gold: Math.max(0, prev.resources.gold + baseGPT + seasonEffect.gold),
+        food: Math.max(0, prev.resources.food + baseFPT + seasonEffect.food),
+        military: Math.max(0, prev.resources.military + baseMPT + seasonEffect.military),
+        faith: Math.max(0, prev.resources.faith + baseFaithPT),
       };
-      summary.goldGained = prev.resources.goldPerTurn + seasonEffect.gold;
-      summary.foodGained = prev.resources.foodPerTurn + seasonEffect.food;
-      summary.militaryGained = prev.resources.militaryPerTurn + seasonEffect.military;
-      summary.faithGained = prev.resources.faithPerTurn;
+      summary.goldGained = baseGPT + seasonEffect.gold;
+      summary.foodGained = baseFPT + seasonEffect.food;
+      summary.militaryGained = baseMPT + seasonEffect.military;
+      summary.faithGained = baseFaithPT;
 
       let activeTrades = prev.activeTrades.map(t => ({ ...t, turnsRemaining: t.turnsRemaining - 1 }));
       const hasBankingGuild = prev.technologies.find(t => t.id === 'tech_banking_guild')?.researched ?? false;
@@ -2153,6 +2162,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       // Council bonuses: passive (role-based) + active (task-based)
       const councilLogs: string[] = [];
+      let councilGoldPT = 0, councilFoodPT = 0, councilMilPT = 0, councilFaithPT = 0;
       newCouncil.forEach(c => {
         if (c.loyalty <= 20) return; // disloyal councilors give nothing
         const loyaltyMod = c.loyalty > 70 ? 1.0 : c.loyalty > 50 ? 0.75 : 0.5;
@@ -2281,11 +2291,27 @@ export const [GameProvider, useGame] = createContextHook(() => {
         }
       });
 
-      // Dynamic difficulty modifier applied every turn
-      const diffMult = prev.difficulty === 'easy' ? 1 : prev.difficulty === 'hard' ? -1 : 0;
-      newResources.gold = Math.max(0, newResources.gold + diffMult * 8);
-      newResources.food = Math.max(0, newResources.food + diffMult * 5);
-      newResources.military = Math.max(0, newResources.military + diffMult * 3);
+      // Compute council per-turn contributions (vs base)
+      councilGoldPT = newResources.gold - Math.max(0, (prev.resources.gold + baseGPT + seasonEffect.gold));
+      councilFoodPT = newResources.food - Math.max(0, (prev.resources.food + baseFPT + seasonEffect.food));
+      councilMilPT = newResources.military - Math.max(0, (prev.resources.military + baseMPT + seasonEffect.military));
+      councilFaithPT = newResources.faith - Math.max(0, (prev.resources.faith + baseFaithPT));
+
+      // Difficulty per-turn bonus: easy gets most, normal gets moderate, hard gets base only
+      const diffGold = prev.difficulty === 'easy' ? 10 : prev.difficulty === 'normal' ? 5 : 0;
+      const diffFood = prev.difficulty === 'easy' ? 5 : prev.difficulty === 'normal' ? 3 : 0;
+      const diffMil = prev.difficulty === 'easy' ? 3 : prev.difficulty === 'normal' ? 1 : 0;
+      const diffFaith = prev.difficulty === 'easy' ? 2 : prev.difficulty === 'normal' ? 1 : 0;
+      newResources.gold = Math.max(0, newResources.gold + diffGold);
+      newResources.food = Math.max(0, newResources.food + diffFood);
+      newResources.military = Math.max(0, newResources.military + diffMil);
+      newResources.faith = Math.max(0, newResources.faith + diffFaith);
+
+      // Update displayed goldPerTurn = base + council contributions + difficulty (for ResourceBar)
+      newResources.goldPerTurn = Math.max(0, baseGPT + Math.max(0, councilGoldPT) + diffGold);
+      newResources.foodPerTurn = Math.max(0, baseFPT + Math.max(0, councilFoodPT) + diffFood);
+      newResources.militaryPerTurn = Math.max(0, baseMPT + Math.max(0, councilMilPT) + diffMil);
+      newResources.faithPerTurn = Math.max(0, baseFaithPT + Math.max(0, councilFaithPT) + diffFaith);
 
       const newFaithCooldowns: Record<string, number> = {};
       Object.entries(prev.faithCooldowns).forEach(([key, val]) => {
@@ -2722,6 +2748,10 @@ export const [GameProvider, useGame] = createContextHook(() => {
         foodPerTurn: prev.resources.foodPerTurn + (prod.foodPerTurn ?? 0),
         militaryPerTurn: prev.resources.militaryPerTurn + (prod.militaryPerTurn ?? 0),
         faithPerTurn: prev.resources.faithPerTurn + (prod.faithPerTurn ?? 0),
+        baseGoldPerTurn: (prev.resources.baseGoldPerTurn ?? prev.resources.goldPerTurn) + (prod.goldPerTurn ?? 0),
+        baseFoodPerTurn: (prev.resources.baseFoodPerTurn ?? prev.resources.foodPerTurn) + (prod.foodPerTurn ?? 0),
+        baseMilitaryPerTurn: (prev.resources.baseMilitaryPerTurn ?? prev.resources.militaryPerTurn) + (prod.militaryPerTurn ?? 0),
+        baseFaithPerTurn: (prev.resources.baseFaithPerTurn ?? prev.resources.faithPerTurn) + (prod.faithPerTurn ?? 0),
       };
       const newState: GameState = {
         ...prev, resources: updatedResources,
@@ -2758,6 +2788,10 @@ export const [GameProvider, useGame] = createContextHook(() => {
         foodPerTurn: prev.resources.foodPerTurn + (prod.foodPerTurn ?? 0),
         militaryPerTurn: prev.resources.militaryPerTurn + (prod.militaryPerTurn ?? 0),
         faithPerTurn: prev.resources.faithPerTurn + (prod.faithPerTurn ?? 0),
+        baseGoldPerTurn: (prev.resources.baseGoldPerTurn ?? prev.resources.goldPerTurn) + (prod.goldPerTurn ?? 0),
+        baseFoodPerTurn: (prev.resources.baseFoodPerTurn ?? prev.resources.foodPerTurn) + (prod.foodPerTurn ?? 0),
+        baseMilitaryPerTurn: (prev.resources.baseMilitaryPerTurn ?? prev.resources.militaryPerTurn) + (prod.militaryPerTurn ?? 0),
+        baseFaithPerTurn: (prev.resources.baseFaithPerTurn ?? prev.resources.faithPerTurn) + (prod.faithPerTurn ?? 0),
       };
       const newState: GameState = {
         ...prev, resources: updatedResources,
