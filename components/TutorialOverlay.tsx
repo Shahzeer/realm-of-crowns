@@ -1,111 +1,418 @@
-import React, { useMemo, useRef, useEffect } from "react";
-import { Animated, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+import React, { useRef, useEffect } from "react";
+import {
+  Animated,
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import * as Haptics from "expo-haptics";
-import { BookOpen, Castle, ChevronLeft, ChevronRight, Eye, Map, ScrollText, Shield, Sparkles, Swords, X } from "lucide-react-native";
-
+import {
+  Castle,
+  ChevronRight,
+  Map,
+  Shield,
+  Sparkles,
+  Swords,
+  X,
+} from "lucide-react-native";
 import Colors from "@/constants/colors";
+
+type Highlight = "crown" | "resources" | "map" | "command" | "turn" | "none";
 
 type TutorialStep = {
   title: string;
-  eyebrow: string;
   body: string;
   icon: React.ReactNode;
-  highlight: "crown" | "resources" | "map" | "command" | "turn" | "none";
+  highlight: Highlight;
 };
 
+const TOOLTIP_W = 272;
+const TOOLTIP_EST_H = 136;
+const BEAK_HALF = 9;
+const BEAK_H = 11;
+const TOOLTIP_BG = "#1c1710";
+const BORDER_COLOR = "#a07a4a";
+
 const steps: TutorialStep[] = [
-  { eyebrow: "Royal Counsel", title: "Your reign begins", body: "You inherit a young realm. Each turn is a season of choices: gather strength, build wisely, scout the unknown, and decide when to risk war.", icon: <Castle size={28} color={Colors.gold.bright} />, highlight: "none" },
-  { eyebrow: "The Crown", title: "Know your ruler", body: "Your ruler and dynasty sit at the top. Tap them later to manage traits, heirs, marriages, and long-term legacy upgrades.", icon: <Sparkles size={28} color={Colors.gold.bright} />, highlight: "crown" },
-  { eyebrow: "Treasury", title: "Resources fuel everything", body: "Gold builds and recruits, food keeps people loyal, military powers armies, and faith unlocks spiritual actions. Watch the per-turn income closely.", icon: <Shield size={28} color={Colors.status.info} />, highlight: "resources" },
-  { eyebrow: "The Realm", title: "Read the map", body: "Your provinces are the heart of your kingdom. Tap a province to inspect buildings, recruit troops, reinforce garrisons, or plan actions.", icon: <Map size={28} color={Colors.food.light} />, highlight: "map" },
-  { eyebrow: "Fog of War", title: "The unknown can be scouted", body: "Distant and undiscovered territories hide armies and intent. Send spies to reveal regions; unexplored lands cost 2 turns to scout.", icon: <Eye size={28} color="#a78bfa" />, highlight: "map" },
-  { eyebrow: "Stone & Grain", title: "Build from level 1", body: "Buildings and upgrades start humbly. Improve your keep, economy, barracks, temples, and workshops to shape your realm’s identity.", icon: <Castle size={28} color={Colors.gold.primary} />, highlight: "command" },
-  { eyebrow: "War Table", title: "Armies decide borders", body: "Use Armies to recruit, reinforce, merge, move, and attack. Morale, commanders, terrain, and tactics can turn a smaller force into a legend.", icon: <Swords size={28} color={Colors.crimson.bright} />, highlight: "command" },
-  { eyebrow: "Silent Blades", title: "Espionage gives options", body: "The Espionage hall lets you scout, sabotage, steal, and investigate rumors. Information is often cheaper than a failed invasion.", icon: <Eye size={28} color="#a78bfa" />, highlight: "command" },
-  { eyebrow: "Council Chamber", title: "Assign your advisors", body: "Councilors can fight corruption, improve loyalty, contain plague, support war, and stabilize growth. Reassign them as crises change.", icon: <ScrollText size={28} color={Colors.faith.light} />, highlight: "command" },
-  { eyebrow: "Court Events", title: "Choices echo forward", body: "Events, rumors, pressure warnings, and chronicles tell the story of your reign. Some decisions trigger consequences turns later.", icon: <BookOpen size={28} color={Colors.parchment.primary} />, highlight: "command" },
-  { eyebrow: "Seasons Pass", title: "End Turn advances the world", body: "When your commands are set, End Turn resolves income, research, missions, enemy moves, battles, pressure, and new events.", icon: <ChevronRight size={28} color={Colors.bg.primary} />, highlight: "turn" },
+  {
+    title: "Welcome to Realm of Crowns",
+    body: "You inherit a young realm. Build wisely, gather strength, and forge a lasting dynasty.",
+    icon: <Castle size={18} color={Colors.gold.bright} />,
+    highlight: "none",
+  },
+  {
+    title: "Your Ruler",
+    body: "Tap here to manage traits, heirs, marriages, and long-term legacy upgrades.",
+    icon: <Sparkles size={18} color={Colors.gold.bright} />,
+    highlight: "crown",
+  },
+  {
+    title: "Resources",
+    body: "Gold builds and recruits, food maintains loyalty, military powers armies, faith unlocks blessings.",
+    icon: <Shield size={18} color={Colors.status.info} />,
+    highlight: "resources",
+  },
+  {
+    title: "Your Realm",
+    body: "Tap any province on the map to build, recruit troops, reinforce, or plan conquest.",
+    icon: <Map size={18} color={Colors.food.light} />,
+    highlight: "map",
+  },
+  {
+    title: "Command Panel",
+    body: "Access armies, diplomacy, espionage, council, faith, and events from here.",
+    icon: <Swords size={18} color={Colors.crimson.bright} />,
+    highlight: "command",
+  },
+  {
+    title: "End Turn",
+    body: "When your orders are ready, End Turn advances the season and resolves all actions.",
+    icon: <ChevronRight size={18} color={Colors.gold.primary} />,
+    highlight: "turn",
+  },
 ];
 
-export default function TutorialOverlay({ visible, onFinish }: { visible: boolean; onFinish: () => void }) {
-  const [index, setIndex] = React.useState<number>(0);
+function getAnchor(h: Highlight, sw: number, sh: number): { x: number; y: number } {
+  switch (h) {
+    case "crown":     return { x: sw * 0.28, y: 87 };
+    case "resources": return { x: sw / 2,    y: 142 };
+    case "map":       return { x: sw / 2,    y: Math.min(370, sh * 0.44) };
+    case "command":   return { x: sw / 2,    y: sh * 0.73 };
+    case "turn":      return { x: sw / 2,    y: sh - 48 };
+    default:          return { x: sw / 2,    y: sh / 2 };
+  }
+}
+
+type GlowRect = { top?: number; bottom?: number; left: number; right?: number; width?: number; height: number };
+
+function getGlow(h: Highlight, sw: number, sh: number): GlowRect | null {
+  switch (h) {
+    case "crown":     return { top: 58,          left: 14,  width: 210,     height: 58  };
+    case "resources": return { top: 108,          left: 8,   right: 8,       height: 54  };
+    case "map":       return { top: 228,          left: 14,  right: 14,      height: 222 };
+    case "command":   return { bottom: 88,        left: 14,  right: 14,      height: 172 };
+    case "turn":      return { bottom: 12,        left: 14,  right: 14,      height: 66  };
+    default:          return null;
+  }
+}
+
+export default function TutorialOverlay({
+  visible,
+  onFinish,
+}: {
+  visible: boolean;
+  onFinish: () => void;
+}) {
+  const [index, setIndex] = React.useState(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(8)).current;
+  const { width: sw, height: sh } = useWindowDimensions();
+
   const step = steps[index];
-  const progress = useMemo(() => `${index + 1}/${steps.length}`, [index]);
+  const anchor = getAnchor(step.highlight, sw, sh);
+  const glow = getGlow(step.highlight, sw, sh);
+  const isNoAnchor = step.highlight === "none";
+
+  const isBottomHalf = anchor.y > sh / 2;
+
+  const rawLeft = anchor.x - TOOLTIP_W / 2;
+  const tooltipLeft = Math.max(12, Math.min(sw - TOOLTIP_W - 12, rawLeft));
+  const beakLeft = Math.max(
+    BEAK_HALF + 6,
+    Math.min(TOOLTIP_W - BEAK_HALF - 6, anchor.x - tooltipLeft - BEAK_HALF)
+  );
+
+  let tooltipTop: number;
+  if (isNoAnchor) {
+    tooltipTop = sh / 2 - TOOLTIP_EST_H / 2;
+  } else if (isBottomHalf) {
+    tooltipTop = anchor.y - TOOLTIP_EST_H - BEAK_H - 18;
+  } else {
+    tooltipTop = anchor.y + BEAK_H + 18;
+  }
+  tooltipTop = Math.max(12, Math.min(sh - TOOLTIP_EST_H - 12, tooltipTop));
 
   useEffect(() => {
     if (visible) {
       setIndex(0);
-      Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }).start();
+      fadeAnim.setValue(0);
+      slideAnim.setValue(8);
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, damping: 18, stiffness: 220 }),
+      ]).start();
     }
-  }, [visible, fadeAnim]);
+  }, [visible]);
+
+  const animateStep = () => {
+    slideAnim.setValue(6);
+    fadeAnim.setValue(0.5);
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 160, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, damping: 18, stiffness: 260 }),
+    ]).start();
+  };
 
   const tap = () => { if (Platform.OS !== "web") void Haptics.selectionAsync(); };
-  const next = () => { tap(); if (index >= steps.length - 1) onFinish(); else setIndex(prev => prev + 1); };
-  const back = () => { tap(); setIndex(prev => Math.max(0, prev - 1)); };
+
+  const next = () => {
+    tap();
+    if (index >= steps.length - 1) {
+      onFinish();
+    } else {
+      setIndex((prev) => prev + 1);
+      animateStep();
+    }
+  };
+
+  if (!visible) return null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
-      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]} pointerEvents="box-none">
-        <View style={[styles.glow, styles[`glow_${step.highlight}`]]} />
-        <View style={styles.scrim} />
-        <View style={styles.cardWrap}>
-          <View style={styles.card}>
-            <LinearGradient colors={["#241c12", "#111820", "#0d1117"]} style={StyleSheet.absoluteFill} />
+      <View style={styles.root} pointerEvents="box-none">
+
+        <View style={styles.scrim} pointerEvents="none" />
+
+        {glow && (
+          <View
+            style={[
+              styles.glow,
+              {
+                top: glow.top,
+                bottom: glow.bottom,
+                left: glow.left,
+                right: glow.right,
+                width: glow.width,
+                height: glow.height,
+              },
+            ]}
+            pointerEvents="none"
+          />
+        )}
+
+        <Animated.View
+          style={[
+            styles.tooltip,
+            {
+              top: tooltipTop,
+              left: tooltipLeft,
+              width: TOOLTIP_W,
+              opacity: fadeAnim,
+              transform: [
+                {
+                  translateY: slideAnim.interpolate({
+                    inputRange: [0, 8],
+                    outputRange: [0, isBottomHalf ? 6 : -6],
+                  }),
+                },
+              ],
+            },
+          ]}
+          pointerEvents="box-none"
+        >
+          {!isNoAnchor && !isBottomHalf && (
+            <>
+              <View style={[styles.beakUpBorder, { left: beakLeft - 1 }]} pointerEvents="none" />
+              <View style={[styles.beakUpFill,   { left: beakLeft     }]} pointerEvents="none" />
+            </>
+          )}
+
+          <View style={styles.bubble}>
             <View style={styles.header}>
-              <View style={styles.iconSeal}>{step.icon}</View>
-              <View style={styles.headerText}>
-                <Text style={styles.eyebrow}>{step.eyebrow}</Text>
-                <Text style={styles.title}>{step.title}</Text>
-              </View>
-              <TouchableOpacity onPress={onFinish} style={styles.closeBtn} testID="skip-tutorial-btn"><X size={18} color={Colors.text.secondary} /></TouchableOpacity>
-            </View>
-            <Text style={styles.body}>{step.body}</Text>
-            <View style={styles.progressTrack}>{steps.map((_, i) => <View key={i} style={[styles.progressDot, i <= index && styles.progressDotActive]} />)}</View>
-            <View style={styles.footer}>
-              <TouchableOpacity onPress={back} disabled={index === 0} style={[styles.backBtn, index === 0 && styles.disabledBtn]}>
-                <ChevronLeft size={16} color={Colors.text.secondary} /><Text style={styles.backText}>Back</Text>
+              <View style={styles.iconWrap}>{step.icon}</View>
+              <Text style={styles.title} numberOfLines={1}>{step.title}</Text>
+              <TouchableOpacity
+                onPress={onFinish}
+                style={styles.closeBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                testID="skip-tutorial-btn"
+              >
+                <X size={13} color={Colors.text.dim} />
               </TouchableOpacity>
-              <Text style={styles.count}>{progress}</Text>
+            </View>
+
+            <Text style={styles.body}>{step.body}</Text>
+
+            <View style={styles.footer}>
+              <View style={styles.dots}>
+                {steps.map((_, i) => (
+                  <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
+                ))}
+              </View>
               <TouchableOpacity onPress={next} style={styles.nextBtn} testID="tutorial-next-btn">
-                <Text style={styles.nextText}>{index === steps.length - 1 ? "Finish" : "Next"}</Text><ChevronRight size={16} color={Colors.bg.primary} />
+                <Text style={styles.nextText}>
+                  {index === steps.length - 1 ? "Got it!" : "Next →"}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </Animated.View>
+
+          {!isNoAnchor && isBottomHalf && (
+            <>
+              <View style={[styles.beakDownBorder, { left: beakLeft - 1 }]} pointerEvents="none" />
+              <View style={[styles.beakDownFill,   { left: beakLeft     }]} pointerEvents="none" />
+            </>
+          )}
+        </Animated.View>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, justifyContent: "center" as const },
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.72)" },
-  glow: { position: "absolute", borderRadius: 22, borderWidth: 2, borderColor: Colors.gold.bright, backgroundColor: Colors.gold.bright + "18", shadowColor: Colors.gold.bright, shadowOpacity: 0.8, shadowRadius: 18, elevation: 12 },
-  glow_none: { opacity: 0, width: 1, height: 1 },
-  glow_crown: { top: 58, left: 14, width: 210, height: 58 },
-  glow_resources: { top: 112, left: 8, right: 8, height: 54 },
-  glow_map: { top: 300, left: 14, right: 14, height: 210 },
-  glow_command: { bottom: 118, left: 14, right: 14, height: 150 },
-  glow_turn: { bottom: 18, left: 14, right: 14, height: 68 },
-  cardWrap: { paddingHorizontal: 18, justifyContent: "center" as const },
-  card: { borderRadius: 24, padding: 18, overflow: "hidden" as const, borderWidth: 1, borderColor: Colors.border.gold },
-  header: { flexDirection: "row" as const, alignItems: "center" as const, gap: 12, marginBottom: 14 },
-  iconSeal: { width: 54, height: 54, borderRadius: 27, backgroundColor: Colors.gold.dim + "22", borderWidth: 1, borderColor: Colors.gold.dim, alignItems: "center" as const, justifyContent: "center" as const },
-  headerText: { flex: 1, gap: 2 },
-  eyebrow: { fontSize: 11, fontWeight: "800" as const, color: Colors.gold.dim, textTransform: "uppercase" as const, letterSpacing: 1.8 },
-  title: { fontSize: 24, fontWeight: "900" as const, color: Colors.gold.bright, letterSpacing: 0.2 },
-  closeBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: Colors.bg.tertiary },
-  body: { fontSize: 15, lineHeight: 23, color: Colors.parchment.primary, marginBottom: 18 },
-  progressTrack: { flexDirection: "row" as const, gap: 5, marginBottom: 18 },
-  progressDot: { flex: 1, height: 4, borderRadius: 2, backgroundColor: Colors.bg.tertiary },
-  progressDotActive: { backgroundColor: Colors.gold.bright },
-  footer: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
-  backBtn: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, paddingVertical: 12, paddingHorizontal: 10 },
-  disabledBtn: { opacity: 0.35 },
-  backText: { color: Colors.text.secondary, fontSize: 14, fontWeight: "700" as const },
-  count: { flex: 1, textAlign: "center" as const, color: Colors.gold.dim, fontSize: 12, fontWeight: "800" as const },
-  nextBtn: { flexDirection: "row" as const, alignItems: "center" as const, gap: 5, backgroundColor: Colors.gold.primary, paddingVertical: 12, paddingHorizontal: 18, borderRadius: 12 },
-  nextText: { color: Colors.bg.primary, fontSize: 14, fontWeight: "900" as const },
+  root: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  scrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.14)",
+  },
+  glow: {
+    position: "absolute",
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.gold.dim + "90",
+    backgroundColor: Colors.gold.bright + "0a",
+    shadowColor: Colors.gold.bright,
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  tooltip: {
+    position: "absolute",
+  },
+  bubble: {
+    backgroundColor: TOOLTIP_BG,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: BORDER_COLOR,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.55,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 16,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  iconWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.bg.tertiary,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.border.gold,
+  },
+  title: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "800" as const,
+    color: Colors.gold.bright,
+    letterSpacing: 0.1,
+  },
+  closeBtn: {
+    width: 24,
+    height: 24,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  body: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: Colors.parchment.primary,
+    marginBottom: 10,
+  },
+  footer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dots: {
+    flexDirection: "row",
+    gap: 4,
+    alignItems: "center",
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.bg.tertiary,
+  },
+  dotActive: {
+    backgroundColor: Colors.gold.primary,
+    width: 14,
+    borderRadius: 3,
+  },
+  nextBtn: {
+    backgroundColor: Colors.gold.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  nextText: {
+    fontSize: 12,
+    fontWeight: "900" as const,
+    color: Colors.bg.primary,
+    letterSpacing: 0.2,
+  },
+  beakUpBorder: {
+    position: "absolute",
+    top: -(BEAK_H + 1),
+    width: 0,
+    height: 0,
+    borderLeftWidth: BEAK_HALF + 1,
+    borderRightWidth: BEAK_HALF + 1,
+    borderBottomWidth: BEAK_H + 1,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderBottomColor: BORDER_COLOR,
+  },
+  beakUpFill: {
+    position: "absolute",
+    top: -BEAK_H,
+    width: 0,
+    height: 0,
+    borderLeftWidth: BEAK_HALF,
+    borderRightWidth: BEAK_HALF,
+    borderBottomWidth: BEAK_H,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderBottomColor: TOOLTIP_BG,
+  },
+  beakDownBorder: {
+    position: "absolute",
+    bottom: -(BEAK_H + 1),
+    width: 0,
+    height: 0,
+    borderLeftWidth: BEAK_HALF + 1,
+    borderRightWidth: BEAK_HALF + 1,
+    borderTopWidth: BEAK_H + 1,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: BORDER_COLOR,
+  },
+  beakDownFill: {
+    position: "absolute",
+    bottom: -BEAK_H,
+    width: 0,
+    height: 0,
+    borderLeftWidth: BEAK_HALF,
+    borderRightWidth: BEAK_HALF,
+    borderTopWidth: BEAK_H,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: TOOLTIP_BG,
+  },
 });
