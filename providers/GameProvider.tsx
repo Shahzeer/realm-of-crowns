@@ -2307,11 +2307,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
       newResources.military = Math.max(0, newResources.military + diffMil);
       newResources.faith = Math.max(0, newResources.faith + diffFaith);
 
-      // Update displayed goldPerTurn = base + council contributions + difficulty (for ResourceBar)
-      newResources.goldPerTurn = Math.max(0, baseGPT + Math.max(0, councilGoldPT) + diffGold);
-      newResources.foodPerTurn = Math.max(0, baseFPT + Math.max(0, councilFoodPT) + diffFood);
-      newResources.militaryPerTurn = Math.max(0, baseMPT + Math.max(0, councilMilPT) + diffMil);
-      newResources.faithPerTurn = Math.max(0, baseFaithPT + Math.max(0, councilFaithPT) + diffFaith);
+      // perTurn values are computed as the actual net change after ALL sources (base, season, trade, tech, council, difficulty)
+      // They are finalized after pressure penalties below
 
       const newFaithCooldowns: Record<string, number> = {};
       Object.entries(prev.faithCooldowns).forEach(([key, val]) => {
@@ -2328,6 +2325,12 @@ export const [GameProvider, useGame] = createContextHook(() => {
       newResources.gold = Math.max(0, newResources.gold + (pressureResult.resourcePenalties.gold ?? 0));
       newResources.food = Math.max(0, newResources.food + (pressureResult.resourcePenalties.food ?? 0));
       newResources.military = Math.max(0, newResources.military + (pressureResult.resourcePenalties.military ?? 0));
+
+      // Compute perTurn as actual net change this turn (includes season, trade, tech, council, difficulty, pressure)
+      newResources.goldPerTurn = newResources.gold - prev.resources.gold;
+      newResources.foodPerTurn = newResources.food - prev.resources.food;
+      newResources.militaryPerTurn = newResources.military - prev.resources.military;
+      newResources.faithPerTurn = newResources.faith - prev.resources.faith;
       newProvinces = newProvinces.map(p => {
         const loyaltyHit = pressureResult.loyaltyPenalties[p.id];
         if (loyaltyHit && p.owner === 'player') {

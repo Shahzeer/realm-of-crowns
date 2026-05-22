@@ -12,18 +12,6 @@ import { KINGDOM_CHOICES } from "@/mocks/gameData";
 import { KingdomChoice } from "@/types/game";
 
 
-const DIFFICULTY_COLORS: Record<string, string> = {
-  easy: Colors.status.success,
-  medium: Colors.status.warning,
-  hard: Colors.crimson.bright,
-};
-
-const DIFFICULTY_LABELS: Record<string, string> = {
-  easy: 'EASY',
-  medium: 'MEDIUM',
-  hard: 'HARD',
-};
-
 function KingdomCard({ kingdom, onSelect, index }: { kingdom: KingdomChoice; onSelect: () => void; index: number }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(60)).current;
@@ -44,7 +32,6 @@ function KingdomCard({ kingdom, onSelect, index }: { kingdom: KingdomChoice; onS
     Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, tension: 200, friction: 10 }).start();
   };
 
-  const diffColor = DIFFICULTY_COLORS[kingdom.difficulty] || Colors.text.dim;
   const ruler = kingdom.ruler;
 
   return (
@@ -70,9 +57,6 @@ function KingdomCard({ kingdom, onSelect, index }: { kingdom: KingdomChoice; onS
           <View style={ks.cardTitleArea}>
             <Text style={ks.kingdomName}>{kingdom.name}</Text>
             <Text style={ks.dynastyText}>{kingdom.dynasty}</Text>
-          </View>
-          <View style={[ks.diffBadge, { backgroundColor: diffColor + '20', borderColor: diffColor + '60' }]}>
-            <Text style={[ks.diffText, { color: diffColor }]}>{DIFFICULTY_LABELS[kingdom.difficulty]}</Text>
           </View>
         </View>
 
@@ -232,8 +216,6 @@ const ks = StyleSheet.create({
   cardTitleArea: { flex: 1, gap: 2 },
   kingdomName: { fontSize: 17, fontWeight: "800" as const, color: Colors.text.primary },
   dynastyText: { fontSize: 12, color: Colors.text.secondary },
-  diffBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1 },
-  diffText: { fontSize: 9, fontWeight: "800" as const, letterSpacing: 1 },
   description: { fontSize: 12, color: Colors.text.secondary, lineHeight: 18, marginTop: 12 },
   rulerSection: { marginTop: 14, backgroundColor: Colors.bg.tertiary, borderRadius: 10, padding: 10 },
   rulerLabel: { fontSize: 9, fontWeight: "700" as const, color: Colors.text.dim, letterSpacing: 1.5, marginBottom: 6 },
