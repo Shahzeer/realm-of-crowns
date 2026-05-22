@@ -1,6 +1,6 @@
 # Realm of Crowns
 
-Realm of Crowns is a cross-platform medieval grand strategy game built with React Native, Expo, and Supabase. Players manage kingdoms through warfare, diplomacy, trade, espionage, dynastic succession, and resource management across a dynamic map of rival AI kingdoms.
+Realm of Crowns (ROC) is a cross-platform medieval grand strategy game built with React Native, Expo, and Supabase. Players manage kingdoms through warfare, diplomacy, trade, espionage, dynastic succession, and resource management across a dynamic map of rival AI kingdoms.
 
 The project focuses heavily on interconnected gameplay systems including province management, army combat, diplomacy, technology progression, council management, random events, dynasty mechanics, cloud saves, and seasonal strategy systems.
 
