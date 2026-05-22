@@ -487,6 +487,62 @@ export const SEASON_EFFECTS: Record<string, { food: number; gold: number; milita
   Winter: { food: -10, gold: -5, military: -3, description: 'Harsh cold drains resources' },
 };
 
+export const SEASONAL_EVENTS: Record<string, Omit<import('@/types/game').GameEvent, 'turn' | 'seen' | 'id'>> = {
+  Spring: {
+    title: '🌸 Spring Planting Festival',
+    description: 'The realm celebrates the thaw. Peasants return to their fields and the mood in your court is hopeful. How will you mark the occasion?',
+    type: 'seasonal',
+    choices: [
+      { id: 'sp_feast', text: 'Host a great feast', effects: '+50 food, +15 faith, goodwill among lords', cost: { gold: 80 }, reward: { food: 50, faith: 15 } },
+      { id: 'sp_farm',  text: 'Invest in farming tools', effects: '+30 food, +2 food/turn permanently', cost: { gold: 120 }, reward: { food: 30 } },
+      { id: 'sp_pray',  text: 'Offer prayers at the temple', effects: '+40 faith, peasant loyalty rises', reward: { faith: 40 } },
+    ],
+  },
+  Summer: {
+    title: '☀️ Summer Trade Fair',
+    description: 'Merchants from distant lands arrive at your capital during the peak season. The market stalls overflow with exotic goods and opportunity.',
+    type: 'seasonal',
+    choices: [
+      { id: 'su_trade', text: 'Open the gates wide', effects: '+150 gold, new trade contacts', reward: { gold: 150 } },
+      { id: 'su_tax',   text: 'Levy market taxes', effects: '+220 gold, some merchants grumble', reward: { gold: 220 } },
+      { id: 'su_hire',  text: 'Recruit skilled artisans', effects: '+80 military, improved crafts', reward: { military: 80 } },
+    ],
+  },
+  Autumn: {
+    title: '🍂 Harvest Festival',
+    description: 'The autumn harvest is in. Your granaries fill with grain, and the people gather to give thanks before the long winter ahead.',
+    type: 'seasonal',
+    choices: [
+      { id: 'au_store', text: 'Store for winter', effects: '+120 food, ready for harsh months', reward: { food: 120 } },
+      { id: 'au_sell',  text: 'Sell the surplus', effects: '+180 gold from grain sales', reward: { gold: 180 } },
+      { id: 'au_share', text: 'Share with the poor', effects: '+50 faith, +10 loyalty all provinces', reward: { faith: 50 } },
+    ],
+  },
+  Winter: {
+    title: '❄️ Winter Council',
+    description: 'Snow blankets the kingdom. The long nights bring your advisors together around the fire. Some speak of old grudges, others of new alliances.',
+    type: 'seasonal',
+    choices: [
+      { id: 'wi_plan',  text: 'Plan spring campaigns', effects: '+60 military, army readiness improves', reward: { military: 60 } },
+      { id: 'wi_tax',   text: 'Collect winter taxes', effects: '+130 gold, peasants unhappy', reward: { gold: 130 } },
+      { id: 'wi_faith', text: 'Hold religious ceremonies', effects: '+60 faith, morale sustained through cold', reward: { faith: 60 } },
+    ],
+  },
+};
+
+export const DAILY_QUEST_TEMPLATES: Array<{
+  id: string; title: string; description: string; icon: string;
+  type: import('@/types/game').DailyQuestType; target: number;
+  reward: { gold?: number; military?: number; faith?: number; food?: number };
+}> = [
+  { id: 'dq_turns',   title: 'Royal Patience',   description: 'End 3 turns to advance your realm', icon: '⏳', type: 'end_turns',    target: 3, reward: { gold: 80,  faith: 20 } },
+  { id: 'dq_gold',    title: "Merchant's Bounty", description: 'Earn 150 gold through income',      icon: '💰', type: 'collect_gold', target: 150, reward: { military: 40, gold: 60 } },
+  { id: 'dq_battle',  title: 'War Drums',         description: 'Win a battle in the field',         icon: '⚔️', type: 'win_battle',   target: 1, reward: { gold: 100, military: 60 } },
+  { id: 'dq_build',   title: "Builder's Guild",   description: 'Construct or upgrade a building',   icon: '🏗️', type: 'build',        target: 1, reward: { gold: 100, food: 40 } },
+  { id: 'dq_recruit', title: 'Call to Arms',      description: 'Recruit a new army',                icon: '🛡️', type: 'recruit',      target: 1, reward: { military: 120 } },
+  { id: 'dq_faith',   title: 'Pious Devotion',    description: 'Accumulate 30 faith points',        icon: '🙏', type: 'gain_faith',   target: 30, reward: { faith: 50, gold: 50 } },
+];
+
 export const PROVINCE_TYPE_ICONS: Record<string, string> = {
   capital: '🏰', city: '🏘️', castle: '⚔️', temple: '⛪', farmland: '🌾', forest: '🌲', mountain: '⛰️',
 };

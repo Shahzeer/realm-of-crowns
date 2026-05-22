@@ -15,8 +15,10 @@ import AchievementPopup from "@/components/AchievementPopup";
 import ProvinceActionPopup from "@/components/ProvinceActionPopup";
 import RumorCards from "@/components/RumorCards";
 import TutorialOverlay from "@/components/TutorialOverlay";
+import DailyQuestsCard from "@/components/DailyQuestsCard";
 import { Province, Achievement, TurnSummary } from "@/types/game";
 import { SEASON_EFFECTS } from "@/mocks/gameData";
+import { checkReturnBonus, markPlayed } from "@/utils/notifications";
 
 function SeasonBadge({ season }: { season: string }) {
   const seasonIcons: Record<string, string> = { Spring: '🌸', Summer: '☀️', Autumn: '🍂', Winter: '❄️' };
@@ -170,10 +172,11 @@ function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, visibilityMap, investigateRumor, dismissRumor } = useGame();
+  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, visibilityMap, investigateRumor, dismissRumor, claimQuestReward } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+  const scrollRef = useRef<ScrollView>(null);
   const [showGameOver, setShowGameOver] = React.useState(false);
   const [showTurnSummary, setShowTurnSummary] = React.useState(false);
   const [toast, setToast] = React.useState<{ visible: boolean; message: string; type: 'success' | 'warning' | 'danger' | 'info' }>({ visible: false, message: '', type: 'info' });
@@ -216,6 +219,24 @@ function KingdomScreen() {
       setTimeout(() => router.push('/reign-summary' as any), 1200);
     }
   }, [state.latestReignChronicle]);
+
+  useEffect(() => {
+    if (!state.gameStarted) return;
+    markPlayed();
+    checkReturnBonus().then(bonus => {
+      if (bonus?.shouldShowBonus) {
+        setTimeout(() => setToast({
+          visible: true,
+          message: `${bonus.message} (+${bonus.bonusGold} gold, +${bonus.bonusFaith} faith)`,
+          type: 'info',
+        }), 1200);
+      }
+    });
+  }, [state.gameStarted]);
+
+  const handleTutorialScroll = useCallback((y: number) => {
+    scrollRef.current?.scrollTo({ y, animated: true });
+  }, []);
 
   const handleAdvanceTurn = useCallback(() => {
     if (Platform.OS !== "web") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -346,7 +367,7 @@ function KingdomScreen() {
       <ResourceBar resources={state.resources} />
       <PressureIndicators pressures={state.pressures} onPress={() => navigateTo('/pressures')} />
       <WarBanner wars={activeWars.map(w => ({ name: w.name, color: w.color }))} />
-      <ScrollView style={idx.scrollContent} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} style={idx.scrollContent} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }} showsVerticalScrollIndicator={false}>
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
           {seasonEffect && (
             <View style={idx.seasonEffectBar}>
@@ -375,6 +396,10 @@ function KingdomScreen() {
             </TouchableOpacity>
           )}
           {state.rumors.length > 0 && <RumorCards rumors={state.rumors} onInvestigate={investigateRumor} onDismiss={dismissRumor} onSendSpy={() => navigateTo('/espionage')} />}
+          <DailyQuestsCard
+            quests={state.dailyQuests ?? []}
+            onClaim={id => { claimQuestReward?.(id); setToast({ visible: true, message: 'Quest reward claimed!', type: 'success' }); }}
+          />
           <Text style={idx.sectionTitle}>Realm Map</Text>
           <MapView provinces={state.provinces} armies={state.armies} onProvincePress={handleProvincePress} selectedProvinceId={selectedProvince?.id ?? null} visibilityMap={visibilityMap} />
           <Text style={idx.sectionTitle}>Command</Text>
@@ -408,7 +433,6 @@ function KingdomScreen() {
         </Animated.View>
       </ScrollView>
       <ProvinceActionPopup province={selectedProvince} armies={state.armies} kingdoms={state.kingdoms} onAction={handlePopupAction} onClose={handlePopupClose} visibilityMap={visibilityMap} />
-      <TutorialOverlay visible={state.gameStarted && !state.tutorialSeen} onFinish={dismissTutorial} />
       <View style={[idx.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
         <TouchableOpacity style={idx.endTurnButton} onPress={handleAdvanceTurn} activeOpacity={0.8} testID="advance-turn-button" disabled={state.gameOver || state.victory}>
           <LinearGradient colors={state.gameOver || state.victory ? ['#333', '#444', '#333'] : ["#8b6914", "#d4a574", "#8b6914"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={idx.endTurnGradient}>
@@ -418,6 +442,7 @@ function KingdomScreen() {
           </LinearGradient>
         </TouchableOpacity>
       </View>
+      <TutorialOverlay visible={state.gameStarted && !state.tutorialSeen} onFinish={dismissTutorial} onScrollTo={handleTutorialScroll} />
     </View>
   );
 }

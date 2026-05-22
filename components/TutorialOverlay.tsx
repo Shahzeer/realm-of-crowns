@@ -1,7 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import {
   Animated,
-  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -11,7 +10,6 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import {
-  Castle,
   ChevronRight,
   Map,
   Shield,
@@ -21,17 +19,18 @@ import {
 } from "lucide-react-native";
 import Colors from "@/constants/colors";
 
-type Highlight = "crown" | "resources" | "map" | "command" | "turn" | "none";
+type Highlight = "crown" | "resources" | "map" | "command" | "turn";
 
 type TutorialStep = {
   title: string;
   body: string;
   icon: React.ReactNode;
   highlight: Highlight;
+  scrollY?: number;
 };
 
 const TOOLTIP_W = 272;
-const TOOLTIP_EST_H = 136;
+const TOOLTIP_EST_H = 138;
 const BEAK_HALF = 9;
 const BEAK_H = 11;
 const TOOLTIP_BG = "#1c1710";
@@ -39,40 +38,39 @@ const BORDER_COLOR = "#a07a4a";
 
 const steps: TutorialStep[] = [
   {
-    title: "Welcome to Realm of Crowns",
-    body: "You inherit a young realm. Build wisely, gather strength, and forge a lasting dynasty.",
-    icon: <Castle size={18} color={Colors.gold.bright} />,
-    highlight: "none",
-  },
-  {
     title: "Your Ruler",
-    body: "Tap here to manage traits, heirs, marriages, and long-term legacy upgrades.",
+    body: "Tap the crown to manage traits, heirs, marriages, and legacy upgrades.",
     icon: <Sparkles size={18} color={Colors.gold.bright} />,
     highlight: "crown",
+    scrollY: 0,
   },
   {
     title: "Resources",
-    body: "Gold builds and recruits, food maintains loyalty, military powers armies, faith unlocks blessings.",
+    body: "Gold builds, food maintains loyalty, military powers armies, faith unlocks blessings.",
     icon: <Shield size={18} color={Colors.status.info} />,
     highlight: "resources",
+    scrollY: 0,
   },
   {
     title: "Your Realm",
-    body: "Tap any province on the map to build, recruit troops, reinforce, or plan conquest.",
+    body: "Tap any province on the map to build, recruit troops, or plan your next conquest.",
     icon: <Map size={18} color={Colors.food.light} />,
     highlight: "map",
+    scrollY: 320,
   },
   {
     title: "Command Panel",
     body: "Access armies, diplomacy, espionage, council, faith, and events from here.",
     icon: <Swords size={18} color={Colors.crimson.bright} />,
     highlight: "command",
+    scrollY: 720,
   },
   {
     title: "End Turn",
     body: "When your orders are ready, End Turn advances the season and resolves all actions.",
     icon: <ChevronRight size={18} color={Colors.gold.primary} />,
     highlight: "turn",
+    scrollY: 0,
   },
 ];
 
@@ -83,40 +81,38 @@ function getAnchor(h: Highlight, sw: number, sh: number): { x: number; y: number
     case "map":       return { x: sw / 2,    y: Math.min(370, sh * 0.44) };
     case "command":   return { x: sw / 2,    y: sh * 0.73 };
     case "turn":      return { x: sw / 2,    y: sh - 48 };
-    default:          return { x: sw / 2,    y: sh / 2 };
   }
 }
 
 type GlowRect = { top?: number; bottom?: number; left: number; right?: number; width?: number; height: number };
 
-function getGlow(h: Highlight, sw: number, sh: number): GlowRect | null {
+function getGlow(h: Highlight, sw: number, sh: number): GlowRect {
   switch (h) {
-    case "crown":     return { top: 58,          left: 14,  width: 210,     height: 58  };
-    case "resources": return { top: 108,          left: 8,   right: 8,       height: 54  };
-    case "map":       return { top: 228,          left: 14,  right: 14,      height: 222 };
-    case "command":   return { bottom: 88,        left: 14,  right: 14,      height: 172 };
-    case "turn":      return { bottom: 12,        left: 14,  right: 14,      height: 66  };
-    default:          return null;
+    case "crown":     return { top: 58,        left: 14,  width: 210,      height: 58  };
+    case "resources": return { top: 108,        left: 8,   right: 8,        height: 54  };
+    case "map":       return { top: 228,        left: 14,  right: 14,       height: 222 };
+    case "command":   return { bottom: 88,      left: 14,  right: 14,       height: 172 };
+    case "turn":      return { bottom: 12,      left: 14,  right: 14,       height: 66  };
   }
 }
 
 export default function TutorialOverlay({
   visible,
   onFinish,
+  onScrollTo,
 }: {
   visible: boolean;
   onFinish: () => void;
+  onScrollTo?: (y: number) => void;
 }) {
   const [index, setIndex] = React.useState(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(8)).current;
+  const slideAnim = useRef(new Animated.Value(6)).current;
   const { width: sw, height: sh } = useWindowDimensions();
 
   const step = steps[index];
   const anchor = getAnchor(step.highlight, sw, sh);
   const glow = getGlow(step.highlight, sw, sh);
-  const isNoAnchor = step.highlight === "none";
-
   const isBottomHalf = anchor.y > sh / 2;
 
   const rawLeft = anchor.x - TOOLTIP_W / 2;
@@ -127,9 +123,7 @@ export default function TutorialOverlay({
   );
 
   let tooltipTop: number;
-  if (isNoAnchor) {
-    tooltipTop = sh / 2 - TOOLTIP_EST_H / 2;
-  } else if (isBottomHalf) {
+  if (isBottomHalf) {
     tooltipTop = anchor.y - TOOLTIP_EST_H - BEAK_H - 18;
   } else {
     tooltipTop = anchor.y + BEAK_H + 18;
@@ -139,10 +133,13 @@ export default function TutorialOverlay({
   useEffect(() => {
     if (visible) {
       setIndex(0);
+      if (steps[0].scrollY !== undefined && onScrollTo) {
+        onScrollTo(steps[0].scrollY);
+      }
       fadeAnim.setValue(0);
-      slideAnim.setValue(8);
+      slideAnim.setValue(6);
       Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 240, useNativeDriver: true }),
         Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, damping: 18, stiffness: 220 }),
       ]).start();
     }
@@ -152,7 +149,7 @@ export default function TutorialOverlay({
     slideAnim.setValue(6);
     fadeAnim.setValue(0.5);
     Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 160, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 180, useNativeDriver: true }),
       Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, damping: 18, stiffness: 260 }),
     ]).start();
   };
@@ -164,7 +161,12 @@ export default function TutorialOverlay({
     if (index >= steps.length - 1) {
       onFinish();
     } else {
-      setIndex((prev) => prev + 1);
+      const nextIdx = index + 1;
+      const nextStep = steps[nextIdx];
+      if (nextStep.scrollY !== undefined && onScrollTo) {
+        onScrollTo(nextStep.scrollY);
+      }
+      setIndex(nextIdx);
       animateStep();
     }
   };
@@ -172,104 +174,100 @@ export default function TutorialOverlay({
   if (!visible) return null;
 
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
-      <View style={styles.root} pointerEvents="box-none">
+    <View style={styles.root} pointerEvents="box-none">
+      <View style={styles.scrim} pointerEvents="none" />
 
-        <View style={styles.scrim} pointerEvents="none" />
+      <View
+        style={[
+          styles.glow,
+          {
+            top: glow.top,
+            bottom: glow.bottom,
+            left: glow.left,
+            right: glow.right,
+            width: glow.width,
+            height: glow.height,
+          },
+        ]}
+        pointerEvents="none"
+      />
 
-        {glow && (
-          <View
-            style={[
-              styles.glow,
+      <Animated.View
+        style={[
+          styles.tooltip,
+          {
+            top: tooltipTop,
+            left: tooltipLeft,
+            width: TOOLTIP_W,
+            opacity: fadeAnim,
+            transform: [
               {
-                top: glow.top,
-                bottom: glow.bottom,
-                left: glow.left,
-                right: glow.right,
-                width: glow.width,
-                height: glow.height,
+                translateY: slideAnim.interpolate({
+                  inputRange: [0, 6],
+                  outputRange: [0, isBottomHalf ? 5 : -5],
+                }),
               },
-            ]}
-            pointerEvents="none"
-          />
+            ],
+          },
+        ]}
+        pointerEvents="box-none"
+      >
+        {!isBottomHalf && (
+          <>
+            <View style={[styles.beakUpBorder, { left: beakLeft - 1 }]} pointerEvents="none" />
+            <View style={[styles.beakUpFill,   { left: beakLeft     }]} pointerEvents="none" />
+          </>
         )}
 
-        <Animated.View
-          style={[
-            styles.tooltip,
-            {
-              top: tooltipTop,
-              left: tooltipLeft,
-              width: TOOLTIP_W,
-              opacity: fadeAnim,
-              transform: [
-                {
-                  translateY: slideAnim.interpolate({
-                    inputRange: [0, 8],
-                    outputRange: [0, isBottomHalf ? 6 : -6],
-                  }),
-                },
-              ],
-            },
-          ]}
-          pointerEvents="box-none"
-        >
-          {!isNoAnchor && !isBottomHalf && (
-            <>
-              <View style={[styles.beakUpBorder, { left: beakLeft - 1 }]} pointerEvents="none" />
-              <View style={[styles.beakUpFill,   { left: beakLeft     }]} pointerEvents="none" />
-            </>
-          )}
-
-          <View style={styles.bubble}>
-            <View style={styles.header}>
-              <View style={styles.iconWrap}>{step.icon}</View>
-              <Text style={styles.title} numberOfLines={1}>{step.title}</Text>
-              <TouchableOpacity
-                onPress={onFinish}
-                style={styles.closeBtn}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                testID="skip-tutorial-btn"
-              >
-                <X size={13} color={Colors.text.dim} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.body}>{step.body}</Text>
-
-            <View style={styles.footer}>
-              <View style={styles.dots}>
-                {steps.map((_, i) => (
-                  <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
-                ))}
-              </View>
-              <TouchableOpacity onPress={next} style={styles.nextBtn} testID="tutorial-next-btn">
-                <Text style={styles.nextText}>
-                  {index === steps.length - 1 ? "Got it!" : "Next →"}
-                </Text>
-              </TouchableOpacity>
-            </View>
+        <View style={styles.bubble}>
+          <View style={styles.header}>
+            <View style={styles.iconWrap}>{step.icon}</View>
+            <Text style={styles.title} numberOfLines={1}>{step.title}</Text>
+            <TouchableOpacity
+              onPress={onFinish}
+              style={styles.closeBtn}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              testID="skip-tutorial-btn"
+            >
+              <X size={13} color={Colors.text.dim} />
+            </TouchableOpacity>
           </View>
 
-          {!isNoAnchor && isBottomHalf && (
-            <>
-              <View style={[styles.beakDownBorder, { left: beakLeft - 1 }]} pointerEvents="none" />
-              <View style={[styles.beakDownFill,   { left: beakLeft     }]} pointerEvents="none" />
-            </>
-          )}
-        </Animated.View>
-      </View>
-    </Modal>
+          <Text style={styles.body}>{step.body}</Text>
+
+          <View style={styles.footer}>
+            <View style={styles.dots}>
+              {steps.map((_, i) => (
+                <View key={i} style={[styles.dot, i === index && styles.dotActive]} />
+              ))}
+            </View>
+            <TouchableOpacity onPress={next} style={styles.nextBtn} testID="tutorial-next-btn">
+              <Text style={styles.nextText}>
+                {index === steps.length - 1 ? "Got it!" : "Next →"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {isBottomHalf && (
+          <>
+            <View style={[styles.beakDownBorder, { left: beakLeft - 1 }]} pointerEvents="none" />
+            <View style={[styles.beakDownFill,   { left: beakLeft     }]} pointerEvents="none" />
+          </>
+        )}
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 999,
   },
   scrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.14)",
+    backgroundColor: "rgba(0,0,0,0.15)",
   },
   glow: {
     position: "absolute",
@@ -278,12 +276,13 @@ const styles = StyleSheet.create({
     borderColor: Colors.gold.dim + "90",
     backgroundColor: Colors.gold.bright + "0a",
     shadowColor: Colors.gold.bright,
-    shadowOpacity: 0.5,
+    shadowOpacity: 0.45,
     shadowRadius: 10,
     elevation: 6,
   },
   tooltip: {
     position: "absolute",
+    zIndex: 1000,
   },
   bubble: {
     backgroundColor: TOOLTIP_BG,
@@ -294,10 +293,10 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 10,
     shadowColor: "#000",
-    shadowOpacity: 0.55,
-    shadowRadius: 16,
+    shadowOpacity: 0.6,
+    shadowRadius: 18,
     shadowOffset: { width: 0, height: 4 },
-    elevation: 16,
+    elevation: 18,
   },
   header: {
     flexDirection: "row",

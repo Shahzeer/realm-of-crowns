@@ -280,7 +280,7 @@ export interface GameEvent {
   id: string;
   title: string;
   description: string;
-  type: 'political' | 'military' | 'religious' | 'economic' | 'personal' | 'dynasty';
+  type: 'political' | 'military' | 'religious' | 'economic' | 'personal' | 'dynasty' | 'seasonal';
   choices: EventChoice[];
   turn: number;
   seen: boolean;
@@ -523,9 +523,32 @@ export interface GameState {
   rulerTitle?: string;
   rulerGender?: 'male' | 'female';
   isCustomKingdom?: boolean;
+  dailyQuests?: DailyQuest[];
+  lastQuestDate?: string;
 }
 
 export interface PendingChainEvent {
   eventId: string;
   triggerTurn: number;
+}
+
+export type DailyQuestType =
+  | 'end_turns'
+  | 'collect_gold'
+  | 'win_battle'
+  | 'build'
+  | 'recruit'
+  | 'gain_faith';
+
+export interface DailyQuest {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  type: DailyQuestType;
+  target: number;
+  progress: number;
+  completed: boolean;
+  claimed: boolean;
+  reward: { gold?: number; military?: number; faith?: number; food?: number };
 }

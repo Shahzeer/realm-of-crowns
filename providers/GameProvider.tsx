@@ -34,6 +34,7 @@ import {
   ReignChronicle,
   ReignEvent,
   PendingChainEvent,
+  DailyQuest,
 } from '@/types/game';
 import {
   INITIAL_RULER,
@@ -65,6 +66,8 @@ import {
   RUMOR_TEMPLATES,
   STARTER_BLUEPRINT_IDS,
   getUnlockedBlueprintIds,
+  DAILY_QUEST_TEMPLATES,
+  SEASONAL_EVENTS,
 } from '@/mocks/gameData';
 import { getStandaloneNarrativeEvents, getFollowUpEvent } from '@/mocks/narrativeEvents';
 import { enrichBattleResult } from '@/utils/battleNarrative';
@@ -154,7 +157,37 @@ const defaultState: GameState = {
   rulerProvincesConquered: 0,
   rulerProvincesLost: 0,
   unlockedBlueprints: [...STARTER_BLUEPRINT_IDS],
+  dailyQuests: [],
+  lastQuestDate: '',
 };
+
+function generateDailyQuests(): DailyQuest[] {
+  const today = new Date().toISOString().slice(0, 10);
+  const seed = today.split('').reduce((h, c) => h * 31 + c.charCodeAt(0), 0);
+  const shuffled = [...DAILY_QUEST_TEMPLATES].sort((a, b) => {
+    const ha = Math.abs((a.id.charCodeAt(3) + seed) % 1000);
+    const hb = Math.abs((b.id.charCodeAt(3) + seed) % 1000);
+    return ha - hb;
+  });
+  return shuffled.slice(0, 3).map(tmpl => ({
+    ...tmpl,
+    progress: 0,
+    completed: false,
+    claimed: false,
+  }));
+}
+
+function updateQuestProgress(
+  quests: DailyQuest[],
+  type: DailyQuest['type'],
+  delta: number
+): DailyQuest[] {
+  return quests.map(q => {
+    if (q.claimed || q.type !== type) return q;
+    const newProgress = Math.min(q.target, q.progress + delta);
+    return { ...q, progress: newProgress, completed: newProgress >= q.target };
+  });
+}
 
 const NOBLE_NAMES = [
   'Duke Aldhelm', 'Baron Rothgar', 'Count Edric', 'Lord Theron', 'Marquess Valdan',
@@ -1745,6 +1778,30 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const claimQuestReward = useCallback((questId: string) => {
+    setState(prev => {
+      const quest = (prev.dailyQuests ?? []).find(q => q.id === questId);
+      if (!quest || !quest.completed || quest.claimed) return prev;
+      const newResources = { ...prev.resources };
+      if (quest.reward.gold)     newResources.gold     += quest.reward.gold;
+      if (quest.reward.military) newResources.military += quest.reward.military;
+      if (quest.reward.faith)    newResources.faith    += quest.reward.faith;
+      if (quest.reward.food)     newResources.food     += quest.reward.food;
+      const rewardStr = Object.entries(quest.reward)
+        .filter(([, v]) => v && (v as number) > 0)
+        .map(([k, v]) => `+${v} ${k}`)
+        .join(', ');
+      const newState: GameState = {
+        ...prev,
+        resources: newResources,
+        dailyQuests: (prev.dailyQuests ?? []).map(q => q.id === questId ? { ...q, claimed: true } : q),
+        log: [`🏆 Quest complete: ${quest.title}! Claimed ${rewardStr}`, ...prev.log].slice(0, 50),
+      };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const investigateRumor = useCallback((rumorId: string) => {
     setState(prev => {
       if (prev.activeSpyMission) return prev;
@@ -1849,6 +1906,14 @@ export const [GameProvider, useGame] = createContextHook(() => {
       summary.season = nextSeason;
       summary.year = nextYear;
 
+      // Daily quest check — regenerate if date changed
+      const today = new Date().toISOString().slice(0, 10);
+      let updatedDailyQuests: DailyQuest[] =
+        prev.dailyQuests && prev.dailyQuests.length > 0 ? [...prev.dailyQuests] : [];
+      if (!prev.lastQuestDate || prev.lastQuestDate !== today) {
+        updatedDailyQuests = generateDailyQuests();
+      }
+
       const seasonEffect = SEASON_EFFECTS[nextSeason];
       const baseGPT = prev.resources.baseGoldPerTurn ?? prev.resources.goldPerTurn;
       const baseFPT = prev.resources.baseFoodPerTurn ?? prev.resources.foodPerTurn;
@@ -1865,6 +1930,11 @@ export const [GameProvider, useGame] = createContextHook(() => {
       summary.foodGained = baseFPT + seasonEffect.food;
       summary.militaryGained = baseMPT + seasonEffect.military;
       summary.faithGained = baseFaithPT;
+
+      // Track daily quest progress
+      updatedDailyQuests = updateQuestProgress(updatedDailyQuests, 'end_turns', 1);
+      if (summary.goldGained > 0)  updatedDailyQuests = updateQuestProgress(updatedDailyQuests, 'collect_gold', summary.goldGained);
+      if (summary.faithGained > 0) updatedDailyQuests = updateQuestProgress(updatedDailyQuests, 'gain_faith',   summary.faithGained);
 
       let activeTrades = prev.activeTrades.map(t => ({ ...t, turnsRemaining: t.turnsRemaining - 1 }));
       const hasBankingGuild = prev.technologies.find(t => t.id === 'tech_banking_guild')?.researched ?? false;
@@ -2522,6 +2592,19 @@ export const [GameProvider, useGame] = createContextHook(() => {
       });
       newEvents.push(...pressureResult.events);
 
+      // Seasonal special event (~65% chance per season change)
+      if (Math.random() > 0.35) {
+        const seasonalTemplate = SEASONAL_EVENTS[nextSeason];
+        if (seasonalTemplate && !newEvents.some(e => e.title === seasonalTemplate.title)) {
+          newEvents.push({
+            ...seasonalTemplate,
+            id: `seasonal_${nextSeason}_${nextTurn}`,
+            turn: nextTurn,
+            seen: false,
+          });
+        }
+      }
+
       const allBattles = [...prev.battles, ...newBattlesFromSiege, ...aiBattles].slice(-20);
       const allLogs = [
         ...captureBoostLogs,
@@ -2747,6 +2830,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
         rulerProvincesLost,
         unlockedBlueprints: newUnlocked,
         rulerTitle: newRulerTitle,
+        dailyQuests: updatedDailyQuests,
+        lastQuestDate: today,
       } as GameState;
       saveMutation.mutate(newState);
       return newState;
@@ -2854,6 +2939,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         resources: { ...prev.resources, gold: prev.resources.gold - cost, military: prev.resources.military - troops },
         armies: [...prev.armies, newArmy],
         log: [`Recruited ${troops} soldiers at ${newArmy.name}`, ...prev.log].slice(0, 50),
+        dailyQuests: updateQuestProgress(prev.dailyQuests ?? [], 'recruit', 1),
       };
       saveMutation.mutate(newState);
       return newState;
@@ -2952,6 +3038,9 @@ export const [GameProvider, useGame] = createContextHook(() => {
         resources: battle.conquered ? boostedResources : prev.resources,
         battles: [...prev.battles, battle].slice(-20),
         log: [logMsg, ...prev.log].slice(0, 50),
+        dailyQuests: battle.conquered
+          ? updateQuestProgress(prev.dailyQuests ?? [], 'win_battle', 1)
+          : prev.dailyQuests,
       };
       saveMutation.mutate(newState);
       return newState;
@@ -2986,6 +3075,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const newState: GameState = {
         ...prev, resources: updatedResources,
         provinces: newProvinces, log: [logEntry, ...prev.log].slice(0, 50),
+        dailyQuests: updateQuestProgress(prev.dailyQuests ?? [], 'build', 1),
       };
       saveMutation.mutate(newState);
       return newState;
@@ -3027,6 +3117,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         ...prev, resources: updatedResources,
         provinces: newProvinces, log: [logEntry, ...prev.log].slice(0, 50),
         rulerBuildingsConstructed: (prev.rulerBuildingsConstructed ?? 0) + 1,
+        dailyQuests: updateQuestProgress(prev.dailyQuests ?? [], 'build', 1),
       };
       saveMutation.mutate(newState);
       return newState;
@@ -3504,7 +3595,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     arrangeMarriage, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
-    dismissReignChronicle,
+    dismissReignChronicle, claimQuestReward,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -3516,6 +3607,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     arrangeMarriage, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
-    dismissReignChronicle,
+    dismissReignChronicle, claimQuestReward,
   ]);
 });
