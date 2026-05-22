@@ -234,9 +234,6 @@ function KingdomScreen() {
     });
   }, [state.gameStarted]);
 
-  const handleTutorialScroll = useCallback((y: number) => {
-    scrollRef.current?.scrollTo({ y, animated: true });
-  }, []);
 
   const handleAdvanceTurn = useCallback(() => {
     if (Platform.OS !== "web") void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -442,7 +439,7 @@ function KingdomScreen() {
           </LinearGradient>
         </TouchableOpacity>
       </View>
-      <TutorialOverlay visible={state.gameStarted && !state.tutorialSeen} onFinish={dismissTutorial} onScrollTo={handleTutorialScroll} />
+      <TutorialOverlay visible={state.gameStarted && !state.tutorialSeen} onFinish={dismissTutorial} />
     </View>
   );
 }

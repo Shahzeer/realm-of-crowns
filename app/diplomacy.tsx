@@ -194,7 +194,7 @@ export default function DiplomacyScreen() {
   console.log("[RealmOfCrowns] Diplomacy render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, sendDiplomacy, negotiatePeace, activeWars } = useGame();
+  const { state, sendDiplomacy, negotiatePeace, activeWars, visibilityMap } = useGame();
   const [peaceKingdom, setPeaceKingdom] = useState<Kingdom | null>(null);
   const [peaceTermType, setPeaceTermType] = useState<PeaceTermType>('white_peace');
   const [peaceProvinceId, setPeaceProvinceId] = useState<string | null>(null);
@@ -267,6 +267,12 @@ export default function DiplomacyScreen() {
 
   const allies = state.kingdoms.filter(k => k.attitude === 'allied');
 
+  const discoveredKingdoms = state.kingdoms.filter(kingdom => {
+    if (kingdom.attitude === 'war' || kingdom.attitude === 'allied') return true;
+    return kingdom.provinces.some(pId => visibilityMap[pId] === true);
+  });
+  const undiscoveredCount = state.kingdoms.length - discoveredKingdoms.length;
+
   const warScoreBarColor = warScore < -25 ? Colors.status.success : warScore > 25 ? Colors.crimson.bright : Colors.status.warning;
   const warScoreBarWidth = Math.min(100, Math.abs(warScore) * 1.2);
   const warScoreSide = warScore < 0 ? 'left' : 'right';
@@ -333,12 +339,21 @@ export default function DiplomacyScreen() {
         <TouchableOpacity onPress={() => router.back()} style={d.closeBtn} testID="close-diplomacy"><X size={22} color={Colors.text.secondary} /></TouchableOpacity>
       </View>
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 20 }} showsVerticalScrollIndicator={false}>
-        {state.kingdoms.map((kingdom, idx) => (
+        {discoveredKingdoms.map((kingdom, idx) => (
           <KingdomCard key={kingdom.id} kingdom={kingdom} onAction={handleAction} onNegotiate={openPeaceModal} index={idx}
             rulerMarried={!!state.ruler.spouse}
             hasPendingProposal={state.kingdoms.some(k => k.marriageProposal)}
           />
         ))}
+        {undiscoveredCount > 0 && (
+          <View style={d.undiscoveredBanner}>
+            <Text style={d.undiscoveredIcon}>🌫️</Text>
+            <View style={d.undiscoveredText}>
+              <Text style={d.undiscoveredTitle}>{undiscoveredCount} unknown realm{undiscoveredCount > 1 ? 's' : ''}</Text>
+              <Text style={d.undiscoveredDesc}>Send spies or expand your borders to discover them.</Text>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       <Modal visible={!!peaceKingdom} transparent animationType="slide" onRequestClose={closePeaceModal}>
@@ -595,6 +610,11 @@ const d = StyleSheet.create({
   provinceChipName: { fontSize: 12, fontWeight: '700' as const, color: Colors.text.primary },
   provinceChipNameSelected: { color: Colors.status.success },
   provinceChipPop: { fontSize: 10, color: Colors.text.dim, marginTop: 2 },
+  undiscoveredBanner: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 14, marginHorizontal: 16, marginVertical: 8, padding: 16, borderRadius: 14, backgroundColor: Colors.bg.card, borderWidth: 1, borderColor: Colors.border.primary, borderStyle: 'dashed' as const },
+  undiscoveredIcon: { fontSize: 28 },
+  undiscoveredText: { flex: 1, gap: 3 },
+  undiscoveredTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.text.secondary },
+  undiscoveredDesc: { fontSize: 11, color: Colors.text.dim, lineHeight: 16 },
   modalActions: { flexDirection: 'row' as const, gap: 12, marginTop: 6 },
   cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: Colors.bg.tertiary, alignItems: 'center' as const },
   cancelBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text.secondary },
