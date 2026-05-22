@@ -8,6 +8,7 @@ interface GameToastProps {
   type?: 'success' | 'warning' | 'danger' | 'info';
   onDismiss: () => void;
   duration?: number;
+  topOffset?: number;
 }
 
 const TYPE_CONFIG = {
@@ -17,7 +18,7 @@ const TYPE_CONFIG = {
   info: { bg: Colors.status.info + '20', border: Colors.status.info + '50', text: Colors.status.info, icon: '📢' },
 };
 
-export default function GameToast({ visible, message, type = 'info', onDismiss, duration = 3000 }: GameToastProps) {
+export default function GameToast({ visible, message, type = 'info', onDismiss, duration = 3000, topOffset = 62 }: GameToastProps) {
   const translateY = useRef(new Animated.Value(-100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -47,7 +48,7 @@ export default function GameToast({ visible, message, type = 'info', onDismiss, 
   const config = TYPE_CONFIG[type];
 
   return (
-    <Animated.View style={[s.container, { transform: [{ translateY }], opacity }]}>
+    <Animated.View style={[s.container, { top: topOffset, transform: [{ translateY }], opacity }]}>
       <TouchableOpacity
         style={[s.toast, { backgroundColor: config.bg, borderColor: config.border }]}
         onPress={onDismiss}
@@ -63,7 +64,6 @@ export default function GameToast({ visible, message, type = 'info', onDismiss, 
 const s = StyleSheet.create({
   container: {
     position: 'absolute',
-    top: 50,
     left: 16,
     right: 16,
     zIndex: 9999,

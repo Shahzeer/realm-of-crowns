@@ -164,6 +164,7 @@ export interface Army {
   status: 'idle' | 'marching' | 'sieging' | 'fighting' | 'retreating';
   destination?: string;
   marchTurnsLeft?: number;
+  marchPath?: string[];
   tactic?: string;
 }
 

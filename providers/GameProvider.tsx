@@ -1497,6 +1497,34 @@ function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' |
   };
 }
 
+function findMarchPath(
+  provinces: Province[],
+  fromId: string,
+  toId: string,
+  allowedOwners: Set<string>
+): string[] | null {
+  if (fromId === toId) return [];
+  const provinceMap = new Map(provinces.map(p => [p.id, p]));
+  const queue: Array<{ id: string; path: string[] }> = [{ id: fromId, path: [] }];
+  const visited = new Set<string>([fromId]);
+  while (queue.length > 0) {
+    const item = queue.shift()!;
+    const prov = provinceMap.get(item.id);
+    if (!prov) continue;
+    for (const neighborId of prov.connectedTo) {
+      if (visited.has(neighborId)) continue;
+      visited.add(neighborId);
+      const newPath = [...item.path, neighborId];
+      if (neighborId === toId) return newPath;
+      const neighbor = provinceMap.get(neighborId);
+      if (neighbor && allowedOwners.has(neighbor.owner)) {
+        queue.push({ id: neighborId, path: newPath });
+      }
+    }
+  }
+  return null;
+}
+
 export const [GameProvider, useGame] = createContextHook(() => {
   const [state, setState] = React.useState<GameState>(defaultState);
   const [isLoaded, setIsLoaded] = React.useState(false);
@@ -2058,7 +2086,21 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
 
       const hasProfessionalArmy = newTechnologies.find(t => t.id === 'tech_professional_army')?.researched ?? false;
+      const arrivedAtNeutral: Array<{ armyId: string; provinceId: string }> = [];
+
       let newArmies = prev.armies.map(army => {
+        // Multi-step path march (send_troops to neutral province)
+        if (army.status === 'marching' && army.marchPath && army.marchPath.length > 0) {
+          const [nextStep, ...remaining] = army.marchPath;
+          const moraleLoss = (hasProfessionalArmy && army.owner === 'player') ? 0 : 3;
+          if (remaining.length === 0) {
+            // Arrived at final destination
+            arrivedAtNeutral.push({ armyId: army.id, provinceId: nextStep });
+            return { ...army, location: nextStep, status: 'idle' as const, marchPath: undefined, destination: undefined, marchTurnsLeft: undefined, morale: Math.max(10, army.morale - moraleLoss) };
+          }
+          return { ...army, location: nextStep, marchPath: remaining, morale: Math.max(10, army.morale - moraleLoss) };
+        }
+        // Single-step march (moveArmy / existing logic)
         if (army.status === 'marching' && army.destination && army.marchTurnsLeft !== undefined) {
           const turnsLeft = army.marchTurnsLeft - 1;
           if (turnsLeft <= 0) {
@@ -2082,6 +2124,17 @@ export const [GameProvider, useGame] = createContextHook(() => {
         }
         return p;
       });
+
+      // Claim neutral provinces where marching armies just arrived
+      const marchClaimLogs: string[] = [];
+      for (const { armyId, provinceId } of arrivedAtNeutral) {
+        const arrivedArmy = newArmies.find(a => a.id === armyId);
+        const destProv = newProvinces.find(p => p.id === provinceId);
+        if (destProv && destProv.owner === 'neutral' && arrivedArmy && arrivedArmy.owner === 'player') {
+          newProvinces = newProvinces.map(p => p.id === provinceId ? claimProvinceForPlayer(p) : p);
+          marchClaimLogs.push(`⚔️ ${arrivedArmy.name} secured ${destProv.name} for the realm!`);
+        }
+      }
 
       const captureBoostLogs: string[] = [];
       const siegingArmies = newArmies.filter(a => a.owner === 'player' && a.status === 'sieging');
@@ -2607,6 +2660,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       const allBattles = [...prev.battles, ...newBattlesFromSiege, ...aiBattles].slice(-20);
       const allLogs = [
+        ...marchClaimLogs,
         ...captureBoostLogs,
         ...councilLogs,
         ...vassalLogs,
@@ -3217,6 +3271,28 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const marchArmyToNeutral = useCallback((armyId: string, targetId: string) => {
+    setState(prev => {
+      const army = prev.armies.find(a => a.id === armyId);
+      if (!army || army.status !== 'idle') return prev;
+      const target = prev.provinces.find(p => p.id === targetId);
+      if (!target || target.owner !== 'neutral') return prev;
+      const alliedIds = prev.kingdoms.filter(k => k.attitude === 'allied').map(k => k.id);
+      const allowed = new Set<string>(['player', ...alliedIds]);
+      const path = findMarchPath(prev.provinces, army.location, targetId, allowed);
+      if (!path || path.length === 0) return prev;
+      const newArmies = prev.armies.map(a =>
+        a.id === armyId
+          ? { ...a, status: 'marching' as const, marchPath: path, destination: targetId }
+          : a
+      );
+      const logMsg = `🚶 ${army.name} marching on ${target.name} (${path.length} turn${path.length !== 1 ? 's' : ''})`;
+      const newState: GameState = { ...prev, armies: newArmies, log: [logMsg, ...prev.log].slice(0, 50) };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const claimNeutralProvince = useCallback((provinceId: string, method: 'lay_claim' | 'send_troops') => {
     setState(prev => {
       const province = prev.provinces.find(p => p.id === provinceId);
@@ -3587,7 +3663,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   return useMemo(() => ({
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
-    sendDiplomacy, negotiatePeace, claimNeutralProvince, assignCouncilTask, resetGame, unseenEvents,
+    sendDiplomacy, negotiatePeace, claimNeutralProvince, marchArmyToNeutral, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
     selectKingdom, startCustomKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
@@ -3599,7 +3675,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
-    sendDiplomacy, negotiatePeace, claimNeutralProvince, assignCouncilTask, resetGame, unseenEvents,
+    sendDiplomacy, negotiatePeace, claimNeutralProvince, marchArmyToNeutral, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
     selectKingdom, startCustomKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,

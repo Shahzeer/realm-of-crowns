@@ -172,7 +172,7 @@ function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, visibilityMap, investigateRumor, dismissRumor, claimQuestReward } = useGame();
+  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, visibilityMap, investigateRumor, dismissRumor, claimQuestReward } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -273,8 +273,27 @@ function KingdomScreen() {
         break;
       }
       case 'send_troops': {
-        claimNeutralProvince?.(province.id, 'send_troops');
-        setToast({ visible: true, message: `Troops dispatched to secure ${province.name}.`, type: 'info' });
+        const idleArmies = state.armies.filter(a => a.owner === 'player' && a.status === 'idle');
+        if (idleArmies.length === 0) {
+          Alert.alert('No Armies Available', 'All your armies are currently engaged. Recruit a new army or wait for one to return.');
+          break;
+        }
+        const armyButtons = idleArmies.map(army => {
+          const loc = state.provinces.find(p => p.id === army.location)?.name ?? army.location;
+          return {
+            text: `${army.name}  ·  ${army.troops} troops  ·  ${loc}`,
+            onPress: () => {
+              marchArmyToNeutral?.(army.id, province.id);
+              setToast({ visible: true, message: `${army.name} marching on ${province.name}.`, type: 'info' });
+            },
+          };
+        });
+        armyButtons.push({ text: 'Cancel', onPress: () => {} } as any);
+        Alert.alert(
+          `March on ${province.name}`,
+          'Select an army to send. They will march one province per turn through your territory.',
+          armyButtons as any
+        );
         break;
       }
       case 'attack': router.push('/armies' as any); break;
