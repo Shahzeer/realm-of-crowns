@@ -278,7 +278,15 @@ function KingdomScreen() {
         break;
       }
       case 'attack': router.push('/armies' as any); break;
-      case 'spy': router.push('/espionage' as any); break;
+      case 'spy': {
+        const isVisible = visibilityMap[province.id];
+        if (isVisible && province.owner !== 'player' && province.owner !== 'neutral') {
+          router.push(`/espionage?kingdomId=${province.owner}` as any);
+        } else {
+          router.push(`/espionage?provinceId=${province.id}&mode=undiscovered` as any);
+        }
+        break;
+      }
       case 'diplomacy': router.push('/diplomacy' as any); break;
       case 'trade': router.push('/trade' as any); break;
     }

@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Animated, Alert } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -13,6 +13,7 @@ export default function EspionageScreen() {
   console.log("[RealmOfCrowns] Espionage render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { provinceId, kingdomId, mode } = useLocalSearchParams<{ provinceId?: string; kingdomId?: string; mode?: string }>();
   const { state, startSpyMission, visibilityMap } = useGame();
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
   const [targetMode, setTargetMode] = useState<'kingdom' | 'undiscovered'>('kingdom');
@@ -21,6 +22,16 @@ export default function EspionageScreen() {
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
   }, []);
+
+  useEffect(() => {
+    if (provinceId && mode === 'undiscovered') {
+      setTargetMode('undiscovered');
+      setSelectedTarget(provinceId);
+    } else if (kingdomId) {
+      setTargetMode('kingdom');
+      setSelectedTarget(kingdomId);
+    }
+  }, [provinceId, kingdomId, mode]);
 
   const spymaster = state.council.find(c => c.role === 'spymaster');
   const intrigueBonus = Math.max(0, (state.ruler.intrigue - 10) + ((spymaster?.skill ?? 0) - 10));

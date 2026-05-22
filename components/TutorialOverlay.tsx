@@ -7,7 +7,9 @@ import {
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import {
   ChevronRight,
@@ -18,10 +20,13 @@ import {
 } from "lucide-react-native";
 import Colors from "@/constants/colors";
 
+type Highlight = "crown" | "resources" | "map" | "command" | "turn";
+
 type TutorialStep = {
   title: string;
   body: string;
   icon: React.ReactNode;
+  highlight: Highlight;
 };
 
 const steps: TutorialStep[] = [
@@ -29,36 +34,60 @@ const steps: TutorialStep[] = [
     title: "Your Ruler",
     body: "Tap the crown in the top-left to manage traits, heirs, marriages, and legacy upgrades.",
     icon: <Sparkles size={22} color={Colors.gold.bright} />,
+    highlight: "crown",
   },
   {
     title: "Resources",
     body: "Gold builds, food maintains loyalty, military powers armies, faith unlocks blessings.",
     icon: <Shield size={22} color={Colors.status.info} />,
+    highlight: "resources",
   },
   {
     title: "Your Realm",
     body: "Tap any province on the map to build, recruit troops, or plan your next conquest.",
     icon: <Map size={22} color={Colors.food.light} />,
+    highlight: "map",
   },
   {
     title: "Command Panel",
     body: "Access armies, diplomacy, espionage, council, faith, and events from the command grid below the map.",
     icon: <Swords size={22} color={Colors.crimson.bright} />,
+    highlight: "command",
   },
   {
     title: "End Turn",
     body: "When your orders are ready, End Turn advances the season and resolves all actions.",
     icon: <ChevronRight size={22} color={Colors.gold.primary} />,
+    highlight: "turn",
   },
 ];
 
 const TOOLTIP_BG = "#1c1710";
 const BORDER_COLOR = "#a07a4a";
+const GLOW_COLOR = Colors.gold.bright;
+
+type GlowRect = {
+  top?: number;
+  bottom?: number;
+  left?: number;
+  right?: number;
+  width?: number;
+  height: number;
+};
+
+function getGlow(h: Highlight, ti: number, sw: number, sh: number): GlowRect {
+  switch (h) {
+    case "crown":     return { top: ti + 6,        left: 8,  width: 210, height: 54 };
+    case "resources": return { top: ti + 62,        left: 6,  right: 6,  height: 50 };
+    case "map":       return { top: ti + 215,        left: 8,  right: 8,  height: 200 };
+    case "command":   return { bottom: 90,           left: 8,  right: 8,  height: 180 };
+    case "turn":      return { bottom: 6,            left: 8,  right: 8,  height: 72 };
+  }
+}
 
 export default function TutorialOverlay({
   visible,
   onFinish,
-  onScrollTo,
 }: {
   visible: boolean;
   onFinish: () => void;
@@ -67,8 +96,12 @@ export default function TutorialOverlay({
   const [index, setIndex] = React.useState(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
+  const glowAnim = useRef(new Animated.Value(0.4)).current;
+  const { width: sw, height: sh } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   const step = steps[index];
+  const glow = getGlow(step.highlight, insets.top, sw, sh);
 
   useEffect(() => {
     if (visible) {
@@ -81,6 +114,18 @@ export default function TutorialOverlay({
       ]).start();
     }
   }, [visible]);
+
+  useEffect(() => {
+    glowAnim.setValue(0.4);
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(glowAnim, { toValue: 0.4, duration: 900, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [index]);
 
   const animateStep = () => {
     slideAnim.setValue(16);
@@ -109,8 +154,32 @@ export default function TutorialOverlay({
       statusBarTranslucent
       onRequestClose={onFinish}
     >
-      <View style={styles.overlay}>
-        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={next} />
+      <View style={styles.overlay} pointerEvents="box-none">
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          <View style={[styles.dimFull, StyleSheet.absoluteFill]} />
+        </View>
+
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.glow,
+            {
+              top: glow.top,
+              bottom: glow.bottom,
+              left: glow.left,
+              right: glow.right,
+              width: glow.width,
+              height: glow.height,
+              opacity: glowAnim,
+            },
+          ]}
+        />
+
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={next}
+        />
 
         <Animated.View
           style={[
@@ -120,6 +189,7 @@ export default function TutorialOverlay({
               transform: [{ translateY: slideAnim }],
             },
           ]}
+          pointerEvents="box-none"
         >
           <View style={styles.iconRow}>
             <View style={styles.iconWrap}>{step.icon}</View>
@@ -167,6 +237,20 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     paddingHorizontal: 16,
     paddingBottom: 40,
+  },
+  dimFull: {
+    backgroundColor: "transparent",
+  },
+  glow: {
+    position: "absolute",
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: GLOW_COLOR,
+    backgroundColor: GLOW_COLOR + "12",
+    shadowColor: GLOW_COLOR,
+    shadowOpacity: 0.9,
+    shadowRadius: 16,
+    elevation: 10,
   },
   card: {
     backgroundColor: TOOLTIP_BG,
