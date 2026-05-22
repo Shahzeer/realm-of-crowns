@@ -15,7 +15,8 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.shahzeer.realmofcrowns"
+      "bundleIdentifier": "com.shahzeer.realmofcrowns",
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
