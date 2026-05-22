@@ -332,7 +332,9 @@ function KingdomScreen() {
         <TouchableOpacity style={idx.rulerButton} onPress={() => navigateTo("/ruler")} activeOpacity={0.7} testID="ruler-button">
           <View style={idx.rulerAvatar}><Crown size={18} color={Colors.gold.bright} /></View>
           <View style={idx.rulerInfo}>
-            <Text style={idx.rulerName}>{state.ruler.name}</Text>
+            <Text style={idx.rulerName}>
+              {state.isCustomKingdom && state.rulerTitle ? `${state.rulerTitle} ${state.ruler.name}` : state.ruler.name}
+            </Text>
             <Text style={idx.dynastyName}>{state.ruler.dynasty}</Text>
           </View>
         </TouchableOpacity>

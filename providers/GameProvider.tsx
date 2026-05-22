@@ -6,6 +6,7 @@ import createContextHook from '@nkzw/create-context-hook';
 import { computeVisibility, VisibilityMap } from '@/utils/fogOfWar';
 import {
   GameState,
+  Ruler,
   Resources,
   Province,
   Army,
@@ -1184,6 +1185,138 @@ function processAITurn(kingdoms: Kingdom[], provinces: Province[], playerArmies:
   return { kingdoms: updatedKingdoms, provinces: updatedProvinces, newBattles, logs, newEvents, turn: 0 };
 }
 
+function buildCustomKingdomState(
+  rulerName: string,
+  dynastyName: string,
+  realmName: string,
+  gender: 'male' | 'female',
+  crest: string,
+  color: string,
+  startProvinceId: string,
+  difficulty: 'easy' | 'normal' | 'hard'
+): GameState {
+  const title = gender === 'male' ? 'Lord' : 'Lady';
+
+  const starterBuildings: Building[] = [
+    { id: 'custom_keep', name: "Lord's Keep", level: 1, maxLevel: 10, description: 'A modest fortification — your seat of power', cost: { gold: 200 }, production: { militaryPerTurn: 1 }, icon: '🏰' },
+    { id: 'custom_farm', name: 'Farmstead', level: 1, maxLevel: 10, description: 'Grow food for your people', cost: { gold: 120 }, production: { foodPerTurn: 2 }, icon: '🌾' },
+  ];
+
+  const provinces = ALL_PROVINCES.map(p => {
+    if (p.id === startProvinceId) {
+      return { ...p, owner: 'player', loyalty: 85, unrest: 0, buildings: starterBuildings, type: 'capital' as const };
+    }
+    return p;
+  });
+
+  const kingdoms = INITIAL_KINGDOMS.map(k => ({
+    ...k,
+    provinces: provinces.filter(p => p.owner === k.id).map(p => p.id),
+    personality: DEFAULT_KINGDOM_PERSONALITIES[k.id] ?? DEFAULT_KINGDOM_PERSONALITIES['ironforge'],
+    relation: k.relation - 5,
+  }));
+
+  const resources: Resources = {
+    ...INITIAL_RESOURCES,
+    gold: difficulty === 'easy' ? 250 : difficulty === 'hard' ? 120 : 180,
+    food: 100,
+    military: 80,
+    faith: 40,
+    goldPerTurn: 8,
+    foodPerTurn: 5,
+    militaryPerTurn: 2,
+    faithPerTurn: 1,
+  };
+
+  const buildingBoostTotals = provinces.filter(p => p.owner === 'player').reduce((acc: Partial<Resources>, p) => {
+    const boosts = getBuildingBoosts(p.buildings);
+    (Object.keys(boosts) as Array<keyof Resources>).forEach(key => {
+      (acc as Record<string, number>)[key] = ((acc as Record<string, number>)[key] || 0) + ((boosts[key] as number) ?? 0);
+    });
+    return acc;
+  }, {} as Partial<Resources>);
+  if (buildingBoostTotals.goldPerTurn) resources.goldPerTurn += buildingBoostTotals.goldPerTurn;
+  if (buildingBoostTotals.foodPerTurn) resources.foodPerTurn += buildingBoostTotals.foodPerTurn;
+  if (buildingBoostTotals.militaryPerTurn) resources.militaryPerTurn += buildingBoostTotals.militaryPerTurn;
+  if (buildingBoostTotals.faithPerTurn) resources.faithPerTurn += buildingBoostTotals.faithPerTurn;
+  resources.baseGoldPerTurn = resources.goldPerTurn;
+  resources.baseFoodPerTurn = resources.foodPerTurn;
+  resources.baseMilitaryPerTurn = resources.militaryPerTurn;
+  resources.baseFaithPerTurn = resources.faithPerTurn;
+
+  const customRuler: Ruler = {
+    id: 'player_ruler',
+    name: rulerName,
+    dynasty: dynastyName,
+    age: 25,
+    health: 90,
+    maxHealth: 100,
+    diplomacy: 8,
+    martial: 8,
+    stewardship: 8,
+    intrigue: 8,
+    learning: 8,
+    traits: [TRAITS[0]],
+    avatar: '👤',
+  };
+
+  const startProvince = ALL_PROVINCES.find(p => p.id === startProvinceId);
+  const startArmy: Army = {
+    id: 'army1',
+    name: `${realmName || dynastyName} Levy`,
+    owner: 'player',
+    troops: 300,
+    maxTroops: 800,
+    morale: 75,
+    commander: rulerName,
+    location: startProvinceId,
+    status: 'idle',
+  };
+
+  return {
+    turn: 1, year: 1066, season: 'Spring',
+    ruler: customRuler,
+    heir: null,
+    resources,
+    provinces,
+    armies: [startArmy],
+    kingdoms: kingdoms.map(k => ({ ...k, provinces: provinces.filter(p => p.owner === k.id).map(p => p.id) })),
+    events: INITIAL_EVENTS,
+    battles: [],
+    technologies: INITIAL_TECHNOLOGIES,
+    council: INITIAL_COUNCIL,
+    log: [`Year 1066, Spring — ${title} ${rulerName} of ${dynastyName} claims ${startProvince?.name || 'a small province'}. Your story begins from nothing.`],
+    gameOver: false, victory: false,
+    selectedKingdom: 'custom',
+    gameStarted: true,
+    activeTactic: 'balanced',
+    activeTrades: [],
+    achievements: INITIAL_ACHIEVEMENTS,
+    faithCooldowns: {},
+    tutorialSeen: false,
+    difficulty,
+    rumors: [],
+    pressures: getEmptyPressures(),
+    reignChronicles: [],
+    rulerStartTurn: 1,
+    rulerStartYear: 1066,
+    rulerPeakProvinces: 0,
+    rulerPeakGold: 0,
+    rulerBuildingsConstructed: 0,
+    rulerTechResearched: 0,
+    rulerWarsFought: 0,
+    rulerBattlesWon: 0,
+    rulerBattlesLost: 0,
+    rulerProvincesConquered: 0,
+    rulerProvincesLost: 0,
+    pendingChainEvents: [],
+    unlockedBlueprints: [...STARTER_BLUEPRINT_IDS],
+    rulerTitle: title,
+    rulerGender: gender,
+    isCustomKingdom: true,
+  };
+}
+
 function buildInitialStateForKingdom(choice: KingdomChoice, difficulty: 'easy' | 'normal' | 'hard'): GameState {
   const capitalId = ALL_PROVINCES.find(p => choice.startingProvinces.includes(p.id) && p.type === 'capital')?.id || choice.startingProvinces[0];
 
@@ -1408,6 +1541,22 @@ export const [GameProvider, useGame] = createContextHook(() => {
     if (!choice) return;
     console.log(`[Game] Selected kingdom: ${choice.name}`);
     const newState = buildInitialStateForKingdom(choice, difficulty || 'normal');
+    setState(newState);
+    saveMutation.mutate(newState);
+  }, [saveMutation]);
+
+  const startCustomKingdom = useCallback((
+    rulerName: string,
+    dynastyName: string,
+    realmName: string,
+    gender: 'male' | 'female',
+    crest: string,
+    color: string,
+    startProvinceId: string,
+    difficulty: 'easy' | 'normal' | 'hard'
+  ) => {
+    console.log(`[Game] Starting custom kingdom: ${realmName} (${rulerName})`);
+    const newState = buildCustomKingdomState(rulerName, dynastyName, realmName, gender, crest, color, startProvinceId, difficulty);
     setState(newState);
     saveMutation.mutate(newState);
   }, [saveMutation]);
@@ -2492,6 +2641,54 @@ export const [GameProvider, useGame] = createContextHook(() => {
         victoryType = 'Faith Victory — The divine light of your realm illuminates all!';
       }
 
+      // Custom kingdom title progression
+      let newRulerTitle = prev.rulerTitle;
+      if (prev.isCustomKingdom && prev.rulerTitle) {
+        const finalProvCount = newProvinces.filter(p => p.owner === 'player').length;
+        const isMale = prev.rulerGender === 'male';
+        const currentTitle = prev.rulerTitle;
+
+        if ((currentTitle === 'Lord' || currentTitle === 'Lady') && finalProvCount >= 3) {
+          newRulerTitle = isMale ? 'King' : 'Queen';
+          newKingdoms = newKingdoms.map(k => ({
+            ...k,
+            relation: Math.max(-100, k.relation - 12),
+            attitude: (k.relation - 12 < -60 && k.attitude !== 'war') ? 'hostile' as const : k.attitude,
+          }));
+          newEvents.push({
+            id: `title_${newRulerTitle.toLowerCase()}_${nextTurn}`,
+            title: `The Crown of ${newRuler.dynasty}`,
+            description: `You have claimed the title of ${newRulerTitle}! Word spreads quickly through the realm — this upstart lord now calls themselves royalty. Established kingdoms view this audacious claim with suspicion, but your subjects swell with pride.`,
+            type: 'political',
+            choices: [
+              { id: 'tc1', text: 'Hold a grand coronation', effects: '+50 Faith, your people rejoice', reward: { faith: 50 } },
+              { id: 'tc2', text: 'Assert your claim quietly', effects: 'No immediate cost' },
+            ],
+            turn: nextTurn,
+            seen: false,
+          });
+        } else if ((currentTitle === 'King' || currentTitle === 'Queen') && finalProvCount >= 7) {
+          newRulerTitle = isMale ? 'High King' : 'High Queen';
+          newKingdoms = newKingdoms.map(k => ({
+            ...k,
+            relation: Math.max(-100, k.relation - 20),
+            attitude: (k.relation - 20 < -50 && k.attitude !== 'war') ? 'hostile' as const : k.attitude,
+          }));
+          newEvents.push({
+            id: `title_highking_${nextTurn}`,
+            title: `The High ${isMale ? 'King' : 'Queen'} Rises`,
+            description: `Your realm has grown mighty enough to claim the ancient title of High ${isMale ? 'King' : 'Queen'}. The established kingdoms tremble with rage — some will seek to destroy you before your power grows any further. Yet history will remember this moment.`,
+            type: 'political',
+            choices: [
+              { id: 'hk1', text: 'Declare your dominance proudly', effects: '+100 Faith, kingdoms grow hostile', reward: { faith: 100 } },
+              { id: 'hk2', text: 'Seek recognition through gold', effects: 'Spend 200 gold to ease tensions', cost: { gold: 200 } },
+            ],
+            turn: nextTurn,
+            seen: false,
+          });
+        }
+      }
+
       let newAchievements = prev.achievements;
       const tempState: GameState = {
         ...prev, turn: nextTurn, resources: newResources, provinces: newProvinces, armies: newArmies,
@@ -2549,6 +2746,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         rulerProvincesConquered,
         rulerProvincesLost,
         unlockedBlueprints: newUnlocked,
+        rulerTitle: newRulerTitle,
       } as GameState;
       saveMutation.mutate(newState);
       return newState;
@@ -3300,7 +3498,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
     sendDiplomacy, negotiatePeace, claimNeutralProvince, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
-    selectKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
+    selectKingdom, startCustomKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
     arrangeMarriage, mergeArmies, educateHeir,
@@ -3312,7 +3510,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
     sendDiplomacy, negotiatePeace, claimNeutralProvince, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
-    selectKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
+    selectKingdom, startCustomKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
     dismissTutorial, newAchievements, reinforceArmy, disbandArmy, reinforceGarrison,
     arrangeMarriage, mergeArmies, educateHeir,

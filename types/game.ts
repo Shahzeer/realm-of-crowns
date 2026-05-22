@@ -520,6 +520,9 @@ export interface GameState {
   latestReignChronicle?: ReignChronicle;
   pendingChainEvents?: PendingChainEvent[];
   unlockedBlueprints: string[];
+  rulerTitle?: string;
+  rulerGender?: 'male' | 'female';
+  isCustomKingdom?: boolean;
 }
 
 export interface PendingChainEvent {
