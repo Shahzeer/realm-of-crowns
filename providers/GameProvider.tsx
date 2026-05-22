@@ -1705,7 +1705,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const baseFPT = prev.resources.baseFoodPerTurn ?? prev.resources.foodPerTurn;
       const baseMPT = prev.resources.baseMilitaryPerTurn ?? prev.resources.militaryPerTurn;
       const baseFaithPT = prev.resources.baseFaithPerTurn ?? prev.resources.faithPerTurn;
-      const newResources: Resources = {
+      let newResources: Resources = {
         ...prev.resources,
         gold: Math.max(0, prev.resources.gold + baseGPT + seasonEffect.gold),
         food: Math.max(0, prev.resources.food + baseFPT + seasonEffect.food),
