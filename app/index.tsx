@@ -287,7 +287,11 @@ function KingdomScreen() {
         }
         break;
       }
-      case 'diplomacy': router.push('/diplomacy' as any); break;
+      case 'diplomacy': {
+        const ownerKingdomId = province.owner !== 'player' && province.owner !== 'neutral' ? province.owner : null;
+        router.push(ownerKingdomId ? `/diplomacy?kingdomId=${ownerKingdomId}` as any : '/diplomacy' as any);
+        break;
+      }
       case 'trade': router.push('/trade' as any); break;
     }
   }, [router, state.resources, recruitArmy, reinforceGarrison, claimNeutralProvince]);

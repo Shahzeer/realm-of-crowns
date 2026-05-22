@@ -1,6 +1,6 @@
 import React, { useCallback, useRef, useEffect, useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform, Animated, Modal } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
@@ -12,16 +12,18 @@ import { PERSONALITY_LABELS } from "@/mocks/gameData";
 
 type DiplomacyAction = 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war';
 
-function KingdomCard({ kingdom, onAction, onNegotiate, index, rulerMarried, hasPendingProposal }: {
+function KingdomCard({ kingdom, onAction, onNegotiate, index, rulerMarried, hasPendingProposal, highlighted }: {
   kingdom: Kingdom;
   onAction: (id: string, action: DiplomacyAction) => void;
   onNegotiate: (kingdom: Kingdom) => void;
   index: number;
   rulerMarried: boolean;
   hasPendingProposal: boolean;
+  highlighted?: boolean;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+  const glowAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -29,6 +31,18 @@ function KingdomCard({ kingdom, onAction, onNegotiate, index, rulerMarried, hasP
       Animated.timing(slideAnim, { toValue: 0, duration: 400, delay: index * 80, useNativeDriver: true }),
     ]).start();
   }, []);
+
+  useEffect(() => {
+    if (!highlighted) { glowAnim.setValue(0); return; }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowAnim, { toValue: 1, duration: 700, useNativeDriver: false }),
+        Animated.timing(glowAnim, { toValue: 0.25, duration: 700, useNativeDriver: false }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [highlighted]);
 
   const getAttitudeColor = (attitude: string) => {
     switch (attitude) {
@@ -54,6 +68,13 @@ function KingdomCard({ kingdom, onAction, onNegotiate, index, rulerMarried, hasP
 
   return (
     <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+      <Animated.View style={highlighted ? {
+        borderRadius: 16,
+        borderWidth: 2,
+        borderColor: glowAnim.interpolate({ inputRange: [0, 1], outputRange: ['rgba(212,175,55,0)', 'rgba(212,175,55,1)'] }),
+        marginHorizontal: 2,
+        marginVertical: 2,
+      } : undefined}>
       <View style={[d.kingdomCard, isAtWar && d.warCard]}>
         {isVassal && (
           <View style={d.vassalStrip}>
@@ -184,6 +205,7 @@ function KingdomCard({ kingdom, onAction, onNegotiate, index, rulerMarried, hasP
           </TouchableOpacity>
         )}
       </View>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -194,10 +216,26 @@ export default function DiplomacyScreen() {
   console.log("[RealmOfCrowns] Diplomacy render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { kingdomId: preselectedKingdomId } = useLocalSearchParams<{ kingdomId?: string }>();
   const { state, sendDiplomacy, negotiatePeace, activeWars, visibilityMap } = useGame();
   const [peaceKingdom, setPeaceKingdom] = useState<Kingdom | null>(null);
   const [peaceTermType, setPeaceTermType] = useState<PeaceTermType>('white_peace');
   const [peaceProvinceId, setPeaceProvinceId] = useState<string | null>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const yOffsets = useRef<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!preselectedKingdomId) return;
+    setHighlightedId(preselectedKingdomId);
+    const timeout = setTimeout(() => {
+      const y = yOffsets.current[preselectedKingdomId];
+      if (y !== undefined) {
+        scrollRef.current?.scrollTo({ y: Math.max(0, y - 16), animated: true });
+      }
+    }, 350);
+    return () => clearTimeout(timeout);
+  }, [preselectedKingdomId]);
 
   const warScore = peaceKingdom?.warScore ?? 0;
   const isWinning = warScore < -25;
@@ -338,12 +376,15 @@ export default function DiplomacyScreen() {
         </View>
         <TouchableOpacity onPress={() => router.back()} style={d.closeBtn} testID="close-diplomacy"><X size={22} color={Colors.text.secondary} /></TouchableOpacity>
       </View>
-      <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 20 }} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }} showsVerticalScrollIndicator={false}>
         {discoveredKingdoms.map((kingdom, idx) => (
-          <KingdomCard key={kingdom.id} kingdom={kingdom} onAction={handleAction} onNegotiate={openPeaceModal} index={idx}
-            rulerMarried={!!state.ruler.spouse}
-            hasPendingProposal={state.kingdoms.some(k => k.marriageProposal)}
-          />
+          <View key={kingdom.id} onLayout={e => { yOffsets.current[kingdom.id] = e.nativeEvent.layout.y; }}>
+            <KingdomCard kingdom={kingdom} onAction={handleAction} onNegotiate={openPeaceModal} index={idx}
+              rulerMarried={!!state.ruler.spouse}
+              hasPendingProposal={state.kingdoms.some(k => k.marriageProposal)}
+              highlighted={highlightedId === kingdom.id}
+            />
+          </View>
         ))}
         {undiscoveredCount > 0 && (
           <View style={d.undiscoveredBanner}>
