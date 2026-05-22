@@ -66,6 +66,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.bg.primary }, animation: "slide_from_right" }}>
       <Stack.Screen name="index" options={{ headerShown: false, animation: "none" }} />
 
+      <Stack.Screen name="welcome" options={{ headerShown: false, animation: "fade" }} />
       <Stack.Screen name="kingdom-select" options={{ headerShown: false, animation: "fade" }} />
       <Stack.Screen name="province/[id]" options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: false }} />
       <Stack.Screen name="armies" options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: false }} />

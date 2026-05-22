@@ -312,7 +312,7 @@ function KingdomScreen() {
     );
   }
 
-  if (!state.gameStarted) return <Redirect href="/kingdom-select" />;
+  if (!state.gameStarted) return <Redirect href="/welcome" />;
 
   return (
     <View style={[idx.root, { paddingTop: insets.top }]}>
