@@ -85,13 +85,43 @@ function TurnSummaryModal({ visible, onClose, summary }: { visible: boolean; onC
           </View>
           <ScrollView style={idx.summaryScroll} showsVerticalScrollIndicator={false}>
             <View style={idx.summarySection}>
-              <Text style={idx.summarySectionTitle}>Resources</Text>
+              <Text style={idx.summarySectionTitle}>Income This Turn</Text>
               <View style={idx.summaryResourceRow}>
                 <Text style={idx.summaryResource}>💰{summary.goldGained > 0 ? '+' : ''}{summary.goldGained}</Text>
                 <Text style={idx.summaryResource}>🌾{summary.foodGained > 0 ? '+' : ''}{summary.foodGained}</Text>
                 <Text style={idx.summaryResource}>⚔️{summary.militaryGained > 0 ? '+' : ''}{summary.militaryGained}</Text>
+                <Text style={idx.summaryResource}>🙏{summary.faithGained > 0 ? '+' : ''}{summary.faithGained}</Text>
               </View>
             </View>
+            {summary.breakdown && (
+              <View style={idx.summarySection}>
+                <Text style={idx.summarySectionTitle}>Income Breakdown</Text>
+                {[
+                  { label: 'Base income', gold: summary.breakdown.base.gold, food: summary.breakdown.base.food, mil: summary.breakdown.base.military, faith: summary.breakdown.base.faith, always: true },
+                  { label: `Season (${summary.season})`, gold: summary.breakdown.season.gold, food: summary.breakdown.season.food, mil: summary.breakdown.season.military, faith: 0, always: summary.breakdown.season.gold !== 0 || summary.breakdown.season.food !== 0 || summary.breakdown.season.military !== 0 },
+                  { label: 'Trade deals', gold: summary.breakdown.trade, food: 0, mil: 0, faith: 0, always: summary.breakdown.trade !== 0 },
+                  { label: 'Technology', gold: summary.breakdown.tech.gold, food: summary.breakdown.tech.food, mil: summary.breakdown.tech.military, faith: summary.breakdown.tech.faith, always: summary.breakdown.tech.gold + summary.breakdown.tech.food + summary.breakdown.tech.military + summary.breakdown.tech.faith > 0 },
+                  { label: 'Council', gold: summary.breakdown.council.gold, food: summary.breakdown.council.food, mil: summary.breakdown.council.military, faith: summary.breakdown.council.faith, always: summary.breakdown.council.gold + summary.breakdown.council.food + summary.breakdown.council.military + summary.breakdown.council.faith > 0 },
+                  { label: 'Difficulty bonus', gold: summary.breakdown.diff.gold, food: summary.breakdown.diff.food, mil: summary.breakdown.diff.military, faith: summary.breakdown.diff.faith, always: summary.breakdown.diff.gold > 0 },
+                  { label: 'Pressures', gold: summary.breakdown.pressure.gold, food: summary.breakdown.pressure.food, mil: summary.breakdown.pressure.military, faith: 0, always: summary.breakdown.pressure.gold !== 0 || summary.breakdown.pressure.food !== 0 || summary.breakdown.pressure.military !== 0 },
+                ].filter(r => r.always).map((row, i) => {
+                  const isPenalty = row.label === 'Pressures';
+                  const isSeason = row.label.startsWith('Season');
+                  const rowColor = isPenalty ? Colors.crimson.bright : isSeason ? Colors.status.warning : Colors.text.secondary;
+                  const parts: string[] = [];
+                  if (row.gold !== 0) parts.push(`💰${row.gold > 0 ? '+' : ''}${row.gold}`);
+                  if (row.food !== 0) parts.push(`🌾${row.food > 0 ? '+' : ''}${row.food}`);
+                  if (row.mil !== 0) parts.push(`⚔️${row.mil > 0 ? '+' : ''}${row.mil}`);
+                  if (row.faith !== 0) parts.push(`🙏${row.faith > 0 ? '+' : ''}${row.faith}`);
+                  return (
+                    <View key={i} style={idx.breakdownRow}>
+                      <Text style={idx.breakdownLabel}>{row.label}</Text>
+                      <Text style={[idx.breakdownValue, { color: rowColor }]}>{parts.join('  ') || '—'}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
             {(summary.battlesWon > 0 || summary.battlesLost > 0) && (
               <View style={idx.summarySection}>
                 <Text style={idx.summarySectionTitle}>Battles</Text>
@@ -459,6 +489,9 @@ const idx = StyleSheet.create({
   summaryRumorRow: { flexDirection: "row" as const, gap: 4, marginBottom: 4 },
   summaryRumorQuote: { fontSize: 16, fontWeight: "700" as const, color: Colors.gold.dim, lineHeight: 20 },
   summaryRumorText: { fontSize: 12, color: Colors.parchment.dark, fontStyle: "italic" as const, lineHeight: 18, flex: 1 },
+  breakdownRow: { flexDirection: "row" as const, justifyContent: "space-between" as const, alignItems: "center" as const, paddingVertical: 4 },
+  breakdownLabel: { fontSize: 12, color: Colors.text.dim, flex: 1 },
+  breakdownValue: { fontSize: 12, fontWeight: "600" as const, textAlign: "right" as const },
   pressureStrip: { flexDirection: "row" as const, flexWrap: "wrap" as const, paddingHorizontal: 12, paddingVertical: 6, gap: 6, backgroundColor: Colors.bg.secondary + '80' },
   pressureChip: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, borderWidth: 1 },
   pressureChipText: { fontSize: 10, fontWeight: "700" as const, letterSpacing: 0.3 },

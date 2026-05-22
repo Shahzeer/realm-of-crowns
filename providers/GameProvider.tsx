@@ -2163,6 +2163,10 @@ export const [GameProvider, useGame] = createContextHook(() => {
       // Council bonuses: passive (role-based) + active (task-based)
       const councilLogs: string[] = [];
       let councilGoldPT = 0, councilFoodPT = 0, councilMilPT = 0, councilFaithPT = 0;
+      const preCouncilGold = newResources.gold;
+      const preCouncilFood = newResources.food;
+      const preCouncilMil = newResources.military;
+      const preCouncilFaith = newResources.faith;
       newCouncil.forEach(c => {
         if (c.loyalty <= 20) return; // disloyal councilors give nothing
         const loyaltyMod = c.loyalty > 70 ? 1.0 : c.loyalty > 50 ? 0.75 : 0.5;
@@ -2291,11 +2295,11 @@ export const [GameProvider, useGame] = createContextHook(() => {
         }
       });
 
-      // Compute council per-turn contributions (vs base)
-      councilGoldPT = newResources.gold - Math.max(0, (prev.resources.gold + baseGPT + seasonEffect.gold));
-      councilFoodPT = newResources.food - Math.max(0, (prev.resources.food + baseFPT + seasonEffect.food));
-      councilMilPT = newResources.military - Math.max(0, (prev.resources.military + baseMPT + seasonEffect.military));
-      councilFaithPT = newResources.faith - Math.max(0, (prev.resources.faith + baseFaithPT));
+      // Compute actual council contributions (pure council delta, after checkpoints saved above)
+      councilGoldPT = newResources.gold - preCouncilGold;
+      councilFoodPT = newResources.food - preCouncilFood;
+      councilMilPT = newResources.military - preCouncilMil;
+      councilFaithPT = newResources.faith - preCouncilFaith;
 
       // Difficulty per-turn bonus: easy gets most, normal gets moderate, hard gets base only
       const diffGold = prev.difficulty === 'easy' ? 10 : prev.difficulty === 'normal' ? 5 : 0;
@@ -2307,8 +2311,11 @@ export const [GameProvider, useGame] = createContextHook(() => {
       newResources.military = Math.max(0, newResources.military + diffMil);
       newResources.faith = Math.max(0, newResources.faith + diffFaith);
 
-      // perTurn values are computed as the actual net change after ALL sources (base, season, trade, tech, council, difficulty)
-      // They are finalized after pressure penalties below
+      // STABLE perTurn: base + trade + tech + council + difficulty (excludes seasonal — season varies each turn)
+      newResources.goldPerTurn = Math.max(0, baseGPT + summary.tradeIncome + (techBonuses.goldPerTurn || 0) + Math.max(0, councilGoldPT) + diffGold);
+      newResources.foodPerTurn = Math.max(0, baseFPT + (techBonuses.foodPerTurn || 0) + Math.max(0, councilFoodPT) + diffFood);
+      newResources.militaryPerTurn = Math.max(0, baseMPT + (techBonuses.militaryPerTurn || 0) + Math.max(0, councilMilPT) + diffMil);
+      newResources.faithPerTurn = Math.max(0, baseFaithPT + (techBonuses.faithPerTurn || 0) + Math.max(0, councilFaithPT) + diffFaith);
 
       const newFaithCooldowns: Record<string, number> = {};
       Object.entries(prev.faithCooldowns).forEach(([key, val]) => {
@@ -2322,15 +2329,37 @@ export const [GameProvider, useGame] = createContextHook(() => {
         nextTurn,
         newCouncil,
       );
-      newResources.gold = Math.max(0, newResources.gold + (pressureResult.resourcePenalties.gold ?? 0));
-      newResources.food = Math.max(0, newResources.food + (pressureResult.resourcePenalties.food ?? 0));
-      newResources.military = Math.max(0, newResources.military + (pressureResult.resourcePenalties.military ?? 0));
+      const pressureGold = pressureResult.resourcePenalties.gold ?? 0;
+      const pressureFood = pressureResult.resourcePenalties.food ?? 0;
+      const pressureMil = pressureResult.resourcePenalties.military ?? 0;
+      newResources.gold = Math.max(0, newResources.gold + pressureGold);
+      newResources.food = Math.max(0, newResources.food + pressureFood);
+      newResources.military = Math.max(0, newResources.military + pressureMil);
 
-      // Compute perTurn as actual net change this turn (includes season, trade, tech, council, difficulty, pressure)
-      newResources.goldPerTurn = newResources.gold - prev.resources.gold;
-      newResources.foodPerTurn = newResources.food - prev.resources.food;
-      newResources.militaryPerTurn = newResources.military - prev.resources.military;
-      newResources.faithPerTurn = newResources.faith - prev.resources.faith;
+      // Populate full breakdown for turn summary popup
+      summary.goldGained = newResources.gold - prev.resources.gold;
+      summary.foodGained = newResources.food - prev.resources.food;
+      summary.militaryGained = newResources.military - prev.resources.military;
+      summary.faithGained = newResources.faith - prev.resources.faith;
+      summary.breakdown = {
+        base: { gold: baseGPT, food: baseFPT, military: baseMPT, faith: baseFaithPT },
+        season: { gold: seasonEffect.gold, food: seasonEffect.food, military: seasonEffect.military },
+        trade: summary.tradeIncome,
+        tech: {
+          gold: techBonuses.goldPerTurn || 0,
+          food: techBonuses.foodPerTurn || 0,
+          military: techBonuses.militaryPerTurn || 0,
+          faith: techBonuses.faithPerTurn || 0,
+        },
+        council: {
+          gold: Math.max(0, councilGoldPT),
+          food: Math.max(0, councilFoodPT),
+          military: Math.max(0, councilMilPT),
+          faith: Math.max(0, councilFaithPT),
+        },
+        diff: { gold: diffGold, food: diffFood, military: diffMil, faith: diffFaith },
+        pressure: { gold: pressureGold, food: pressureFood, military: pressureMil },
+      };
       newProvinces = newProvinces.map(p => {
         const loyaltyHit = pressureResult.loyaltyPenalties[p.id];
         if (loyaltyHit && p.owner === 'player') {

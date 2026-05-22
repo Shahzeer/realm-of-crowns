@@ -404,6 +404,15 @@ export interface TurnSummary {
   tradeIncome: number;
   spyResults: string[];
   rumorsHeard: string[];
+  breakdown?: {
+    base: { gold: number; food: number; military: number; faith: number };
+    season: { gold: number; food: number; military: number };
+    trade: number;
+    tech: { gold: number; food: number; military: number; faith: number };
+    council: { gold: number; food: number; military: number; faith: number };
+    diff: { gold: number; food: number; military: number; faith: number };
+    pressure: { gold: number; food: number; military: number };
+  };
 }
 
 export interface KingdomPressures {
