@@ -3306,6 +3306,21 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const cancelMarch = useCallback((armyId: string) => {
+    setState(prev => {
+      const army = prev.armies.find(a => a.id === armyId);
+      if (!army || army.status !== 'marching' || !army.marchPath) return prev;
+      const locName = prev.provinces.find(p => p.id === army.location)?.name ?? army.location;
+      const newArmies = prev.armies.map(a =>
+        a.id === armyId ? { ...a, status: 'idle' as const, marchPath: undefined, destination: undefined, marchTurnsLeft: undefined } : a
+      );
+      const logMsg = `🔴 ${army.name} halted their march at ${locName}.`;
+      const newState: GameState = { ...prev, armies: newArmies, log: [logMsg, ...prev.log].slice(0, 50) };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const demandSurrender = useCallback((kingdomId: string) => {
     setState(prev => {
       const kingdom = prev.kingdoms.find(k => k.id === kingdomId);
@@ -3720,7 +3735,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   return useMemo(() => ({
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
-    sendDiplomacy, negotiatePeace, demandSurrender, claimNeutralProvince, marchArmyToNeutral, assignCouncilTask, resetGame, unseenEvents,
+    sendDiplomacy, negotiatePeace, demandSurrender, cancelMarch, claimNeutralProvince, marchArmyToNeutral, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
     selectKingdom, startCustomKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
@@ -3732,7 +3747,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
-    sendDiplomacy, negotiatePeace, demandSurrender, claimNeutralProvince, marchArmyToNeutral, assignCouncilTask, resetGame, unseenEvents,
+    sendDiplomacy, negotiatePeace, demandSurrender, cancelMarch, claimNeutralProvince, marchArmyToNeutral, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
     selectKingdom, startCustomKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,

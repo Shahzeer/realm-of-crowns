@@ -172,7 +172,7 @@ function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, visibilityMap, investigateRumor, dismissRumor, claimQuestReward } = useGame();
+  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -270,6 +270,29 @@ function KingdomScreen() {
       case 'lay_claim': {
         claimNeutralProvince?.(province.id, 'lay_claim');
         setToast({ visible: true, message: `Envoys sent to lay claim to ${province.name}.`, type: 'info' });
+        break;
+      }
+      case 'cancel_march': {
+        const marchingArmies = state.armies.filter(a => a.owner === 'player' && a.location === province.id && a.status === 'marching' && a.marchPath && a.marchPath.length > 0);
+        if (marchingArmies.length === 1) {
+          cancelMarch?.(marchingArmies[0].id);
+          setToast({ visible: true, message: `${marchingArmies[0].name} march cancelled.`, type: 'warning' });
+        } else if (marchingArmies.length > 1) {
+          Alert.alert(
+            'Cancel Which March?',
+            'Select the army to recall:',
+            [
+              ...marchingArmies.map(a => ({
+                text: `${a.name} → ${state.provinces.find(p => p.id === a.marchPath![a.marchPath!.length - 1])?.name ?? '?'}`,
+                onPress: () => {
+                  cancelMarch?.(a.id);
+                  setToast({ visible: true, message: `${a.name} march cancelled.`, type: 'warning' });
+                },
+              })),
+              { text: 'Dismiss', style: 'cancel' as const, onPress: () => {} },
+            ]
+          );
+        }
         break;
       }
       case 'send_troops': {

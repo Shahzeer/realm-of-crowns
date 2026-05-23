@@ -28,6 +28,7 @@ type ProvinceAction =
   | 'trade'
   | 'lay_claim'
   | 'send_troops'
+  | 'cancel_march'
   | 'info';
 
 interface ProvinceActionPopupProps {
@@ -106,6 +107,17 @@ function getActionsForProvince(
         icon: <Shield size={18} color={Colors.status.info} />,
         color: Colors.status.info,
         bgColor: Colors.status.info + '20',
+      });
+    }
+
+    const marchingArmy = armiesHere.find(a => a.status === 'marching' && a.marchPath && a.marchPath.length > 0);
+    if (marchingArmy) {
+      actions.push({
+        id: 'cancel_march',
+        label: 'Cancel March',
+        icon: <X size={18} color={Colors.crimson.bright} />,
+        color: Colors.crimson.bright,
+        bgColor: Colors.crimson.dark + '25',
       });
     }
 
