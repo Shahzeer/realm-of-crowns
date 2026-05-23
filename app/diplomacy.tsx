@@ -12,10 +12,11 @@ import { PERSONALITY_LABELS } from "@/mocks/gameData";
 
 type DiplomacyAction = 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war';
 
-function KingdomCard({ kingdom, onAction, onNegotiate, index, rulerMarried, hasPendingProposal, highlighted }: {
+function KingdomCard({ kingdom, onAction, onNegotiate, onSurrender, index, rulerMarried, hasPendingProposal, highlighted }: {
   kingdom: Kingdom;
   onAction: (id: string, action: DiplomacyAction) => void;
   onNegotiate: (kingdom: Kingdom) => void;
+  onSurrender: (kingdom: Kingdom) => void;
   index: number;
   rulerMarried: boolean;
   hasPendingProposal: boolean;
@@ -191,6 +192,24 @@ function KingdomCard({ kingdom, onAction, onNegotiate, index, rulerMarried, hasP
                   <DollarSign size={14} color={Colors.gold.bright} /><Text style={d.tributeText}>Demand Tribute</Text>
                 </TouchableOpacity>
               )}
+              {(kingdom.provinces.length === 0 || warScore <= -50) && (
+                <TouchableOpacity
+                  style={[d.actionBtn, d.surrenderBtn]}
+                  onPress={() => Alert.alert(
+                    'Demand Surrender',
+                    kingdom.provinces.length === 0
+                      ? `${kingdom.name} holds no territory. Force their unconditional surrender?`
+                      : `Your war score dominates. Seize all ${kingdom.provinces.length} remaining province(s) from ${kingdom.name}?`,
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      { text: 'Demand Surrender', style: 'destructive', onPress: () => onSurrender(kingdom) },
+                    ]
+                  )}
+                  activeOpacity={0.7}
+                >
+                  <Flag size={14} color="#fff" /><Text style={d.surrenderText}>Demand Surrender</Text>
+                </TouchableOpacity>
+              )}
             </>
           )}
         </View>
@@ -217,7 +236,7 @@ export default function DiplomacyScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { kingdomId: preselectedKingdomId } = useLocalSearchParams<{ kingdomId?: string }>();
-  const { state, sendDiplomacy, negotiatePeace, activeWars, visibilityMap } = useGame();
+  const { state, sendDiplomacy, negotiatePeace, demandSurrender, activeWars, visibilityMap } = useGame();
   const [peaceKingdom, setPeaceKingdom] = useState<Kingdom | null>(null);
   const [peaceTermType, setPeaceTermType] = useState<PeaceTermType>('white_peace');
   const [peaceProvinceId, setPeaceProvinceId] = useState<string | null>(null);
@@ -379,7 +398,9 @@ export default function DiplomacyScreen() {
       <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }} showsVerticalScrollIndicator={false}>
         {discoveredKingdoms.map((kingdom, idx) => (
           <View key={kingdom.id} onLayout={e => { yOffsets.current[kingdom.id] = e.nativeEvent.layout.y; }}>
-            <KingdomCard kingdom={kingdom} onAction={handleAction} onNegotiate={openPeaceModal} index={idx}
+            <KingdomCard kingdom={kingdom} onAction={handleAction} onNegotiate={openPeaceModal}
+              onSurrender={(k) => demandSurrender(k.id)}
+              index={idx}
               rulerMarried={!!state.ruler.spouse}
               hasPendingProposal={state.kingdoms.some(k => k.marriageProposal)}
               highlighted={highlightedId === kingdom.id}
@@ -607,6 +628,8 @@ const d = StyleSheet.create({
   peaceText: { fontSize: 11, fontWeight: "600" as const, color: Colors.status.success },
   tributeBtn: { borderColor: Colors.gold.dim, backgroundColor: Colors.gold.dim + '15' },
   tributeText: { fontSize: 11, fontWeight: "600" as const, color: Colors.gold.bright },
+  surrenderBtn: { borderColor: '#dc262650', backgroundColor: '#dc262618' },
+  surrenderText: { fontSize: 11, fontWeight: "700" as const, color: '#ef4444' },
   marriageBtn: { borderColor: '#f472b650', backgroundColor: '#f472b615' },
   marriageText: { fontSize: 11, fontWeight: "600" as const, color: '#f472b6' },
   marriageProposedBtn: { borderColor: '#f472b630', backgroundColor: '#f472b608', opacity: 0.8 },

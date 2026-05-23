@@ -2094,7 +2094,11 @@ export const [GameProvider, useGame] = createContextHook(() => {
           const [nextStep, ...remaining] = army.marchPath;
           const moraleLoss = (hasProfessionalArmy && army.owner === 'player') ? 0 : 3;
           if (remaining.length === 0) {
-            // Arrived at final destination
+            const targetProv = prev.provinces.find(p => p.id === nextStep);
+            if (!targetProv || targetProv.owner !== 'neutral') {
+              // Province was claimed before army arrived — halt at current location
+              return { ...army, status: 'idle' as const, marchPath: undefined, destination: undefined, marchTurnsLeft: undefined };
+            }
             arrivedAtNeutral.push({ armyId: army.id, provinceId: nextStep });
             return { ...army, location: nextStep, status: 'idle' as const, marchPath: undefined, destination: undefined, marchTurnsLeft: undefined, morale: Math.max(10, army.morale - moraleLoss) };
           }
@@ -2242,6 +2246,36 @@ export const [GameProvider, useGame] = createContextHook(() => {
         provinces: newProvinces.filter(p => p.owner === k.id).map(p => p.id),
         strength: k.armies.reduce((sum, a) => sum + a.troops, 0) + newProvinces.filter(p => p.owner === k.id).reduce((sum, p) => sum + p.garrison, 0),
       }));
+
+      // Relations penalty — player armies present on another kingdom's territory
+      const foreignPresence = new Map<string, number>();
+      for (const army of newArmies) {
+        if (army.owner !== 'player') continue;
+        const loc = newProvinces.find(p => p.id === army.location);
+        if (!loc || loc.owner === 'player' || loc.owner === 'neutral') continue;
+        foreignPresence.set(loc.owner, (foreignPresence.get(loc.owner) ?? 0) + (army.status === 'idle' ? 2 : 1));
+      }
+      const conquestLogs: string[] = [];
+      if (foreignPresence.size > 0 || newKingdoms.some(k => k.attitude === 'war' && k.provinces.length === 0)) {
+        newKingdoms = newKingdoms.map(k => {
+          let updated = { ...k };
+          // Apply foreign presence penalty
+          const penalty = foreignPresence.get(k.id) ?? 0;
+          if (penalty > 0 && updated.attitude !== 'war') {
+            const newRel = Math.max(-100, updated.relation - penalty);
+            let newAtt = updated.attitude;
+            if (newRel <= -60 && newAtt === 'allied') newAtt = 'friendly';
+            else if (newRel <= -80 && newAtt === 'friendly') newAtt = 'neutral';
+            updated = { ...updated, relation: newRel, attitude: newAtt };
+          }
+          // Auto-end war when enemy kingdom has no provinces left
+          if (updated.attitude === 'war' && updated.provinces.length === 0) {
+            conquestLogs.push(`🏳️ ${updated.name} has been utterly defeated and surrenders!`);
+            updated = { ...updated, attitude: 'hostile' as const, warScore: 0 };
+          }
+          return updated;
+        });
+      }
 
       const vassalLogs: string[] = [];
       const vassals = newKingdoms.filter(k => k.isVassal);
@@ -2660,6 +2694,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       const allBattles = [...prev.battles, ...newBattlesFromSiege, ...aiBattles].slice(-20);
       const allLogs = [
+        ...conquestLogs,
         ...marchClaimLogs,
         ...captureBoostLogs,
         ...councilLogs,
@@ -3271,6 +3306,28 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const demandSurrender = useCallback((kingdomId: string) => {
+    setState(prev => {
+      const kingdom = prev.kingdoms.find(k => k.id === kingdomId);
+      if (!kingdom || kingdom.attitude !== 'war') return prev;
+      const enemyProvinces = prev.provinces.filter(p => p.owner === kingdomId);
+      const newProvinces = prev.provinces.map(p =>
+        p.owner === kingdomId ? claimProvinceForPlayer(p) : p
+      );
+      const newKingdoms = prev.kingdoms.map(k => {
+        if (k.id === kingdomId) {
+          return { ...k, attitude: 'hostile' as const, warScore: 0, relation: Math.max(-100, k.relation - 20), provinces: [] };
+        }
+        return { ...k, provinces: newProvinces.filter(p => p.owner === k.id).map(p => p.id) };
+      });
+      const provincesGained = enemyProvinces.map(p => p.name).join(', ');
+      const logMsg = `⚔️ ${kingdom.name} surrendered unconditionally!${enemyProvinces.length > 0 ? ` Gained: ${provincesGained}.` : ''}`;
+      const newState: GameState = { ...prev, provinces: newProvinces, kingdoms: newKingdoms, log: [logMsg, ...prev.log].slice(0, 50) };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const marchArmyToNeutral = useCallback((armyId: string, targetId: string) => {
     setState(prev => {
       const army = prev.armies.find(a => a.id === armyId);
@@ -3663,7 +3720,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   return useMemo(() => ({
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
-    sendDiplomacy, negotiatePeace, claimNeutralProvince, marchArmyToNeutral, assignCouncilTask, resetGame, unseenEvents,
+    sendDiplomacy, negotiatePeace, demandSurrender, claimNeutralProvince, marchArmyToNeutral, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
     selectKingdom, startCustomKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
@@ -3675,7 +3732,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
-    sendDiplomacy, negotiatePeace, claimNeutralProvince, marchArmyToNeutral, assignCouncilTask, resetGame, unseenEvents,
+    sendDiplomacy, negotiatePeace, demandSurrender, claimNeutralProvince, marchArmyToNeutral, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
     selectKingdom, startCustomKingdom, setActiveTactic, startRulerUpgrade, startCouncilorUpgrade,
     winProbability, startSpyMission, proposeTrade, useFaithAction,
