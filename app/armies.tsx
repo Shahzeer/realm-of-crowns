@@ -57,13 +57,16 @@ function TacticCard({ tactic, isActive, onSelect }: { tactic: CombatTactic; isAc
   );
 }
 
-function ArmyCard({ army, provinces, onMove, onAttack, onReinforce, onDisband, index, resources }: {
+function ArmyCard({ army, provinces, onMove, onAttack, onReinforce, onDisband, onMerge, isMergeSource, mergeSourceId, index, resources }: {
   army: Army;
   provinces: Province[];
   onMove: (armyId: string, destId: string) => void;
   onAttack: (armyId: string, provinceId: string) => void;
   onReinforce: (armyId: string) => void;
   onDisband: (armyId: string) => void;
+  onMerge: (armyId: string) => void;
+  isMergeSource: boolean;
+  mergeSourceId: string | null;
   index: number;
   resources: { gold: number; military: number };
 }) {
@@ -157,6 +160,16 @@ function ArmyCard({ army, provinces, onMove, onAttack, onReinforce, onDisband, i
             >
               <Plus size={14} color={army.troops >= army.maxTroops ? Colors.text.dim : Colors.status.success} />
               <Text style={[s.reinforceBtnText, (army.troops >= army.maxTroops || resources.gold < 200 || resources.military < 100) && { color: Colors.text.dim }]}>Reinforce</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.mergeBtn, isMergeSource && s.mergeBtnActive]}
+              onPress={() => onMerge(army.id)}
+              activeOpacity={0.7}
+            >
+              <Merge size={14} color={isMergeSource ? Colors.gold.bright : (mergeSourceId && !isMergeSource ? Colors.status.success : Colors.status.info)} />
+              <Text style={[s.mergeBtnText, isMergeSource && { color: Colors.gold.bright }, (mergeSourceId && !isMergeSource) && { color: Colors.status.success }]}>
+                {isMergeSource ? 'Selected ✓' : mergeSourceId ? 'Merge Here' : 'Merge'}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={s.disbandBtn}
@@ -344,15 +357,15 @@ export default function ArmiesScreen() {
           </View>
         )}
 
-        {state.armies.length >= 2 && (
+        {mergeSourceId && (
           <TouchableOpacity
-            style={[s.mergeBanner, mergeSourceId ? s.mergeBannerActive : null]}
-            onPress={() => setMergeSourceId(mergeSourceId ? null : undefined as unknown as string)}
+            style={s.mergeBannerActive}
+            onPress={() => setMergeSourceId(null)}
             activeOpacity={0.7}
           >
-            <Merge size={16} color={mergeSourceId ? Colors.gold.bright : Colors.status.info} />
-            <Text style={[s.mergeBannerText, mergeSourceId ? { color: Colors.gold.bright } : null]}>
-              {mergeSourceId ? 'Select second army to merge (tap again to cancel)' : 'Tap to start merging armies'}
+            <Merge size={16} color={Colors.gold.bright} />
+            <Text style={[s.mergeBannerText, { color: Colors.gold.bright }]}>
+              {state.armies.find(a => a.id === mergeSourceId)?.name ?? ''} selected — tap another army's "Merge Here" to combine, or tap here to cancel
             </Text>
           </TouchableOpacity>
         )}
@@ -360,23 +373,20 @@ export default function ArmiesScreen() {
         {state.armies.length === 0 ? (
           <View style={s.emptyState}><Text style={s.emptyIcon}>⚔️</Text><Text style={s.emptyTitle}>No Armies</Text><Text style={s.emptyDesc}>Visit a province to recruit soldiers.</Text></View>
         ) : state.armies.map((army, idx) => (
-          <TouchableOpacity
+          <ArmyCard
             key={army.id}
-            activeOpacity={mergeSourceId ? 0.7 : 1}
-            onPress={mergeSourceId ? () => handleMerge(army.id) : undefined}
-            style={mergeSourceId === army.id ? s.mergeSelected : undefined}
-          >
-            <ArmyCard
-              army={army}
-              provinces={state.provinces}
-              onMove={handleMove}
-              onAttack={handleAttack}
-              onReinforce={handleReinforce}
-              onDisband={handleDisband}
-              index={idx}
-              resources={{ gold: state.resources.gold, military: state.resources.military }}
-            />
-          </TouchableOpacity>
+            army={army}
+            provinces={state.provinces}
+            onMove={handleMove}
+            onAttack={handleAttack}
+            onReinforce={handleReinforce}
+            onDisband={handleDisband}
+            onMerge={handleMerge}
+            isMergeSource={mergeSourceId === army.id}
+            mergeSourceId={mergeSourceId}
+            index={idx}
+            resources={{ gold: state.resources.gold, military: state.resources.military }}
+          />
         ))}
       </ScrollView>
     </View>
@@ -452,7 +462,9 @@ const s = StyleSheet.create({
   disbandBtnText: { fontSize: 12, fontWeight: "600" as const, color: Colors.crimson.bright },
   btnDisabled: { opacity: 0.4 },
   mergeBanner: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, marginHorizontal: 16, marginBottom: 10, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.status.info + '10', borderWidth: 1, borderColor: Colors.status.info + '30' },
-  mergeBannerActive: { backgroundColor: Colors.gold.dim + '15', borderColor: Colors.gold.dim + '40' },
-  mergeBannerText: { fontSize: 12, fontWeight: "600" as const, color: Colors.status.info },
-  mergeSelected: { borderRadius: 14, borderWidth: 2, borderColor: Colors.gold.bright, marginHorizontal: 14, marginBottom: 2 },
+  mergeBannerActive: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginHorizontal: 16, marginBottom: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: Colors.gold.dim + '15', borderWidth: 1, borderColor: Colors.gold.dim + '50' },
+  mergeBannerText: { fontSize: 12, fontWeight: "600" as const, color: Colors.status.info, flex: 1 },
+  mergeBtn: { flex: 1, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: Colors.status.info + '40', backgroundColor: Colors.status.info + '10' },
+  mergeBtnActive: { borderColor: Colors.gold.bright + '80', backgroundColor: Colors.gold.bright + '20' },
+  mergeBtnText: { fontSize: 12, fontWeight: "600" as const, color: Colors.status.info },
 });
