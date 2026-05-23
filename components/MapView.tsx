@@ -138,6 +138,76 @@ function ConnectionLine({ from, to, fogged }: { from: Province; to: Province; fo
   );
 }
 
+function MarchRoutePreview({ army, provinces }: { army: Army; provinces: Province[] }) {
+  const pulseAnim = useRef(new Animated.Value(0.35)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 0.9, duration: 700, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 0.35, duration: 700, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  if (!army.marchPath || army.marchPath.length === 0) return null;
+
+  const waypoints = [army.location, ...army.marchPath];
+  const dots: React.ReactNode[] = [];
+
+  for (let seg = 0; seg < waypoints.length - 1; seg++) {
+    const from = provinces.find(p => p.id === waypoints[seg]);
+    const to = provinces.find(p => p.id === waypoints[seg + 1]);
+    if (!from || !to) continue;
+
+    const x1 = from.x * (MAP_WIDTH - 20);
+    const y1 = from.y * MAP_HEIGHT;
+    const x2 = to.x * (MAP_WIDTH - 20);
+    const y2 = to.y * MAP_HEIGHT;
+    const length = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+    const numDots = Math.max(2, Math.floor(length / 13));
+
+    for (let d = 1; d < numDots; d++) {
+      const t = d / numDots;
+      const cx = x1 + t * (x2 - x1);
+      const cy = y1 + t * (y2 - y1);
+      const dotSize = d % 3 === 0 ? 5 : 3;
+      dots.push(
+        <Animated.View
+          key={`dot-${army.id}-${seg}-${d}`}
+          style={{
+            position: 'absolute' as const,
+            width: dotSize,
+            height: dotSize,
+            borderRadius: dotSize / 2,
+            backgroundColor: Colors.gold.bright,
+            left: cx - dotSize / 2,
+            top: cy - dotSize / 2,
+            opacity: pulseAnim,
+          }}
+        />
+      );
+    }
+  }
+
+  const destId = army.marchPath[army.marchPath.length - 1];
+  const dest = provinces.find(p => p.id === destId);
+  if (dest) {
+    const dx = dest.x * (MAP_WIDTH - 20);
+    const dy = dest.y * MAP_HEIGHT;
+    dots.push(
+      <Animated.View
+        key={`dest-${army.id}`}
+        style={{ position: 'absolute' as const, left: dx - 9, top: dy - 22, opacity: pulseAnim }}
+      >
+        <Text style={{ fontSize: 14 }}>🎯</Text>
+      </Animated.View>
+    );
+  }
+
+  return <>{dots}</>;
+}
+
 function MarchingIndicator({ from, to, armyName }: { from: Province; to: Province; armyName: string }) {
   const dashAnim = useRef(new Animated.Value(0)).current;
 
@@ -500,6 +570,12 @@ export default React.memo(function MapView({ provinces, armies, onProvincePress,
               <ConnectionLine key={c.key} from={c.from} to={c.to} fogged={bothFogged || anyFogged} />
             );
           })}
+          {armies
+            .filter(a => a.owner === 'player' && a.status === 'marching' && a.marchPath && a.marchPath.length > 0)
+            .map(army => (
+              <MarchRoutePreview key={`route-${army.id}`} army={army} provinces={provinces} />
+            ))
+          }
           {provinces.map((province, index) => (
             <ProvinceNode
               key={province.id}
