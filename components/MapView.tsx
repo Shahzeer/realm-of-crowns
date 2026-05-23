@@ -411,6 +411,22 @@ function ProvinceNode({ province, onPress, index, armyCount, isUnderSiege, _tota
 }
 
 export default React.memo(function MapView({ provinces, armies, onProvincePress, selectedProvinceId, visibilityMap }: MapViewProps) {
+  const innerScrollRef = useRef<ScrollView>(null);
+  const hasCenteredRef = useRef(false);
+
+  useEffect(() => {
+    if (hasCenteredRef.current) return;
+    const playerProvs = provinces.filter(p => p.owner === 'player');
+    if (playerProvs.length === 0) return;
+    const avgX = playerProvs.reduce((sum, p) => sum + p.x * (MAP_WIDTH - 20), 0) / playerProvs.length;
+    const scrollX = Math.max(0, avgX - SCREEN_WIDTH / 2);
+    const timer = setTimeout(() => {
+      innerScrollRef.current?.scrollTo({ x: scrollX, animated: false });
+      hasCenteredRef.current = true;
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [provinces]);
+
   const connections = useMemo(() => {
     const result: Array<{ from: Province; to: Province; key: string }> = [];
     const drawn = new Set<string>();
@@ -471,7 +487,7 @@ export default React.memo(function MapView({ provinces, armies, onProvincePress,
 
   return (
     <View style={styles.mapContainer}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} nestedScrollEnabled>
+      <ScrollView ref={innerScrollRef} horizontal showsHorizontalScrollIndicator={false} showsVerticalScrollIndicator={false} nestedScrollEnabled>
         <View style={styles.mapBg}>
           <TerritoryGlow provinces={provinces} visibilityMap={visibilityMap} />
           {foggedProvinces.map(p => (

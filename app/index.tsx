@@ -395,6 +395,12 @@ function KingdomScreen() {
       <ResourceBar resources={state.resources} />
       <PressureIndicators pressures={state.pressures} onPress={() => navigateTo('/pressures')} />
       <WarBanner wars={activeWars.map(w => ({ name: w.name, color: w.color }))} />
+      {state.kingdoms.filter(k => k.attitude === 'war' && ((k.warScore ?? 0) <= -50 || k.provinces.length === 0)).map(k => (
+        <TouchableOpacity key={`surr-${k.id}`} style={idx.surrenderBanner} onPress={() => navigateTo(`/diplomacy?kingdomId=${k.id}` as any)} activeOpacity={0.8}>
+          <Text style={idx.surrenderBannerText}>⚔️ {k.name} is ready to surrender — demand it now!</Text>
+          <ChevronRight size={14} color="#ef4444" />
+        </TouchableOpacity>
+      ))}
       <ScrollView ref={scrollRef} style={idx.scrollContent} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }} showsVerticalScrollIndicator={false}>
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
           {seasonEffect && (
@@ -490,6 +496,8 @@ const idx = StyleSheet.create({
   seasonLabel: { fontSize: 10, fontWeight: "700" as const, letterSpacing: 0.5 },
   warBanner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 6, backgroundColor: '#ff000018', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#ff000030' },
   warBannerText: { fontSize: 12, fontWeight: "800" as const, color: '#ff4444', letterSpacing: 1 },
+  surrenderBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 7, backgroundColor: '#dc262618', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#dc262640' },
+  surrenderBannerText: { flex: 1, fontSize: 12, fontWeight: "700" as const, color: '#ef4444' },
   scrollContent: { flex: 1 },
   seasonEffectBar: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: Colors.bg.card + '60' },
   seasonEffectText: { fontSize: 11, color: Colors.text.secondary },
