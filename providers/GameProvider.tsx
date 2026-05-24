@@ -1195,6 +1195,14 @@ function processAITurn(kingdoms: Kingdom[], provinces: Province[], playerArmies:
     const personalityWarMod = declareProfile.warLikelihood * 0.15;
     const warThreshold = (difficulty === 'hard' ? 0.6 : difficulty === 'easy' ? 0.85 : 0.7) - personalityWarMod;
     if (kingdom.attitude === 'hostile' && kingdom.relation < -70 && Math.random() > warThreshold) {
+      const hasBorderWithPlayer = updatedProvinces.some(p =>
+        p.owner === kingdom.id &&
+        p.connectedTo.some(c => {
+          const cp = updatedProvinces.find(pr => pr.id === c);
+          return cp && cp.owner === 'player';
+        })
+      );
+      if (!hasBorderWithPlayer) return;
       const kIdx = updatedKingdoms.findIndex(k => k.id === kingdom.id);
       if (kIdx >= 0) {
         updatedKingdoms[kIdx] = { ...updatedKingdoms[kIdx], attitude: 'war', warScore: 0 };
@@ -2289,7 +2297,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         newResources.gold += vassalTributeTotal;
       }
       if (prev.isPlayerVassal && prev.playerOverlordId) {
-        const playerVassalTribute = 150;
+        const playerVassalTribute = Math.max(30, Math.min(200, Math.floor((newResources.goldPerTurn || 50) * 0.4)));
         newResources.gold = Math.max(0, newResources.gold - playerVassalTribute);
         vassalLogs.push(`💸 ${playerVassalTribute}g tribute paid to your overlord this turn.`);
       }
@@ -3863,7 +3871,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   }, [saveMutation]);
 
   const negotiatePeace = useCallback((kingdomId: string, terms: {
-    type: 'white_peace' | 'reparations' | 'demand_province' | 'pay_reparations' | 'cede_province' | 'vassalize';
+    type: 'white_peace' | 'reparations' | 'demand_province' | 'pay_reparations' | 'cede_province' | 'vassalize' | 'force_vassalize';
     provinceId?: string;
     gold?: number;
   }) => {
@@ -3892,7 +3900,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
           p.id === terms.provinceId ? { ...p, owner: kingdomId as typeof p.owner, loyalty: 40, unrest: 30 } : p
         );
         logMsg = `☮️ Peace with ${kingdom.name}. Ceded ${pName}.`;
-      } else if (terms.type === 'vassalize') {
+      } else if (terms.type === 'vassalize' || terms.type === 'force_vassalize') {
         logMsg = `👑 ${kingdom.name} has been vassalized! They will pay tribute each turn.`;
       } else {
         logMsg = `☮️ White peace reached with ${kingdom.name}.`;
@@ -3900,7 +3908,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const newKingdoms = prev.kingdoms.map(k => {
         const updatedProvinces = newProvinces.filter(p => p.owner === k.id).map(p => p.id);
         if (k.id === kingdomId) {
-          const isVassal = terms.type === 'vassalize';
+          const isVassal = terms.type === 'vassalize' || terms.type === 'force_vassalize';
           return { ...k, attitude: isVassal ? 'friendly' as const : 'hostile' as const, warScore: 0, relation: Math.min(100, k.relation + (isVassal ? 0 : 15)), isVassal, provinces: updatedProvinces };
         }
         return { ...k, provinces: k.id === 'player' ? k.provinces : updatedProvinces };
@@ -3908,6 +3916,38 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const newState: GameState = {
         ...prev, resources: newResources, provinces: newProvinces,
         kingdoms: newKingdoms, log: [logMsg, ...prev.log].slice(0, 50),
+      };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
+  const declareIndependence = useCallback(() => {
+    setState(prev => {
+      if (!prev.isPlayerVassal || !prev.playerOverlordId) return prev;
+      const overlord = prev.kingdoms.find(k => k.id === prev.playerOverlordId);
+      const newKingdoms = prev.kingdoms.map(k =>
+        k.id === prev.playerOverlordId ? { ...k, attitude: 'war' as const, warScore: 0, relation: Math.max(-100, k.relation - 40) } : k
+      );
+      const logMsg = `⚔️ You have declared independence from ${overlord?.name ?? 'your overlord'}! War has begun — fight for your freedom!`;
+      const newState: GameState = {
+        ...prev,
+        kingdoms: newKingdoms,
+        isPlayerVassal: false,
+        playerOverlordId: undefined,
+        log: [logMsg, ...prev.log].slice(0, 50),
+        events: [...prev.events, {
+          id: `independence_${prev.turn}`,
+          title: 'Independence Declared!',
+          description: `You have thrown off the yoke of ${overlord?.name ?? 'your overlord'}! Your realm is sovereign once more — but war follows. Strengthen your armies.`,
+          type: 'military',
+          turn: prev.turn,
+          seen: false,
+          choices: [
+            { id: `ind_rally_${prev.turn}`, text: 'Rally the realm!', effects: '+50 military, +20 morale', reward: { military: 50 } },
+            { id: `ind_fortify_${prev.turn}`, text: 'Fortify the borders', effects: '+garrison in all provinces', cost: { gold: 150 } },
+          ],
+        }],
       };
       saveMutation.mutate(newState);
       return newState;
@@ -3990,7 +4030,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
-    acceptVassal, rejectVassal,
+    acceptVassal, rejectVassal, declareIndependence,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -4003,6 +4043,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
-    acceptVassal, rejectVassal,
+    acceptVassal, rejectVassal, declareIndependence,
   ]);
 });

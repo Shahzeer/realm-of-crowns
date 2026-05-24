@@ -244,7 +244,7 @@ function KingdomCard({ kingdom, onAction, onNegotiate, onSurrender, onUseHook, i
   );
 }
 
-type PeaceTermType = 'white_peace' | 'reparations' | 'demand_province' | 'pay_reparations' | 'cede_province' | 'vassalize';
+type PeaceTermType = 'white_peace' | 'reparations' | 'demand_province' | 'pay_reparations' | 'cede_province' | 'vassalize' | 'force_vassalize';
 
 export default function DiplomacyScreen() {
   console.log("[RealmOfCrowns] Diplomacy render");
@@ -392,6 +392,13 @@ export default function DiplomacyScreen() {
       desc: `${peaceKingdom?.name ?? 'Enemy'} becomes your vassal, paying tribute each turn. They keep their lands but serve your crown.`,
       color: Colors.gold.bright,
       available: warScore < -60 && enemyProvinces.length > 0,
+    },
+    {
+      type: 'force_vassalize',
+      label: '⚔️ Force Into Your Kingdom',
+      desc: `Absorb ${peaceKingdom?.name ?? 'Enemy'} as a full vassal state. Their ruler submits, pays tribute, and cannot refuse. Requires total dominance.`,
+      color: '#a78bfa',
+      available: warScore < -50 && enemyProvinces.length > 0,
     },
   ].filter(t => t.available);
 

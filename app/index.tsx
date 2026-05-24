@@ -161,7 +161,7 @@ function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward, acceptVassal, rejectVassal } = useGame();
+  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward, acceptVassal, rejectVassal, declareIndependence } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -382,7 +382,7 @@ function KingdomScreen() {
             <Text style={idx.modalIcon}>⚔️</Text>
             <Text style={[idx.modalTitle, { color: '#a78bfa' }]}>DEFEAT</Text>
             <Text style={[idx.modalDesc, { marginBottom: 6 }]}>Your realm has been conquered. But {state.kingdoms.find(k => k.id === state.vassalOfferPending?.overlordId)?.name ?? 'your conqueror'} offers you a choice...</Text>
-            <Text style={[idx.modalDesc, { color: Colors.gold.bright, fontWeight: '700' as const, marginBottom: 16 }]}>Submit as a vassal and keep your capital — but pay 150g tribute every turn.</Text>
+            <Text style={[idx.modalDesc, { color: Colors.gold.bright, fontWeight: '700' as const, marginBottom: 16 }]}>Submit as a vassal and keep your capital — but pay tribute each turn based on your income (roughly 40% of gold earnings).</Text>
             <TouchableOpacity style={[idx.modalBtn, { backgroundColor: '#4c1d95', borderColor: '#7c3aed', marginBottom: 10 }]} onPress={acceptVassal} activeOpacity={0.7}>
               <Text style={idx.modalBtnText}>🤝 Bend the Knee</Text>
             </TouchableOpacity>
@@ -424,6 +424,33 @@ function KingdomScreen() {
       <ResourceBar resources={state.resources} />
       <PressureIndicators pressures={state.pressures} onPress={() => navigateTo('/pressures')} />
       <WarBanner wars={activeWars.map(w => ({ name: w.name, color: w.color }))} />
+      {state.isPlayerVassal && state.playerOverlordId && (() => {
+        const overlord = state.kingdoms.find(k => k.id === state.playerOverlordId);
+        const tributeAmount = Math.max(30, Math.min(200, Math.floor((state.resources.goldPerTurn || 50) * 0.4)));
+        return (
+          <View style={idx.vassalBanner}>
+            <View style={idx.vassalBannerLeft}>
+              <Text style={idx.vassalBannerIcon}>⛓️</Text>
+              <View>
+                <Text style={idx.vassalBannerTitle}>Vassal of {overlord?.name ?? 'your overlord'}</Text>
+                <Text style={idx.vassalBannerSub}>Paying {tributeAmount}g tribute per turn</Text>
+              </View>
+            </View>
+            <TouchableOpacity style={idx.vassalBreakBtn} onPress={() => {
+              Alert.alert(
+                'Declare Independence',
+                `Break free from ${overlord?.name ?? 'your overlord'}? This will immediately start a war — ensure your armies are ready.`,
+                [
+                  { text: 'Not yet', style: 'cancel' },
+                  { text: 'Declare Independence!', style: 'destructive', onPress: declareIndependence },
+                ]
+              );
+            }} activeOpacity={0.7}>
+              <Text style={idx.vassalBreakBtnText}>⚔️ Break Free</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      })()}
       {state.kingdoms.filter(k => k.attitude === 'war' && ((k.warScore ?? 0) <= -50 || k.provinces.length === 0)).map(k => (
         <TouchableOpacity key={`surr-${k.id}`} style={idx.surrenderBanner} onPress={() => navigateTo(`/diplomacy?kingdomId=${k.id}` as any)} activeOpacity={0.8}>
           <Text style={idx.surrenderBannerText}>⚔️ {k.name} is ready to surrender — demand it now!</Text>
@@ -526,6 +553,13 @@ const idx = StyleSheet.create({
   warBannerText: { fontSize: 12, fontWeight: "800" as const, color: '#ff4444', letterSpacing: 1 },
   surrenderBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 7, backgroundColor: '#dc262618', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#dc262640' },
   surrenderBannerText: { flex: 1, fontSize: 12, fontWeight: "700" as const, color: '#ef4444' },
+  vassalBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#1e1040', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#7c3aed50' },
+  vassalBannerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  vassalBannerIcon: { fontSize: 18 },
+  vassalBannerTitle: { fontSize: 13, fontWeight: "700" as const, color: '#a78bfa' },
+  vassalBannerSub: { fontSize: 11, color: Colors.text.secondary, marginTop: 1 },
+  vassalBreakBtn: { backgroundColor: '#3a1a1a', borderWidth: 1, borderColor: '#dc2626', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
+  vassalBreakBtnText: { fontSize: 12, fontWeight: "700" as const, color: '#ef4444' },
   scrollContent: { flex: 1 },
   seasonEffectBar: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: Colors.bg.card + '60' },
   seasonEffectText: { fontSize: 11, color: Colors.text.secondary },
