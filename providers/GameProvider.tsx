@@ -82,6 +82,7 @@ function getEmptyPressures(): KingdomPressures {
     famine: 0,
     plague: { active: false, severity: 0, infectedProvinces: [], turnStarted: 0, contained: false },
     nobleDisputes: [],
+    warExhaustion: 0,
   };
 }
 
@@ -212,12 +213,14 @@ function processKingdomPressures(
   resources: Resources,
   turn: number,
   council: Array<{ role: string; skill: number; loyalty: number; task?: string }>,
+  activeWarCount: number,
 ): {
   pressures: KingdomPressures;
   events: GameEvent[];
   logs: string[];
   resourcePenalties: Partial<Resources>;
   loyaltyPenalties: Record<string, number>;
+  moraleHit: number;
 } {
   const playerProvinces = provinces.filter(p => p.owner === 'player');
   const provCount = playerProvinces.length;
@@ -358,12 +361,44 @@ function processKingdomPressures(
     }
   });
 
+  let warExhaustion = pressures.warExhaustion ?? 0;
+  let moraleHit = 0;
+  if (activeWarCount > 0) {
+    const exhaustionBuild = 3 + (activeWarCount - 1) * 2;
+    warExhaustion = Math.min(100, warExhaustion + exhaustionBuild);
+    const foodDrain = Math.floor(warExhaustion * 0.15);
+    if (foodDrain > 0) {
+      resourcePenalties.food = (resourcePenalties.food ?? 0) - foodDrain;
+    }
+    if (warExhaustion > 30) {
+      const loyaltyHit = Math.floor(warExhaustion / 20);
+      playerProvinces.forEach(p => {
+        loyaltyPenalties[p.id] = (loyaltyPenalties[p.id] ?? 0) - loyaltyHit;
+      });
+    }
+    if (warExhaustion > 50) {
+      const goldDrain = Math.floor(warExhaustion / 8);
+      resourcePenalties.gold = (resourcePenalties.gold ?? 0) - goldDrain;
+      moraleHit = Math.floor(warExhaustion / 25);
+      if (warExhaustion > 60) logs.push(`⚔️ War exhaustion (${Math.round(warExhaustion)}%) — draining gold, food, loyalty & morale`);
+      else logs.push(`⚔️ War exhaustion (${Math.round(warExhaustion)}%) — maintenance costs rise`);
+    } else if (warExhaustion > 20) {
+      logs.push(`⚔️ War exhaustion building (${Math.round(warExhaustion)}%) — food and loyalty suffer`);
+    }
+  } else {
+    warExhaustion = Math.max(0, warExhaustion - 8);
+    if (warExhaustion === 0 && (pressures.warExhaustion ?? 0) > 0) {
+      logs.push('🕊️ War exhaustion has fully recovered.');
+    }
+  }
+
   return {
-    pressures: { corruption, overstretch, famine, plague, nobleDisputes },
+    pressures: { corruption, overstretch, famine, plague, nobleDisputes, warExhaustion },
     events,
     logs,
     resourcePenalties,
     loyaltyPenalties,
+    moraleHit,
   };
 }
 
@@ -1063,11 +1098,13 @@ function processAITurn(kingdoms: Kingdom[], provinces: Province[], playerArmies:
         }
       }
 
-      if (warScore <= -50 && Math.random() > 0.5) {
+      const suesForPeace = (warScore <= -50 && Math.random() > 0.5) ||
+        (Math.abs(warScore) > 15 && Math.random() < 0.04);
+      if (suesForPeace) {
         const kIdx = updatedKingdoms.findIndex(k => k.id === kingdom.id);
         if (kIdx >= 0) {
           updatedKingdoms[kIdx] = { ...updatedKingdoms[kIdx], attitude: 'hostile', warScore: 0 };
-          logs.push(`☮️ ${kingdom.name} has sued for peace!`);
+          logs.push(`☮️ ${kingdom.name} has sued for peace — the cost of war weighs on their realm!`);
         }
       }
     }
@@ -2677,12 +2714,14 @@ export const [GameProvider, useGame] = createContextHook(() => {
         if (val > 1) newFaithCooldowns[key] = val - 1;
       });
 
+      const activeWarCount = newKingdoms.filter(k => k.attitude === 'war').length;
       const pressureResult = processKingdomPressures(
         prev.pressures,
         newProvinces,
         newResources,
         nextTurn,
         newCouncil,
+        activeWarCount,
       );
       const pressureGold = pressureResult.resourcePenalties.gold ?? 0;
       const pressureFood = pressureResult.resourcePenalties.food ?? 0;
@@ -2690,6 +2729,11 @@ export const [GameProvider, useGame] = createContextHook(() => {
       newResources.gold = Math.max(0, newResources.gold + pressureGold);
       newResources.food = Math.max(0, newResources.food + pressureFood);
       newResources.military = Math.max(0, newResources.military + pressureMil);
+      if (pressureResult.moraleHit > 0) {
+        newArmies = newArmies.map(a => ({
+          ...a, morale: Math.max(15, a.morale - pressureResult.moraleHit),
+        }));
+      }
 
       // Populate full breakdown for turn summary popup
       summary.goldGained = newResources.gold - prev.resources.gold;
@@ -3663,6 +3707,24 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const reduceWarExhaustion = useCallback((method: 'gold' | 'faith') => {
+    setState(prev => {
+      if (method === 'gold' && prev.resources.gold < 200) return prev;
+      if (method === 'faith' && prev.resources.faith < 50) return prev;
+      const reduction = method === 'gold' ? 20 : 15;
+      const newResources = { ...prev.resources };
+      if (method === 'gold') newResources.gold -= 200;
+      else newResources.faith -= 50;
+      const newPressures = { ...prev.pressures, warExhaustion: Math.max(0, (prev.pressures.warExhaustion ?? 0) - reduction) };
+      const logMsg = method === 'gold'
+        ? `🎺 Celebrations and war bonds reduce war exhaustion by ${reduction}%.`
+        : `⛪ Religious blessings lift spirits, reducing war exhaustion by ${reduction}%.`;
+      const newState: GameState = { ...prev, resources: newResources, pressures: newPressures, log: [logMsg, ...prev.log].slice(0, 50) };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const assignCouncilTask = useCallback((councilId: string, task: string) => {
     setState(prev => {
       const newCouncil = prev.council.map(c => c.id === councilId ? { ...c, task } : c);
@@ -4030,7 +4092,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
-    acceptVassal, rejectVassal, declareIndependence,
+    acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -4043,6 +4105,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
-    acceptVassal, rejectVassal, declareIndependence,
+    acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion,
   ]);
 });

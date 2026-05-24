@@ -428,6 +428,7 @@ export interface KingdomPressures {
   famine: number;
   plague: PlagueState;
   nobleDisputes: NobleDispute[];
+  warExhaustion: number;
 }
 
 export interface PlagueState {

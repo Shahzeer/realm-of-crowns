@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, AlertTriangle, Skull, Crown, Wheat, Building2, ChevronRight, ShieldAlert, HeartPulse } from "lucide-react-native";
+import { X, AlertTriangle, Skull, Crown, Wheat, Building2, ChevronRight, ShieldAlert, HeartPulse, Swords } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { NobleDispute } from "@/types/game";
@@ -80,7 +80,7 @@ export default function PressuresScreen() {
   console.log("[RealmOfCrowns] Pressures render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, reduceCorruption, resolveNobleDispute, containPlague, playerProvinces } = useGame();
+  const { state, reduceCorruption, resolveNobleDispute, containPlague, playerProvinces, reduceWarExhaustion, activeWars } = useGame();
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -130,8 +130,22 @@ export default function PressuresScreen() {
   }, [state.provinces]);
 
   const activeDisputes = pressures.nobleDisputes.filter(d => !d.resolved);
-  const overallPressure = Math.round((pressures.corruption + pressures.overstretch + pressures.famine + (pressures.plague.active ? pressures.plague.severity : 0)) / 4);
+  const warExhaustion = pressures.warExhaustion ?? 0;
+  const overallPressure = Math.round((pressures.corruption + pressures.overstretch + pressures.famine + (pressures.plague.active ? pressures.plague.severity : 0) + warExhaustion) / 5);
   const overallColor = overallPressure > 50 ? Colors.crimson.bright : overallPressure > 25 ? Colors.status.warning : Colors.status.success;
+
+  const handleReduceWarExhaustion = useCallback((method: 'gold' | 'faith') => {
+    if (method === 'gold' && state.resources.gold < 200) {
+      Alert.alert("Insufficient Gold", "Need 200 gold to boost morale and fund propaganda.");
+      return;
+    }
+    if (method === 'faith' && state.resources.faith < 50) {
+      Alert.alert("Insufficient Faith", "Need 50 faith for religious blessings.");
+      return;
+    }
+    if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    reduceWarExhaustion(method);
+  }, [state.resources, reduceWarExhaustion]);
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]}>
@@ -195,6 +209,14 @@ export default function PressuresScreen() {
               icon={<Skull size={18} color={Colors.crimson.bright} />}
             />
           )}
+          {(warExhaustion > 0 || activeWars.length > 0) && (
+            <PressureGauge
+              value={warExhaustion}
+              color="#ef4444"
+              label="War Exhaustion"
+              icon={<Swords size={18} color="#ef4444" />}
+            />
+          )}
 
           <Text style={s.sectionTitle}>Actions</Text>
 
@@ -222,6 +244,25 @@ export default function PressuresScreen() {
                 <Text style={s.actionTitle}>Quarantine</Text>
                 <Text style={s.actionCost}>💰 150 gold</Text>
                 <Text style={s.actionDesc}>Enforce quarantine to contain plague</Text>
+              </TouchableOpacity>
+            )}
+
+            {(warExhaustion > 0 || activeWars.length > 0) && (
+              <TouchableOpacity style={s.actionCard} onPress={() => handleReduceWarExhaustion('gold')} activeOpacity={0.7}>
+                <LinearGradient colors={['#1a0f0f', '#0d1117']} style={StyleSheet.absoluteFill} />
+                <Swords size={20} color="#ef4444" />
+                <Text style={s.actionTitle}>Fund Propaganda</Text>
+                <Text style={s.actionCost}>💰 200 gold</Text>
+                <Text style={s.actionDesc}>Celebrations and war bonds boost morale (-20% exhaustion)</Text>
+              </TouchableOpacity>
+            )}
+            {(warExhaustion > 0 || activeWars.length > 0) && (
+              <TouchableOpacity style={s.actionCard} onPress={() => handleReduceWarExhaustion('faith')} activeOpacity={0.7}>
+                <LinearGradient colors={['#0f1420', '#0d1117']} style={StyleSheet.absoluteFill} />
+                <HeartPulse size={20} color="#a78bfa" />
+                <Text style={s.actionTitle}>Bless the Armies</Text>
+                <Text style={s.actionCost}>✨ 50 faith</Text>
+                <Text style={s.actionDesc}>Religious ceremonies lift spirits (-15% exhaustion)</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -290,7 +331,22 @@ export default function PressuresScreen() {
             </>
           )}
 
-          {activeDisputes.length === 0 && !pressures.plague.active && pressures.corruption < 10 && pressures.overstretch === 0 && pressures.famine < 10 && (
+          {warExhaustion > 20 && (
+            <View style={s.infoCard}>
+              <Swords size={16} color="#ef4444" />
+              <View style={s.infoContent}>
+                <Text style={s.infoTitle}>War Exhaustion</Text>
+                <Text style={s.infoDesc}>
+                  {warExhaustion < 50
+                    ? `Your realm grows weary of war. Food stores are being consumed and province loyalty is slipping. Seek a swift victory or negotiate peace.`
+                    : `The people are war-weary. Gold is bleeding into maintenance, armies are losing morale, and loyalty erodes across all provinces. Every turn costs more than the last — peace may be necessary.`}
+                  {warExhaustion > 0 ? ` Exhaustion decays by 8% per peaceful turn.` : ''}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {activeDisputes.length === 0 && !pressures.plague.active && pressures.corruption < 10 && pressures.overstretch === 0 && pressures.famine < 10 && warExhaustion < 10 && (
             <View style={s.stableCard}>
               <Text style={s.stableEmoji}>🏛️</Text>
               <Text style={s.stableTitle}>Kingdom Stable</Text>
