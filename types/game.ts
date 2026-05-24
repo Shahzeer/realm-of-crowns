@@ -212,7 +212,7 @@ export interface Kingdom {
   };
   isVassal?: boolean;
   diplomaticHook?: {
-    type: 'rejected_call_to_war';
+    type: 'rejected_call_to_war' | 'intercepted_correspondence' | 'bribed_councillor';
     turn: number;
     description: string;
   };
@@ -532,6 +532,9 @@ export interface GameState {
   isCustomKingdom?: boolean;
   dailyQuests?: DailyQuest[];
   lastQuestDate?: string;
+  vassalOfferPending?: { overlordId: string; capitalProvinceId: string };
+  isPlayerVassal?: boolean;
+  playerOverlordId?: string;
 }
 
 export interface PendingChainEvent {

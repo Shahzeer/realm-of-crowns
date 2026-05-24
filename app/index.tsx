@@ -13,7 +13,6 @@ import MapView from "@/components/MapView";
 import GameToast from "@/components/GameToast";
 import AchievementPopup from "@/components/AchievementPopup";
 import ProvinceActionPopup from "@/components/ProvinceActionPopup";
-import RumorCards from "@/components/RumorCards";
 import TutorialOverlay from "@/components/TutorialOverlay";
 import DailyQuestsCard from "@/components/DailyQuestsCard";
 import { Province, Achievement, TurnSummary } from "@/types/game";
@@ -138,17 +137,6 @@ function TurnSummaryModal({ visible, onClose, summary }: { visible: boolean; onC
                 {summary.provincesConquered.map((p: string, i: number) => <Text key={i} style={[idx.summaryDetail, { color: Colors.status.success }]}>🏴 {p}</Text>)}
               </View>
             )}
-            {summary.rumorsHeard && summary.rumorsHeard.length > 0 && (
-              <View style={idx.summarySection}>
-                <Text style={idx.summarySectionTitle}>Rumors Heard</Text>
-                {summary.rumorsHeard.map((r: string, i: number) => (
-                  <View key={i} style={idx.summaryRumorRow}>
-                    <Text style={idx.summaryRumorQuote}>"</Text>
-                    <Text style={idx.summaryRumorText}>{r}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
             {summary.spyResults && summary.spyResults.length > 0 && (
               <View style={idx.summarySection}>
                 <Text style={idx.summarySectionTitle}>Spy Reports</Text>
@@ -173,7 +161,7 @@ function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward } = useGame();
+  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward, acceptVassal, rejectVassal } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -387,6 +375,23 @@ function KingdomScreen() {
           </View>
         </View>
       </Modal>
+      <Modal visible={!!state.vassalOfferPending} transparent animationType="fade">
+        <View style={idx.modalOverlay}>
+          <View style={idx.modalCard}>
+            <LinearGradient colors={['#1a1225', '#0d1117']} style={StyleSheet.absoluteFill} />
+            <Text style={idx.modalIcon}>⚔️</Text>
+            <Text style={[idx.modalTitle, { color: '#a78bfa' }]}>DEFEAT</Text>
+            <Text style={[idx.modalDesc, { marginBottom: 6 }]}>Your realm has been conquered. But {state.kingdoms.find(k => k.id === state.vassalOfferPending?.overlordId)?.name ?? 'your conqueror'} offers you a choice...</Text>
+            <Text style={[idx.modalDesc, { color: Colors.gold.bright, fontWeight: '700' as const, marginBottom: 16 }]}>Submit as a vassal and keep your capital — but pay 150g tribute every turn.</Text>
+            <TouchableOpacity style={[idx.modalBtn, { backgroundColor: '#4c1d95', borderColor: '#7c3aed', marginBottom: 10 }]} onPress={acceptVassal} activeOpacity={0.7}>
+              <Text style={idx.modalBtnText}>🤝 Bend the Knee</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[idx.modalBtn, { backgroundColor: '#3a1a1a', borderColor: '#7f1d1d' }]} onPress={rejectVassal} activeOpacity={0.7}>
+              <Text style={[idx.modalBtnText, { color: '#ff4444' }]}>💀 Fight to the Last</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       <Modal visible={showGameOver} transparent animationType="fade">
         <View style={idx.modalOverlay}>
           <View style={idx.modalCard}>
@@ -453,7 +458,6 @@ function KingdomScreen() {
               <Swords size={16} color={Colors.crimson.bright} /><Text style={idx.battleAlertText}>{recentBattles.length} recent battle{recentBattles.length > 1 ? 's' : ''}</Text><ChevronRight size={14} color={Colors.text.dim} />
             </TouchableOpacity>
           )}
-          {state.rumors.length > 0 && <RumorCards rumors={state.rumors} onInvestigate={investigateRumor} onDismiss={dismissRumor} onSendSpy={() => navigateTo('/espionage')} />}
           <DailyQuestsCard
             quests={state.dailyQuests ?? []}
             onClaim={id => { claimQuestReward?.(id); setToast({ visible: true, message: 'Quest reward claimed!', type: 'success' }); }}

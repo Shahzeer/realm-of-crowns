@@ -590,6 +590,7 @@ export const SPY_MISSIONS: SpyMission[] = [
   { id: 'spy_incite_revolt', name: 'Incite Revolt', description: 'Spread propaganda to cause unrest in an enemy province.', icon: '📢', cost: 250, turnsToComplete: 3, successChance: 50, targetType: 'province', effects: 'Province loyalty drops, possible revolt' },
   { id: 'spy_intelligence', name: 'Gather Intelligence', description: 'Learn details about enemy army positions and strength.', icon: '🔍', cost: 100, turnsToComplete: 2, successChance: 80, targetType: 'kingdom', effects: 'Reveal army details for 5 turns' },
   { id: 'spy_counter', name: 'Counter-Espionage', description: 'Root out enemy spies in your own court.', icon: '🛡️', cost: 120, turnsToComplete: 2, successChance: 70, targetType: 'kingdom', effects: 'Block enemy spy actions for 5 turns' },
+  { id: 'spy_plant_hook', name: 'Plant a Hook', description: 'Intercept correspondence or bribe a councillor to gain leverage over any kingdom — no refusal needed.', icon: '🪝', cost: 300, turnsToComplete: 3, successChance: 50, targetType: 'kingdom', effects: 'Gain leverage: demand gold, force aid, or renew alliance' },
 ];
 
 export const FAITH_ACTIONS: FaithAction[] = [

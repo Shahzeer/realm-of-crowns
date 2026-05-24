@@ -59,6 +59,7 @@ function TerritoryGlow({ provinces, visibilityMap }: { provinces: Province[]; vi
     const groups: Record<string, Province[]> = {};
     provinces.forEach(p => {
       if (!visibilityMap[p.id]) return;
+      if (p.owner === 'neutral') return;
       if (!groups[p.owner]) groups[p.owner] = [];
       groups[p.owner].push(p);
     });

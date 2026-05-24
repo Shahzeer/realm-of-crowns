@@ -2288,6 +2288,11 @@ export const [GameProvider, useGame] = createContextHook(() => {
         }, 0);
         newResources.gold += vassalTributeTotal;
       }
+      if (prev.isPlayerVassal && prev.playerOverlordId) {
+        const playerVassalTribute = 150;
+        newResources.gold = Math.max(0, newResources.gold - playerVassalTribute);
+        vassalLogs.push(`💸 ${playerVassalTribute}g tribute paid to your overlord this turn.`);
+      }
 
       const marriageResolutionLogs: string[] = [];
       if (!newRuler.spouse) {
@@ -2471,6 +2476,22 @@ export const [GameProvider, useGame] = createContextHook(() => {
               case 'spy_counter':
                 spyLog += ' Enemy spies rooted out!';
                 break;
+              case 'spy_plant_hook': {
+                const hookTarget = newKingdoms.find(k => k.id === activeSpyMission!.targetId);
+                if (hookTarget) {
+                  const method = Math.random() < 0.5 ? 'intercepted_correspondence' as const : 'bribed_councillor' as const;
+                  const methodDesc = method === 'intercepted_correspondence'
+                    ? `Your agents intercepted private correspondence from ${hookTarget.name} (Turn ${nextTurn}), giving you leverage over them.`
+                    : `A councillor in ${hookTarget.name}'s court was bribed (Turn ${nextTurn}), placing them in your debt.`;
+                  newKingdoms = newKingdoms.map(k =>
+                    k.id === hookTarget.id
+                      ? { ...k, diplomaticHook: { type: method, turn: nextTurn, description: methodDesc } }
+                      : k
+                  );
+                  spyLog += ` Hook planted on ${hookTarget.name}. You now hold leverage over them.`;
+                }
+                break;
+              }
             }
             summary.spyResults.push(spyLog);
           } else {
@@ -2741,9 +2762,19 @@ export const [GameProvider, useGame] = createContextHook(() => {
       let victory = false;
       let victoryType: string | undefined;
 
-      if (playerProvCount === 0) {
+      let vassalOfferPending = prev.vassalOfferPending;
+      if (playerProvCount === 0 && !prev.vassalOfferPending && !prev.isPlayerVassal) {
+        const conqueror = newKingdoms.find(k => k.attitude === 'war') ?? newKingdoms.reduce((a, b) => (a.strength > b.strength ? a : b));
+        const formerCapital = newProvinces.find(p => p.type === 'capital' && p.owner !== 'player') ?? newProvinces.find(p => p.owner !== 'neutral' && p.owner !== 'player');
+        if (formerCapital && conqueror) {
+          vassalOfferPending = { overlordId: conqueror.id, capitalProvinceId: formerCapital.id };
+        } else {
+          gameOver = true;
+          gameOverReason = 'All your provinces have been conquered. Your dynasty has fallen.';
+        }
+      } else if (playerProvCount === 0 && prev.isPlayerVassal) {
         gameOver = true;
-        gameOverReason = 'All your provinces have been conquered. Your dynasty has fallen.';
+        gameOverReason = 'Even as a vassal your realm has been extinguished. Your dynasty has fallen.';
       }
 
       let newReignChronicles = prev.reignChronicles ?? [];
@@ -2942,6 +2973,9 @@ export const [GameProvider, useGame] = createContextHook(() => {
         rulerTitle: newRulerTitle,
         dailyQuests: updatedDailyQuests,
         lastQuestDate: today,
+        vassalOfferPending,
+        isPlayerVassal: prev.isPlayerVassal,
+        playerOverlordId: prev.playerOverlordId,
       } as GameState;
       saveMutation.mutate(newState);
       return newState;
@@ -3880,6 +3914,46 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const acceptVassal = useCallback(() => {
+    setState(prev => {
+      if (!prev.vassalOfferPending) return prev;
+      const { overlordId, capitalProvinceId } = prev.vassalOfferPending;
+      const overlord = prev.kingdoms.find(k => k.id === overlordId);
+      const newProvinces = prev.provinces.map(p =>
+        p.id === capitalProvinceId ? { ...p, owner: 'player', garrison: 100, underSiege: false, siegeProgress: 0, loyalty: 40, unrest: 30 } : p
+      );
+      const newKingdoms = prev.kingdoms.map(k =>
+        k.id === overlordId ? { ...k, attitude: 'friendly' as const, relation: Math.min(100, k.relation + 20) } : k
+      );
+      const logMsg = `🤝 You have submitted to ${overlord?.name ?? 'your conqueror'} as a vassal. Your capital is returned, but you must pay 150g tribute each turn.`;
+      const newState: GameState = {
+        ...prev,
+        provinces: newProvinces,
+        kingdoms: newKingdoms,
+        vassalOfferPending: undefined,
+        isPlayerVassal: true,
+        playerOverlordId: overlordId,
+        log: [logMsg, ...prev.log].slice(0, 50),
+      };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
+  const rejectVassal = useCallback(() => {
+    setState(prev => {
+      if (!prev.vassalOfferPending) return prev;
+      const newState: GameState = {
+        ...prev,
+        vassalOfferPending: undefined,
+        gameOver: true,
+        gameOverReason: 'You refused to bend the knee. Your dynasty has fallen.',
+      };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const resetGame = useCallback(async () => {
     await AsyncStorage.removeItem(STORAGE_KEY);
     setState({ ...defaultState, gameStarted: false });
@@ -3916,6 +3990,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
+    acceptVassal, rejectVassal,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -3928,5 +4003,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
+    acceptVassal, rejectVassal,
   ]);
 });
