@@ -3,9 +3,8 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "start": "bunx rork start -p o1uykndcanm0roh3hhmdk --tunnel",
-    "start-web": "bunx rork start -p o1uykndcanm0roh3hhmdk --web --tunnel",
-    "start-web-dev": "DEBUG=expo* bunx rork start -p o1uykndcanm0roh3hhmdk --web --tunnel",
+    "start": "npx expo start --web --port 5000",
+    "start-web": "npx expo start --web --port 5000",
     "lint": "expo lint"
   },
   "dependencies": {
