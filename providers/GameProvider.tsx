@@ -2278,14 +2278,15 @@ export const [GameProvider, useGame] = createContextHook(() => {
       }
 
       const vassalLogs: string[] = [];
+      let vassalTributeTotal = 0;
       const vassals = newKingdoms.filter(k => k.isVassal);
       if (vassals.length > 0) {
-        const tributeTotal = vassals.reduce((sum, k) => {
+        vassalTributeTotal = vassals.reduce((sum, k) => {
           const amount = Math.max(40, Math.min(150, k.provinces.length * 20));
           vassalLogs.push(`💎 ${k.name} paid ${amount}g vassal tribute.`);
           return sum + amount;
         }, 0);
-        newResources.gold += tributeTotal;
+        newResources.gold += vassalTributeTotal;
       }
 
       const marriageResolutionLogs: string[] = [];
@@ -2305,8 +2306,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
           if (accepted) {
             newRuler = { ...newRuler, spouse: `Consort of ${k.name}`, spouseBonuses: { diplomacy: 2, goldPerTurn: 3 } };
             newResources.goldPerTurn = (newResources.goldPerTurn || 0) + 3;
-            marriageResolutionLogs.push(`💍 ${k.name} accepted your marriage proposal! Heirs may now be born.`);
-            return { ...k, marriageProposal: undefined, relation: Math.min(100, k.relation + 20) };
+            marriageResolutionLogs.push(`💍 ${k.name} accepted your marriage proposal! A royal alliance is forged.`);
+            return { ...k, marriageProposal: undefined, relation: Math.min(100, k.relation + 20), attitude: 'allied' as const };
           } else {
             marriageResolutionLogs.push(`💔 ${k.name} rejected your marriage proposal.`);
             return { ...k, marriageProposal: undefined };
@@ -2445,9 +2446,28 @@ export const [GameProvider, useGame] = createContextHook(() => {
                 spyLog += ' Unrest rising!';
                 break;
               }
-              case 'spy_intelligence':
-                spyLog += ' Enemy army details revealed!';
+              case 'spy_intelligence': {
+                const targetKingdom = newKingdoms.find(k => k.id === activeSpyMission!.targetId);
+                if (targetKingdom) {
+                  const totalTroops = targetKingdom.armies.reduce((s, a) => s + a.troops, 0);
+                  const treasuryEstimate = Math.round((targetKingdom.treasury ?? 0) / 100) * 100;
+                  const existingIntel = targetKingdom.intel ?? { confidence: 0, personalityGuesses: [], rumors: [], armyStrength: 0 };
+                  const newConfidence = Math.min(95, existingIntel.confidence + 25 + Math.floor(Math.random() * 15));
+                  const personalityGuess = targetKingdom.personality as import('@/types/game').AIPersonality;
+                  const newGuesses = [...new Set([...existingIntel.personalityGuesses, personalityGuess])];
+                  const intelRumor = `${targetKingdom.name} fields ~${totalTroops} troops (treasury ~${treasuryEstimate}g)`;
+                  const newRumors = [...existingIntel.rumors, intelRumor].slice(-3);
+                  newKingdoms = newKingdoms.map(k =>
+                    k.id === targetKingdom.id
+                      ? { ...k, intel: { confidence: newConfidence, personalityGuesses: newGuesses, rumors: newRumors, armyStrength: totalTroops } }
+                      : k
+                  );
+                  spyLog += ` ${targetKingdom.name}: ~${totalTroops} troops, ~${treasuryEstimate}g treasury. Intel confidence: ${newConfidence}%.`;
+                } else {
+                  spyLog += ' Enemy intelligence gathered!';
+                }
                 break;
+              }
               case 'spy_counter':
                 spyLog += ' Enemy spies rooted out!';
                 break;
@@ -2665,6 +2685,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         },
         diff: { gold: diffGold, food: diffFood, military: diffMil, faith: diffFaith },
         pressure: { gold: pressureGold, food: pressureFood, military: pressureMil },
+        vassal: vassalTributeTotal,
       };
       newProvinces = newProvinces.map(p => {
         const loyaltyHit = pressureResult.loyaltyPenalties[p.id];
@@ -2950,6 +2971,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       let newRuler = { ...prev.ruler };
       let newCouncil = [...prev.council];
       let newProvinces = [...prev.provinces];
+      let newArmies = [...prev.armies];
 
       if (choice.id === 'hcoa_warrior' && newHeir) {
         newHeir = { ...newHeir, path: 'warrior' as HeirPath, martial: newHeir.martial + 5, claimStrength: Math.min(100, newHeir.claimStrength + 3) };
@@ -2992,6 +3014,25 @@ export const [GameProvider, useGame] = createContextHook(() => {
         }
       }
 
+      // War declaration choices: Rally forces / Fortify borders
+      if (choice.id.startsWith('wc1_')) {
+        // Rally forces — boost all player army morale by 20
+        newArmies = newArmies.map(a =>
+          a.owner === 'player' ? { ...a, morale: Math.min(100, a.morale + 20) } : a
+        );
+      } else if (choice.id.startsWith('wc2_')) {
+        // Fortify borders — add 100 garrison to all border provinces facing enemies at war
+        const warKingdomIds = prev.kingdoms.filter(k => k.attitude === 'war').map(k => k.id);
+        newProvinces = newProvinces.map(p => {
+          if (p.owner !== 'player') return p;
+          const isBorder = p.connectedTo.some(c => {
+            const connected = prev.provinces.find(cp => cp.id === c);
+            return connected && warKingdomIds.includes(connected.owner);
+          });
+          return isBorder ? { ...p, garrison: Math.min(1000, (p.garrison ?? 0) + 100) } : p;
+        });
+      }
+
       let pendingChains: PendingChainEvent[] = [...(prev.pendingChainEvents ?? [])];
       if (choice.followUpEventId && choice.followUpDelay) {
         pendingChains.push({
@@ -3004,6 +3045,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const newState = {
         ...prev, resources: newResources, events: newEvents,
         heir: newHeir, ruler: newRuler, council: newCouncil, provinces: newProvinces,
+        armies: newArmies,
         log: [logEntry, ...prev.log].slice(0, 50),
         pendingChainEvents: pendingChains,
       } as GameState;
@@ -3271,11 +3313,84 @@ export const [GameProvider, useGame] = createContextHook(() => {
           relationChange = 10;
           logMsg = `💍 Marriage proposal sent to ${kingdom.name}. They will respond next turn.`;
           break;
-        case 'call_to_war':
+        case 'call_to_war': {
           if (kingdom.attitude !== 'allied') return prev;
-          relationChange = -10;
-          logMsg = `📯 Called ${kingdom.name} to war. Your ally musters against your enemies.`;
-          break;
+          const warTargets = prev.kingdoms.filter(k => k.attitude === 'war');
+          if (warTargets.length === 0) return prev;
+
+          const allyProfile = AI_PERSONALITY_PROFILES[kingdom.personality as AIPersonality] ?? AI_PERSONALITY_PROFILES['diplomatic'];
+          const willingness = Math.min(0.9, (Math.max(0, kingdom.relation) / 100) * 0.6 + allyProfile.warLikelihood * 0.4);
+          const roll = Math.random();
+          let ctw_provinces = [...prev.provinces];
+          let ctw_kingdoms = [...prev.kingdoms];
+          let ctw_resources = { ...prev.resources };
+          let ctw_log = '';
+
+          if (roll < willingness * 0.65) {
+            // Ally attacks an enemy province
+            const warTarget = warTargets[Math.floor(Math.random() * warTargets.length)];
+            const enemyProvs = prev.provinces.filter(p => p.owner === warTarget.id);
+            const allyTroops = kingdom.armies.reduce((s, a) => s + a.troops, 0);
+            if (enemyProvs.length > 0 && allyTroops > 150) {
+              const target = enemyProvs[Math.floor(Math.random() * enemyProvs.length)];
+              const attackPower = allyTroops * 0.6 + kingdom.ruler.martial * 8;
+              const defPower = (target.garrison ?? 100) + warTarget.armies.reduce((s, a) => s + a.troops, 0) * 0.2;
+              if (attackPower > defPower) {
+                ctw_provinces = ctw_provinces.map(p =>
+                  p.id === target.id ? { ...p, owner: 'player', garrison: 80, loyalty: 30, unrest: 40, siegeProgress: 0, underSiege: false } : p
+                );
+                ctw_kingdoms = ctw_kingdoms.map(k => {
+                  if (k.id === warTarget.id) return { ...k, warScore: (k.warScore ?? 0) + 20, provinces: k.provinces.filter(id => id !== target.id) };
+                  if (k.id === kingdom.id) return { ...k, relation: Math.min(100, k.relation - 5) };
+                  return k;
+                });
+                ctw_log = `⚔️ ${kingdom.name} answered your call! They seized ${target.name} from ${warTarget.name} on your behalf!`;
+              } else {
+                ctw_kingdoms = ctw_kingdoms.map(k =>
+                  k.id === warTarget.id
+                    ? { ...k, armies: k.armies.map(a => ({ ...a, troops: Math.max(50, Math.floor(a.troops * 0.85)) })) }
+                    : k
+                );
+                ctw_log = `⚔️ ${kingdom.name} stormed ${target.name} but couldn't break through. The enemy garrison is weakened!`;
+              }
+            } else {
+              const goldAid = 80 + Math.floor((kingdom.treasury ?? 0) * 0.04);
+              const milAid = 40 + Math.floor(Math.random() * 80);
+              ctw_resources = { ...ctw_resources, gold: ctw_resources.gold + goldAid, military: ctw_resources.military + milAid };
+              ctw_kingdoms = ctw_kingdoms.map(k => k.id === kingdom.id ? { ...k, treasury: Math.max(0, (k.treasury ?? 0) - goldAid) } : k);
+              ctw_log = `💰 ${kingdom.name} couldn't field a proper army but rushed ${goldAid}g and ${milAid} troops to your cause!`;
+            }
+          } else if (roll < willingness * 0.65 + 0.25) {
+            // Send resources
+            const goldAid = 60 + Math.floor(Math.random() * 120);
+            const milAid = 30 + Math.floor(Math.random() * 80);
+            ctw_resources = { ...ctw_resources, gold: ctw_resources.gold + goldAid, military: ctw_resources.military + milAid };
+            ctw_kingdoms = ctw_kingdoms.map(k => k.id === kingdom.id ? { ...k, treasury: Math.max(0, (k.treasury ?? 0) - goldAid) } : k);
+            ctw_log = `💰 ${kingdom.name} sent ${goldAid}g and ${milAid} reinforcements — they'll fight when able.`;
+          } else {
+            // Reject
+            const reasons = [
+              'our own borders need defending',
+              'our armies are still recovering from past campaigns',
+              'the treasury cannot fund a campaign right now',
+              'we face threats on our own frontier',
+              'the timing is not right — we will remember this request',
+            ];
+            const reason = reasons[Math.floor(Math.random() * reasons.length)];
+            ctw_kingdoms = ctw_kingdoms.map(k => k.id === kingdom.id ? { ...k, relation: Math.max(-100, k.relation - 15) } : k);
+            ctw_log = `😤 ${kingdom.name} refused your call to arms: "${reason}."`;
+          }
+
+          const ctwState: GameState = {
+            ...prev,
+            resources: ctw_resources,
+            provinces: ctw_provinces,
+            kingdoms: ctw_kingdoms,
+            log: [ctw_log, ...prev.log].slice(0, 50),
+          };
+          saveMutation.mutate(ctwState);
+          return ctwState;
+        }
       }
       if (prev.resources.gold < goldCost) return prev;
       const warTargets = prev.kingdoms.filter(k => k.attitude === 'war').map(k => k.id);

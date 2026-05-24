@@ -413,6 +413,7 @@ export interface TurnSummary {
     council: { gold: number; food: number; military: number; faith: number };
     diff: { gold: number; food: number; military: number; faith: number };
     pressure: { gold: number; food: number; military: number };
+    vassal?: number;
   };
 }
 

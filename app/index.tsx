@@ -106,6 +106,7 @@ function TurnSummaryModal({ visible, onClose, summary }: { visible: boolean; onC
                   { label: 'Council', gold: summary.breakdown.council.gold, food: summary.breakdown.council.food, mil: summary.breakdown.council.military, faith: summary.breakdown.council.faith, always: summary.breakdown.council.gold + summary.breakdown.council.food + summary.breakdown.council.military + summary.breakdown.council.faith > 0 },
                   { label: 'Difficulty bonus', gold: summary.breakdown.diff.gold, food: summary.breakdown.diff.food, mil: summary.breakdown.diff.military, faith: summary.breakdown.diff.faith, always: summary.breakdown.diff.gold > 0 },
                   { label: 'Pressures', gold: summary.breakdown.pressure.gold, food: summary.breakdown.pressure.food, mil: summary.breakdown.pressure.military, faith: 0, always: summary.breakdown.pressure.gold !== 0 || summary.breakdown.pressure.food !== 0 || summary.breakdown.pressure.military !== 0 },
+                  { label: 'Vassal tributes', gold: summary.breakdown.vassal ?? 0, food: 0, mil: 0, faith: 0, always: (summary.breakdown.vassal ?? 0) > 0 },
                 ].filter(r => r.always).map((row, i) => {
                   const isPenalty = row.label === 'Pressures';
                   const isSeason = row.label.startsWith('Season');

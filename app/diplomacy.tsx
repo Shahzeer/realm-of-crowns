@@ -169,9 +169,11 @@ function KingdomCard({ kingdom, onAction, onNegotiate, onSurrender, index, ruler
               <TouchableOpacity style={[d.actionBtn, d.threatenBtn]} onPress={() => onAction(kingdom.id, 'threaten')} activeOpacity={0.7}>
                 <AlertTriangle size={14} color={Colors.crimson.bright} /><Text style={d.threatenText}>Threaten</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[d.actionBtn, d.allyBtn]} onPress={() => onAction(kingdom.id, 'ally')} activeOpacity={0.7}>
-                <Handshake size={14} color={Colors.status.info} /><Text style={d.allyText}>Ally (200g)</Text>
-              </TouchableOpacity>
+              {kingdom.attitude !== 'allied' && (
+                <TouchableOpacity style={[d.actionBtn, d.allyBtn]} onPress={() => onAction(kingdom.id, 'ally')} activeOpacity={0.7}>
+                  <Handshake size={14} color={Colors.status.info} /><Text style={d.allyText}>Ally (200g)</Text>
+                </TouchableOpacity>
+              )}
               {hasProposal ? (
                 <View style={[d.actionBtn, d.marriageProposedBtn]}>
                   <Heart size={14} color="#f472b6" /><Text style={d.marriageProposedText}>Awaiting Reply…</Text>
