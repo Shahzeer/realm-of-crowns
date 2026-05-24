@@ -320,9 +320,33 @@ export default function DiplomacyScreen() {
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
     if (action === 'declare_war') {
       const kingdom = state.kingdoms.find(k => k.id === kingdomId);
+      if (!kingdom) return;
+      const playerProvs = state.provinces.filter(p => p.owner === 'player');
+      const sharesBorder = playerProvs.some(p =>
+        p.connectedTo.some(cid => {
+          const cp = state.provinces.find(pr => pr.id === cid);
+          return cp && cp.owner === kingdom.id;
+        })
+      );
+      const hasBorderDispute = kingdom.relation < -50 && sharesBorder;
+      const hasProvinceClaim = (state.provinceClaims ?? []).some(pid =>
+        state.provinces.find(p => p.id === pid)?.owner === kingdom.id
+      );
+      if (!hasBorderDispute && !hasProvinceClaim) {
+        const borderMsg = sharesBorder
+          ? `Relations must be below −50 for a border dispute (currently ${kingdom.relation}).`
+          : `You share no border with ${kingdom.name}.`;
+        Alert.alert(
+          "No Casus Belli",
+          `You cannot declare war on ${kingdom.name} without a legitimate reason.\n\n${borderMsg}\n\nTo gain Casus Belli:\n• Have your Chancellor fabricate a claim on one of their provinces\n• Reach relation below −50 on a shared border`,
+          [{ text: "Understood", style: "cancel" }]
+        );
+        return;
+      }
+      const cbType = hasProvinceClaim ? '📜 Claim on a province' : '⚔️ Border dispute';
       Alert.alert(
-        "Declare War",
-        `Are you sure you want to declare war on ${kingdom?.name ?? 'this kingdom'}? This will severely damage relations.`,
+        `Declare War — ${cbType}`,
+        `Declare war on ${kingdom.name}? This will severely damage relations with all kingdoms.`,
         [
           { text: "Cancel", style: "cancel" },
           { text: "Declare War!", style: "destructive", onPress: () => sendDiplomacy(kingdomId, action) },

@@ -161,7 +161,7 @@ function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward, acceptVassal, rejectVassal, declareIndependence } = useGame();
+  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward, acceptVassal, rejectVassal, declareIndependence, refuseTribute } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -427,27 +427,49 @@ function KingdomScreen() {
       {state.isPlayerVassal && state.playerOverlordId && (() => {
         const overlord = state.kingdoms.find(k => k.id === state.playerOverlordId);
         const tributeAmount = Math.max(30, Math.min(200, Math.floor((state.resources.goldPerTurn || 50) * 0.4)));
+        const favor = state.overlordFavor ?? 50;
+        const favorColor = favor > 60 ? Colors.status.success : favor > 30 ? Colors.status.warning : Colors.status.danger;
+        const tributeRefused = state.refuseNextTribute;
         return (
           <View style={idx.vassalBanner}>
             <View style={idx.vassalBannerLeft}>
               <Text style={idx.vassalBannerIcon}>⛓️</Text>
               <View>
                 <Text style={idx.vassalBannerTitle}>Vassal of {overlord?.name ?? 'your overlord'}</Text>
-                <Text style={idx.vassalBannerSub}>Paying {tributeAmount}g tribute per turn</Text>
+                <Text style={idx.vassalBannerSub}>
+                  {tributeRefused ? '💢 Tribute refused this turn' : `Paying ${tributeAmount}g tribute per turn`}
+                </Text>
+                <Text style={[idx.vassalBannerSub, { color: favorColor, marginTop: 1 }]}>Favor: {favor}/100</Text>
               </View>
             </View>
-            <TouchableOpacity style={idx.vassalBreakBtn} onPress={() => {
-              Alert.alert(
-                'Declare Independence',
-                `Break free from ${overlord?.name ?? 'your overlord'}? This will immediately start a war — ensure your armies are ready.`,
-                [
-                  { text: 'Not yet', style: 'cancel' },
-                  { text: 'Declare Independence!', style: 'destructive', onPress: declareIndependence },
-                ]
-              );
-            }} activeOpacity={0.7}>
-              <Text style={idx.vassalBreakBtnText}>⚔️ Break Free</Text>
-            </TouchableOpacity>
+            <View style={{ gap: 6 }}>
+              {!tributeRefused && (
+                <TouchableOpacity style={idx.vassalRefuseBtn} onPress={() => {
+                  Alert.alert(
+                    'Refuse Tribute',
+                    `Withhold the ${tributeAmount}g tribute from ${overlord?.name ?? 'your overlord'} this turn?\n\nRepeated refusals will lower their favor and may lead to war.`,
+                    [
+                      { text: 'Pay as normal', style: 'cancel' },
+                      { text: 'Refuse', style: 'destructive', onPress: () => { refuseTribute(); } },
+                    ]
+                  );
+                }} activeOpacity={0.7}>
+                  <Text style={idx.vassalRefuseBtnText}>💰 Refuse</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={idx.vassalBreakBtn} onPress={() => {
+                Alert.alert(
+                  'Declare Independence',
+                  `Break free from ${overlord?.name ?? 'your overlord'}? This will immediately start a war — ensure your armies are ready.`,
+                  [
+                    { text: 'Not yet', style: 'cancel' },
+                    { text: 'Declare Independence!', style: 'destructive', onPress: declareIndependence },
+                  ]
+                );
+              }} activeOpacity={0.7}>
+                <Text style={idx.vassalBreakBtnText}>⚔️ Break Free</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         );
       })()}
@@ -558,6 +580,8 @@ const idx = StyleSheet.create({
   vassalBannerIcon: { fontSize: 18 },
   vassalBannerTitle: { fontSize: 13, fontWeight: "700" as const, color: '#a78bfa' },
   vassalBannerSub: { fontSize: 11, color: Colors.text.secondary, marginTop: 1 },
+  vassalRefuseBtn: { backgroundColor: '#2a1a0a', borderWidth: 1, borderColor: '#92400e', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  vassalRefuseBtnText: { fontSize: 11, fontWeight: "700" as const, color: '#f59e0b' },
   vassalBreakBtn: { backgroundColor: '#3a1a1a', borderWidth: 1, borderColor: '#dc2626', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
   vassalBreakBtnText: { fontSize: 12, fontWeight: "700" as const, color: '#ef4444' },
   scrollContent: { flex: 1 },

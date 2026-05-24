@@ -30,7 +30,7 @@ const TASK_KEYS: Record<string, string[]> = {
   steward: ['Collect taxes', 'Develop province', 'Manage supplies'],
   spymaster: ['Spy on rival kingdom', 'Counter espionage', 'Scheme'],
   chaplain: ['Preach to masses', 'Bless armies', 'Tend to sick'],
-  chancellor: ['Improve relations', 'Negotiate trade', 'Forge alliances'],
+  chancellor: ['Improve relations', 'Negotiate trade', 'Forge alliances', 'Fabricate Claim'],
 };
 
 function getTaskLabel(role: string, task: string, skill: number, loyalty: number): string {
@@ -62,6 +62,7 @@ function getTaskLabel(role: string, task: string, skill: number, loyalty: number
       if (task === 'Improve relations') return `Improve relations  (+${Math.max(2, Math.floor(skill * 0.5 * loyaltyMod))} relations/turn)`;
       if (task === 'Negotiate trade') return `Negotiate trade  (+${Math.floor(taskBonus * 1.5 * loyaltyMod)} gold/turn)`;
       if (task === 'Forge alliances') return `Forge alliances  (chance to deepen ties)`;
+      if (task === 'Fabricate Claim') return `Fabricate Claim  (5 turns → Casus Belli on border province)`;
       break;
   }
   return task;

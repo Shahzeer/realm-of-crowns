@@ -19,6 +19,7 @@ export default function ProvinceDetailScreen() {
   const isOwned = province?.owner === 'player';
   const isFogged = province ? !visibilityMap[province.id] : false;
   const [showBuildMenu, setShowBuildMenu] = useState(false);
+  const [recruitTroops, setRecruitTroops] = useState(50);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -32,15 +33,16 @@ export default function ProvinceDetailScreen() {
   }, [id, upgradeBuilding]);
 
   const handleRecruit = useCallback(() => {
-    if (!id) return;
-    const troops = 200;
-    const cost = troops * 2;
-    if (state.resources.gold < cost) { Alert.alert("Insufficient Gold", `Need ${cost} gold.`); return; }
-    if (state.resources.military < troops) { Alert.alert("Insufficient Military", `Need ${troops} military points.`); return; }
+    if (!id || !province) return;
+    const garrison = province.garrison ?? 0;
+    if (garrison < 50) { Alert.alert("Insufficient Garrison", `Need at least 50 garrison troops to raise an army. Current garrison: ${garrison}.`); return; }
+    const troops = recruitTroops;
+    const goldCost = Math.max(1, Math.floor(troops * 0.5));
+    if (state.resources.gold < goldCost) { Alert.alert("Insufficient Gold", `Need ${goldCost} gold to equip ${troops} soldiers.`); return; }
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }
     recruitArmy(id, troops);
-    Alert.alert("Army Recruited", `200 soldiers levied at ${province?.name ?? 'this province'}.`);
-  }, [id, state.resources, recruitArmy, province?.name]);
+    Alert.alert("Army Raised", `${troops} soldiers levied from ${province.name} garrison (${goldCost}g equipping).`);
+  }, [id, province, recruitTroops, state.resources.gold, recruitArmy]);
 
   const handleConstruct = useCallback((blueprintId: string) => {
     if (!id) return;
@@ -304,12 +306,59 @@ export default function ProvinceDetailScreen() {
           {isOwned && !isFogged && (
             <View style={ps.actionSection}>
               <Text style={ps.sectionTitle}>Actions</Text>
-              <TouchableOpacity style={ps.recruitBtn} onPress={handleRecruit} activeOpacity={0.7} testID="recruit-army">
-                <LinearGradient colors={[Colors.military.blood, '#4a1a1a']} style={ps.recruitGradient}>
-                  <Swords size={18} color={Colors.text.primary} />
-                  <Text style={ps.recruitText}>Recruit Army (400g, 200 mil)</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+              <View style={ps.recruitPanel}>
+                <View style={ps.recruitHeader}>
+                  <Swords size={15} color={Colors.crimson.bright} />
+                  <Text style={ps.recruitPanelTitle}>Raise Army from Garrison</Text>
+                  <Text style={ps.garrisonAvail}>Available: {province.garrison}</Text>
+                </View>
+                {province.garrison < 50 ? (
+                  <View style={ps.recruitDisabledMsg}>
+                    <Text style={ps.recruitDisabledText}>⚠️ Garrison too low to raise an army (need 50+)</Text>
+                  </View>
+                ) : (
+                  <>
+                    <View style={ps.troopPickerRow}>
+                      <TouchableOpacity
+                        style={ps.troopStepBtn}
+                        onPress={() => setRecruitTroops(t => Math.max(50, t - 50))}
+                        disabled={recruitTroops <= 50}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={ps.troopStepBtnText}>−</Text>
+                      </TouchableOpacity>
+                      <View style={ps.troopCountBox}>
+                        <Text style={ps.troopCount}>{recruitTroops}</Text>
+                        <Text style={ps.troopCountLabel}>troops</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={ps.troopStepBtn}
+                        onPress={() => setRecruitTroops(t => Math.min(province.garrison, t + 50))}
+                        disabled={recruitTroops >= province.garrison}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={ps.troopStepBtnText}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={ps.troopCostHint}>Equipping cost: {Math.max(1, Math.floor(recruitTroops * 0.5))}g · Garrison -{recruitTroops}</Text>
+                    <TouchableOpacity
+                      style={[ps.recruitBtn, state.resources.gold < Math.max(1, Math.floor(recruitTroops * 0.5)) && ps.recruitBtnDisabled]}
+                      onPress={handleRecruit}
+                      disabled={state.resources.gold < Math.max(1, Math.floor(recruitTroops * 0.5))}
+                      activeOpacity={0.7}
+                      testID="recruit-army"
+                    >
+                      <LinearGradient
+                        colors={state.resources.gold < Math.max(1, Math.floor(recruitTroops * 0.5)) ? ['#2a1a1a', '#1a1010'] : [Colors.military.blood, '#4a1a1a']}
+                        style={ps.recruitGradient}
+                      >
+                        <Swords size={18} color={Colors.text.primary} />
+                        <Text style={ps.recruitText}>Raise {recruitTroops} Soldiers ({Math.max(1, Math.floor(recruitTroops * 0.5))}g)</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
               {province.garrison < 1000 && (
                 <TouchableOpacity
                   style={[ps.garrisonBtn, (state.resources.gold < 100 || state.resources.military < 100) && ps.garrisonBtnDisabled]}
@@ -410,7 +459,21 @@ const ps = StyleSheet.create({
   armyStatsRow: { flexDirection: "row", gap: 12, marginTop: 8 },
   armyDetail: { fontSize: 12, color: Colors.text.secondary },
   actionSection: { marginTop: 8 },
-  recruitBtn: { marginHorizontal: 16, borderRadius: 10, overflow: "hidden" },
+  recruitPanel: { marginHorizontal: 16, backgroundColor: Colors.bg.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.border.primary, gap: 10 },
+  recruitHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  recruitPanelTitle: { flex: 1, fontSize: 13, fontWeight: "700" as const, color: Colors.text.primary },
+  garrisonAvail: { fontSize: 11, color: Colors.military.steel },
+  recruitDisabledMsg: { paddingVertical: 8 },
+  recruitDisabledText: { fontSize: 12, color: Colors.status.warning, textAlign: "center" as const },
+  troopPickerRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 16 },
+  troopStepBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.bg.tertiary, borderWidth: 1, borderColor: Colors.border.primary, alignItems: "center", justifyContent: "center" },
+  troopStepBtnText: { fontSize: 22, fontWeight: "700" as const, color: Colors.text.primary },
+  troopCountBox: { alignItems: "center", minWidth: 70 },
+  troopCount: { fontSize: 28, fontWeight: "800" as const, color: Colors.text.primary },
+  troopCountLabel: { fontSize: 10, color: Colors.text.secondary, textTransform: "uppercase" as const },
+  troopCostHint: { fontSize: 11, color: Colors.text.secondary, textAlign: "center" as const },
+  recruitBtn: { borderRadius: 10, overflow: "hidden" },
+  recruitBtnDisabled: { opacity: 0.5 },
   recruitGradient: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14 },
   recruitText: { fontSize: 14, fontWeight: "700" as const, color: Colors.text.primary },
   foreignInfo: { marginHorizontal: 16, marginTop: 20, backgroundColor: Colors.bg.card, borderRadius: 12, padding: 16, alignItems: "center", gap: 8, borderWidth: 1, borderColor: Colors.border.primary },

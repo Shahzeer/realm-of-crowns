@@ -536,6 +536,10 @@ export interface GameState {
   vassalOfferPending?: { overlordId: string; capitalProvinceId: string };
   isPlayerVassal?: boolean;
   playerOverlordId?: string;
+  provinceClaims?: string[];
+  claimFabricationProgress?: number;
+  overlordFavor?: number;
+  refuseNextTribute?: boolean;
 }
 
 export interface PendingChainEvent {

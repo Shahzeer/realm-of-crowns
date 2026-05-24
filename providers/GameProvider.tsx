@@ -2333,10 +2333,51 @@ export const [GameProvider, useGame] = createContextHook(() => {
         }, 0);
         newResources.gold += vassalTributeTotal;
       }
+      let overlordFavor = prev.overlordFavor ?? 50;
       if (prev.isPlayerVassal && prev.playerOverlordId) {
         const playerVassalTribute = Math.max(30, Math.min(200, Math.floor((newResources.goldPerTurn || 50) * 0.4)));
-        newResources.gold = Math.max(0, newResources.gold - playerVassalTribute);
-        vassalLogs.push(`💸 ${playerVassalTribute}g tribute paid to your overlord this turn.`);
+        if (prev.refuseNextTribute) {
+          overlordFavor = Math.max(0, overlordFavor - 15);
+          vassalLogs.push(`💢 You refused tribute to your overlord. Their favor: ${overlordFavor}/100`);
+          if (overlordFavor <= 35 && overlordFavor > 10 && !newEvents.some(e => e.id.startsWith('overlord_warning'))) {
+            newEvents.push({
+              id: `overlord_warning_${nextTurn}`,
+              title: '⚠️ The King Demands Your Tribute!',
+              description: `Word has reached your overlord that you have refused to pay tribute. They send an envoy with a stern warning: pay what is owed, or face the consequences of defiance.`,
+              type: 'political',
+              turn: nextTurn,
+              seen: false,
+              choices: [
+                { id: `ow_pay_${nextTurn}`, text: `Pay the arrears (${playerVassalTribute * 2}g)`, effects: '+20 favor, restored relations', reward: { gold: -(playerVassalTribute * 2) } },
+                { id: `ow_refuse_${nextTurn}`, text: 'Continue to defy them', effects: '-20 favor — war grows near' },
+              ],
+            });
+          }
+          if (overlordFavor <= 10 && !newEvents.some(e => e.id.startsWith('overlord_war'))) {
+            const overlordKingdom = newKingdoms.find(k => k.id === prev.playerOverlordId);
+            newKingdoms = newKingdoms.map(k =>
+              k.id === prev.playerOverlordId
+                ? { ...k, attitude: 'war' as const, warScore: 0, relation: Math.max(-100, k.relation - 30) }
+                : k
+            );
+            vassalLogs.push(`⚔️ ${overlordKingdom?.name ?? 'Your overlord'} has had enough of your defiance — war declared!`);
+            newEvents.push({
+              id: `overlord_war_${nextTurn}`,
+              title: '⚔️ Your Overlord Declares War!',
+              description: `After repeated refusals to pay tribute your overlord has had enough. They march to collect by force. Prepare your defenses!`,
+              type: 'military',
+              turn: nextTurn,
+              seen: false,
+              choices: [
+                { id: `ow_fight_${nextTurn}`, text: 'Prepare for war!', effects: 'Your armies stand ready' },
+              ],
+            });
+          }
+        } else {
+          overlordFavor = Math.min(100, overlordFavor + 2);
+          newResources.gold = Math.max(0, newResources.gold - playerVassalTribute);
+          vassalLogs.push(`💸 ${playerVassalTribute}g tribute paid to your overlord this turn.`);
+        }
       }
 
       const marriageResolutionLogs: string[] = [];
@@ -2555,6 +2596,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
       // Council bonuses: passive (role-based) + active (task-based)
       const councilLogs: string[] = [];
       let councilGoldPT = 0, councilFoodPT = 0, councilMilPT = 0, councilFaithPT = 0;
+      let newProvinceClaims = [...(prev.provinceClaims ?? [])];
+      let newClaimFabricationProgress = prev.claimFabricationProgress ?? 0;
       const preCouncilGold = newResources.gold;
       const preCouncilFood = newResources.food;
       const preCouncilMil = newResources.military;
@@ -2680,6 +2723,39 @@ export const [GameProvider, useGame] = createContextHook(() => {
                   k.id === target.id ? { ...k, relation: Math.min(100, k.relation + 6) } : k
                 );
                 councilLogs.push(`🕊️ ${c.name} advanced alliance negotiations with ${target.name} (+6 relations)`);
+              }
+            } else if (c.task.startsWith('Fabricate Claim')) {
+              const progress = newClaimFabricationProgress + 1;
+              if (progress >= 5) {
+                const hostileBorderProvs = newProvinces.filter(p =>
+                  p.owner !== 'player' && p.owner !== 'neutral' &&
+                  p.connectedTo.some(cid => newProvinces.find(pp => pp.id === cid)?.owner === 'player')
+                );
+                const unclaimed = hostileBorderProvs.filter(p => !newProvinceClaims.includes(p.id));
+                if (unclaimed.length > 0) {
+                  const target = unclaimed[Math.floor(Math.random() * unclaimed.length)];
+                  newProvinceClaims = [...newProvinceClaims, target.id];
+                  councilLogs.push(`📜 ${c.name} fabricated a claim on ${target.name}! Casus Belli unlocked against its owner.`);
+                  newEvents.push({
+                    id: `claim_${target.id}_${nextTurn}`,
+                    title: 'Claim Fabricated!',
+                    description: `Your Chancellor ${c.name} has unearthed historical records supporting your right to ${target.name}. You now have Casus Belli to declare war on its current owner.`,
+                    type: 'political',
+                    turn: nextTurn,
+                    seen: false,
+                    choices: [
+                      { id: `claim_press_${target.id}`, text: 'Press the claim — prepare for war', effects: 'You have Casus Belli, use it wisely' },
+                      { id: `claim_wait_${target.id}`, text: 'Bide your time', effects: 'Claim preserved for future use' },
+                    ],
+                  });
+                  newClaimFabricationProgress = 0;
+                } else {
+                  newClaimFabricationProgress = 0;
+                  councilLogs.push(`📜 ${c.name} found no unclaimed border provinces to target.`);
+                }
+              } else {
+                newClaimFabricationProgress = progress;
+                if (progress % 2 !== 0) councilLogs.push(`📜 ${c.name} is fabricating a claim... (${progress}/5 turns)`);
               }
             }
             break;
@@ -3028,6 +3104,10 @@ export const [GameProvider, useGame] = createContextHook(() => {
         vassalOfferPending,
         isPlayerVassal: prev.isPlayerVassal,
         playerOverlordId: prev.playerOverlordId,
+        provinceClaims: newProvinceClaims,
+        claimFabricationProgress: newClaimFabricationProgress,
+        overlordFavor,
+        refuseNextTribute: false,
       } as GameState;
       saveMutation.mutate(newState);
       return newState;
@@ -3142,20 +3222,26 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
   const recruitArmy = useCallback((provinceId: string, troops: number) => {
     setState(prev => {
-      const cost = troops * 2;
-      if (prev.resources.gold < cost || prev.resources.military < troops) return prev;
       const province = prev.provinces.find(p => p.id === provinceId);
+      if (!province || province.owner !== 'player') return prev;
+      if (province.garrison < troops) return prev;
+      const goldCost = Math.max(1, Math.floor(troops * 0.5));
+      if (prev.resources.gold < goldCost) return prev;
       const commander = COMMANDER_NAMES[Math.floor(Math.random() * COMMANDER_NAMES.length)];
       const newArmy: Army = {
-        id: `army_${Date.now()}`, name: `Levy of ${province?.name ?? 'Unknown'}`,
+        id: `army_${Date.now()}`, name: `Levy of ${province.name}`,
         owner: 'player', troops, maxTroops: troops + 200, morale: 70,
         commander, location: provinceId, status: 'idle',
       };
+      const newProvinces = prev.provinces.map(p =>
+        p.id === provinceId ? { ...p, garrison: p.garrison - troops } : p
+      );
       const newState: GameState = {
         ...prev,
-        resources: { ...prev.resources, gold: prev.resources.gold - cost, military: prev.resources.military - troops },
+        resources: { ...prev.resources, gold: prev.resources.gold - goldCost },
+        provinces: newProvinces,
         armies: [...prev.armies, newArmy],
-        log: [`Recruited ${troops} soldiers at ${newArmy.name}`, ...prev.log].slice(0, 50),
+        log: [`⚔️ Raised ${troops} soldiers from ${province.name} garrison (${goldCost}g equipping)`, ...prev.log].slice(0, 50),
         dailyQuests: updateQuestProgress(prev.dailyQuests ?? [], 'recruit', 1),
       };
       saveMutation.mutate(newState);
@@ -3380,7 +3466,22 @@ export const [GameProvider, useGame] = createContextHook(() => {
         case 'gift': goldCost = 100; relationChange = 15; logMsg = `Sent gifts to ${kingdom.name} (+${relationChange} relations)`; break;
         case 'threaten': relationChange = -20; logMsg = `Threatened ${kingdom.name} (${relationChange} relations)`; break;
         case 'ally': goldCost = 200; relationChange = 30; logMsg = `Proposed alliance to ${kingdom.name}`; break;
-        case 'declare_war': relationChange = -50; logMsg = `🔥 DECLARED WAR on ${kingdom.name}!`; break;
+        case 'declare_war': {
+          const playerProvs = prev.provinces.filter(p => p.owner === 'player');
+          const sharesBorder = playerProvs.some(p =>
+            p.connectedTo.some(cid => {
+              const cp = prev.provinces.find(pr => pr.id === cid);
+              return cp && cp.owner === kingdom.id;
+            })
+          );
+          const hasBorderDispute = kingdom.relation < -50 && sharesBorder;
+          const hasProvinceClaim = (prev.provinceClaims ?? []).some(pid =>
+            prev.provinces.find(p => p.id === pid)?.owner === kingdom.id
+          );
+          if (!hasBorderDispute && !hasProvinceClaim) return prev;
+          relationChange = -50; logMsg = `🔥 DECLARED WAR on ${kingdom.name}!`;
+          break;
+        }
         case 'peace': goldCost = 150; relationChange = 20; logMsg = `☮️ Offered peace to ${kingdom.name}`; break;
         case 'demand_tribute':
           if (kingdom.attitude === 'war' && (kingdom.warScore ?? 0) <= -30) {
@@ -3601,19 +3702,25 @@ export const [GameProvider, useGame] = createContextHook(() => {
     setState(prev => {
       const army = prev.armies.find(a => a.id === armyId);
       if (!army) return prev;
+      const province = prev.provinces.find(p => p.id === army.location);
+      if (!province || province.owner !== 'player') return prev;
       const maxReinforce = army.maxTroops - army.troops;
-      const actual = Math.min(troops, maxReinforce);
+      const actual = Math.min(troops, maxReinforce, province.garrison);
       if (actual <= 0) return prev;
-      const goldCost = actual * 2;
-      if (prev.resources.gold < goldCost || prev.resources.military < actual) return prev;
+      const goldCost = Math.max(1, Math.floor(actual * 0.5));
+      if (prev.resources.gold < goldCost) return prev;
       const newArmies = prev.armies.map(a =>
         a.id === armyId ? { ...a, troops: a.troops + actual } : a
       );
-      const logMsg = `🛡️ Reinforced ${army.name} with ${actual} troops`;
+      const newProvinces = prev.provinces.map(p =>
+        p.id === province.id ? { ...p, garrison: p.garrison - actual } : p
+      );
+      const logMsg = `🛡️ Reinforced ${army.name} with ${actual} troops from ${province.name} garrison`;
       const newState: GameState = {
         ...prev,
         armies: newArmies,
-        resources: { ...prev.resources, gold: prev.resources.gold - goldCost, military: prev.resources.military - actual },
+        provinces: newProvinces,
+        resources: { ...prev.resources, gold: prev.resources.gold - goldCost },
         log: [logMsg, ...prev.log].slice(0, 50),
       };
       saveMutation.mutate(newState);
@@ -4016,6 +4123,18 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const refuseTribute = useCallback(() => {
+    setState(prev => {
+      if (!prev.isPlayerVassal || !prev.playerOverlordId) return prev;
+      if (prev.refuseNextTribute) return prev;
+      return {
+        ...prev,
+        refuseNextTribute: true,
+        log: [`💢 You refuse to pay tribute this turn. Your overlord will not be pleased.`, ...prev.log].slice(0, 50),
+      };
+    });
+  }, []);
+
   const acceptVassal = useCallback(() => {
     setState(prev => {
       if (!prev.vassalOfferPending) return prev;
@@ -4092,7 +4211,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
-    acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion,
+    acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion, refuseTribute,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -4105,6 +4224,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
-    acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion,
+    acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion, refuseTribute,
   ]);
 });

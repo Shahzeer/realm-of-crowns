@@ -153,13 +153,13 @@ function ArmyCard({ army, provinces, onMove, onAttack, onReinforce, onDisband, o
         {isIdle && (
           <View style={s.manageRow}>
             <TouchableOpacity
-              style={[s.reinforceBtn, (army.troops >= army.maxTroops || resources.gold < 200 || resources.military < 100) && s.btnDisabled]}
+              style={[s.reinforceBtn, army.troops >= army.maxTroops && s.btnDisabled]}
               onPress={() => onReinforce(army.id)}
-              disabled={army.troops >= army.maxTroops || resources.gold < 200 || resources.military < 100}
+              disabled={army.troops >= army.maxTroops}
               activeOpacity={0.7}
             >
               <Plus size={14} color={army.troops >= army.maxTroops ? Colors.text.dim : Colors.status.success} />
-              <Text style={[s.reinforceBtnText, (army.troops >= army.maxTroops || resources.gold < 200 || resources.military < 100) && { color: Colors.text.dim }]}>Reinforce</Text>
+              <Text style={[s.reinforceBtnText, army.troops >= army.maxTroops && { color: Colors.text.dim }]}>Reinforce</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[s.mergeBtn, isMergeSource && s.mergeBtnActive]}
@@ -252,19 +252,35 @@ export default function ArmiesScreen() {
   const handleReinforce = useCallback((armyId: string) => {
     const army = state.armies.find(a => a.id === armyId);
     if (!army) return;
+    const province = state.provinces.find(p => p.id === army.location);
+    const availGarrison = province?.owner === 'player' ? (province?.garrison ?? 0) : 0;
     const maxReinforce = army.maxTroops - army.troops;
-    const troops = Math.min(100, maxReinforce);
-    const goldCost = troops * 2;
+    if (army.troops >= army.maxTroops) {
+      Alert.alert("At Full Strength", `${army.name} is already at maximum troop capacity.`);
+      return;
+    }
+    if (availGarrison <= 0) {
+      Alert.alert("No Garrison Available", `${province?.name ?? 'This province'} has no garrison troops to draw from. Reinforce the garrison first.`);
+      return;
+    }
+    const max = Math.min(maxReinforce, availGarrison);
+    const opt25 = Math.min(25, max);
+    const opt50 = Math.min(50, max);
+    const opt100 = Math.min(100, max);
+    const uniqueOpts = [...new Set([opt25, opt50, opt100, max].filter(v => v > 0))];
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
     Alert.alert(
-      "Reinforce Army",
-      `Add ${troops} troops to ${army.name}?\nCost: ${goldCost} gold, ${troops} military`,
+      "Reinforce from Garrison",
+      `${province?.name ?? 'Province'} garrison: ${availGarrison} available\nHow many to add to ${army.name}?`,
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Reinforce", onPress: () => reinforceArmy(armyId, troops) },
+        ...uniqueOpts.map(n => ({
+          text: `+${n} troops (${Math.max(1, Math.floor(n * 0.5))}g)`,
+          onPress: () => reinforceArmy(armyId, n),
+        })),
       ]
     );
-  }, [state.armies, reinforceArmy]);
+  }, [state.armies, state.provinces, reinforceArmy]);
 
   const handleDisband = useCallback((armyId: string) => {
     const army = state.armies.find(a => a.id === armyId);
