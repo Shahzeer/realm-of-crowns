@@ -211,6 +211,11 @@ export interface Kingdom {
     proposedTurn: number;
   };
   isVassal?: boolean;
+  diplomaticHook?: {
+    type: 'rejected_call_to_war';
+    turn: number;
+    description: string;
+  };
 }
 
 export type VictoryTitle = 

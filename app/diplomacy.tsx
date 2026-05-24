@@ -4,7 +4,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, Gift, AlertTriangle, Handshake, Flame, Flag, DollarSign, Eye, Heart, Megaphone, Scale, ChevronRight } from "lucide-react-native";
+import { X, Gift, AlertTriangle, Handshake, Flame, Flag, DollarSign, Eye, Heart, Megaphone, Scale, ChevronRight, Lock } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { Kingdom, AIPersonality } from "@/types/game";
@@ -12,11 +12,12 @@ import { PERSONALITY_LABELS } from "@/mocks/gameData";
 
 type DiplomacyAction = 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war';
 
-function KingdomCard({ kingdom, onAction, onNegotiate, onSurrender, index, rulerMarried, hasPendingProposal, highlighted }: {
+function KingdomCard({ kingdom, onAction, onNegotiate, onSurrender, onUseHook, index, rulerMarried, hasPendingProposal, highlighted }: {
   kingdom: Kingdom;
   onAction: (id: string, action: DiplomacyAction) => void;
   onNegotiate: (kingdom: Kingdom) => void;
   onSurrender: (kingdom: Kingdom) => void;
+  onUseHook: (kingdom: Kingdom) => void;
   index: number;
   rulerMarried: boolean;
   hasPendingProposal: boolean;
@@ -94,6 +95,13 @@ function KingdomCard({ kingdom, onAction, onNegotiate, onSurrender, index, ruler
                 War Score: {warScore > 0 ? '+' : ''}{warScore}
               </Text>
             </View>
+          </View>
+        )}
+        {!!kingdom.diplomaticHook && (
+          <View style={d.hookStrip}>
+            <Lock size={12} color="#a78bfa" />
+            <Text style={d.hookStripText}>YOU HOLD LEVERAGE</Text>
+            <Text style={d.hookStripSub}>Turn {kingdom.diplomaticHook.turn}</Text>
           </View>
         )}
         <View style={d.kingdomHeader}>
@@ -220,6 +228,11 @@ function KingdomCard({ kingdom, onAction, onNegotiate, onSurrender, index, ruler
             <Megaphone size={14} color={Colors.gold.bright} /><Text style={d.callWarText}>Call Ally to War</Text>
           </TouchableOpacity>
         )}
+        {!!kingdom.diplomaticHook && !isAtWar && (
+          <TouchableOpacity style={d.hookBtn} onPress={() => onUseHook(kingdom)} activeOpacity={0.7}>
+            <Lock size={14} color="#a78bfa" /><Text style={d.hookBtnText}>Use Leverage</Text>
+          </TouchableOpacity>
+        )}
         {!isAtWar && kingdom.attitude !== 'allied' && (
           <TouchableOpacity style={d.warBtn} onPress={() => onAction(kingdom.id, 'declare_war')} activeOpacity={0.7}>
             <Flame size={14} color="#ff4444" /><Text style={d.warBtnText}>Declare War</Text>
@@ -238,8 +251,9 @@ export default function DiplomacyScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { kingdomId: preselectedKingdomId } = useLocalSearchParams<{ kingdomId?: string }>();
-  const { state, sendDiplomacy, negotiatePeace, demandSurrender, activeWars, visibilityMap } = useGame();
+  const { state, sendDiplomacy, negotiatePeace, demandSurrender, activeWars, visibilityMap, useDiplomaticHook } = useGame();
   const [peaceKingdom, setPeaceKingdom] = useState<Kingdom | null>(null);
+  const [hookKingdom, setHookKingdom] = useState<Kingdom | null>(null);
   const [peaceTermType, setPeaceTermType] = useState<PeaceTermType>('white_peace');
   const [peaceProvinceId, setPeaceProvinceId] = useState<string | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
@@ -402,6 +416,7 @@ export default function DiplomacyScreen() {
           <View key={kingdom.id} onLayout={e => { yOffsets.current[kingdom.id] = e.nativeEvent.layout.y; }}>
             <KingdomCard kingdom={kingdom} onAction={handleAction} onNegotiate={openPeaceModal}
               onSurrender={(k) => demandSurrender(k.id)}
+              onUseHook={(k) => setHookKingdom(k)}
               index={idx}
               rulerMarried={!!state.ruler.spouse}
               hasPendingProposal={state.kingdoms.some(k => k.marriageProposal)}
@@ -419,6 +434,71 @@ export default function DiplomacyScreen() {
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={!!hookKingdom} transparent animationType="slide" onRequestClose={() => setHookKingdom(null)}>
+        <View style={d.modalOverlay}>
+          <View style={d.modalSheet}>
+            <LinearGradient colors={['#0e1520', '#0a0d14']} style={StyleSheet.absoluteFill} />
+            <View style={d.modalHandle} />
+            <View style={d.modalHeader}>
+              <Lock size={18} color="#a78bfa" />
+              <Text style={d.modalTitle}>Use Leverage</Text>
+              <TouchableOpacity onPress={() => setHookKingdom(null)} style={d.modalCloseBtn}>
+                <X size={18} color={Colors.text.secondary} />
+              </TouchableOpacity>
+            </View>
+            {hookKingdom && (
+              <>
+                <View style={d.hookInfoCard}>
+                  <Text style={d.hookInfoTitle}>Hold over {hookKingdom.name}</Text>
+                  <Text style={d.hookInfoDesc}>{hookKingdom.diplomaticHook?.description}</Text>
+                </View>
+                <Text style={[d.termsSectionTitle, { marginTop: 4 }]}>Choose how to use it</Text>
+                {[
+                  {
+                    action: 'force_aid' as const,
+                    label: '⚔️ Force Military Aid',
+                    desc: 'Demand they send troops and gold immediately. They cannot refuse. Relations will suffer.',
+                    color: Colors.crimson.bright,
+                  },
+                  {
+                    action: 'demand_tribute' as const,
+                    label: '💰 Extract Tribute',
+                    desc: 'Demand a one-time gold payment to settle the debt. Significant relations hit.',
+                    color: Colors.gold.bright,
+                  },
+                  {
+                    action: 'strengthen_alliance' as const,
+                    label: '🤝 Renew Commitment',
+                    desc: 'Remind them of their obligation. Relations improve greatly and they commit to future calls.',
+                    color: Colors.status.success,
+                  },
+                ].map(opt => (
+                  <TouchableOpacity
+                    key={opt.action}
+                    style={[d.hookOption, { borderColor: opt.color + '40' }]}
+                    onPress={() => {
+                      if (Platform.OS !== 'web') { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }
+                      useDiplomaticHook(hookKingdom.id, opt.action);
+                      setHookKingdom(null);
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={[d.hookOptionLabel, { color: opt.color }]}>{opt.label}</Text>
+                      <Text style={d.hookOptionDesc}>{opt.desc}</Text>
+                    </View>
+                    <ChevronRight size={16} color={opt.color} />
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity style={d.cancelBtn} onPress={() => setHookKingdom(null)} activeOpacity={0.7}>
+                  <Text style={d.cancelBtnText}>Keep in reserve</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={!!peaceKingdom} transparent animationType="slide" onRequestClose={closePeaceModal}>
         <View style={d.modalOverlay}>
@@ -681,6 +761,17 @@ const d = StyleSheet.create({
   undiscoveredText: { flex: 1, gap: 3 },
   undiscoveredTitle: { fontSize: 13, fontWeight: '700' as const, color: Colors.text.secondary },
   undiscoveredDesc: { fontSize: 11, color: Colors.text.dim, lineHeight: 16 },
+  hookStrip: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingVertical: 4, paddingHorizontal: 10, marginBottom: 8, borderRadius: 6, backgroundColor: '#a78bfa18' },
+  hookStripText: { flex: 1, fontSize: 10, fontWeight: '800' as const, color: '#a78bfa', letterSpacing: 2 },
+  hookStripSub: { fontSize: 10, color: '#a78bfa80' },
+  hookBtn: { flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 6, marginTop: 8, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#a78bfa40', backgroundColor: '#a78bfa12' },
+  hookBtnText: { fontSize: 12, fontWeight: '700' as const, color: '#a78bfa' },
+  hookInfoCard: { backgroundColor: '#a78bfa12', borderRadius: 12, padding: 14, marginBottom: 16, borderWidth: 1, borderColor: '#a78bfa30' },
+  hookInfoTitle: { fontSize: 14, fontWeight: '700' as const, color: '#a78bfa', marginBottom: 4 },
+  hookInfoDesc: { fontSize: 12, color: Colors.text.secondary, lineHeight: 18, fontStyle: 'italic' as const },
+  hookOption: { flexDirection: 'row' as const, alignItems: 'center' as const, backgroundColor: Colors.bg.card, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1.5 },
+  hookOptionLabel: { fontSize: 14, fontWeight: '700' as const },
+  hookOptionDesc: { fontSize: 11, color: Colors.text.secondary, lineHeight: 16 },
   modalActions: { flexDirection: 'row' as const, gap: 12, marginTop: 6 },
   cancelBtn: { flex: 1, paddingVertical: 14, borderRadius: 12, backgroundColor: Colors.bg.tertiary, alignItems: 'center' as const },
   cancelBtnText: { fontSize: 14, fontWeight: '700' as const, color: Colors.text.secondary },

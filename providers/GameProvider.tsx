@@ -3377,8 +3377,16 @@ export const [GameProvider, useGame] = createContextHook(() => {
               'the timing is not right — we will remember this request',
             ];
             const reason = reasons[Math.floor(Math.random() * reasons.length)];
-            ctw_kingdoms = ctw_kingdoms.map(k => k.id === kingdom.id ? { ...k, relation: Math.max(-100, k.relation - 15) } : k);
-            ctw_log = `😤 ${kingdom.name} refused your call to arms: "${reason}."`;
+            ctw_kingdoms = ctw_kingdoms.map(k => k.id === kingdom.id ? {
+              ...k,
+              relation: Math.max(-100, k.relation - 15),
+              diplomaticHook: {
+                type: 'rejected_call_to_war' as const,
+                turn: prev.turn,
+                description: `${kingdom.name} refused your call to arms (Turn ${prev.turn}): "${reason}"`,
+              },
+            } : k);
+            ctw_log = `😤 ${kingdom.name} refused your call to arms: "${reason}." You now hold leverage over them.`;
           }
 
           const ctwState: GameState = {
@@ -3762,6 +3770,55 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const useDiplomaticHook = useCallback((kingdomId: string, hookAction: 'force_aid' | 'demand_tribute' | 'strengthen_alliance') => {
+    setState(prev => {
+      const kingdom = prev.kingdoms.find(k => k.id === kingdomId);
+      if (!kingdom || !kingdom.diplomaticHook) return prev;
+      let newResources = { ...prev.resources };
+      let newKingdoms = [...prev.kingdoms];
+      let logMsg = '';
+
+      switch (hookAction) {
+        case 'force_aid': {
+          const forcedGold = 100 + Math.floor(Math.random() * 150);
+          const forcedMil = 80 + Math.floor(Math.random() * 120);
+          newResources = { ...newResources, gold: newResources.gold + forcedGold, military: newResources.military + forcedMil };
+          newKingdoms = newKingdoms.map(k =>
+            k.id === kingdomId
+              ? { ...k, relation: Math.max(-100, k.relation - 20), diplomaticHook: undefined, treasury: Math.max(0, (k.treasury ?? 0) - forcedGold) }
+              : k
+          );
+          logMsg = `🔒 You called in your leverage over ${kingdom.name}. They sent ${forcedGold}g and ${forcedMil} troops — begrudgingly.`;
+          break;
+        }
+        case 'demand_tribute': {
+          const tribute = 200 + Math.floor(Math.random() * 200);
+          newResources = { ...newResources, gold: newResources.gold + tribute };
+          newKingdoms = newKingdoms.map(k =>
+            k.id === kingdomId
+              ? { ...k, relation: Math.max(-100, k.relation - 25), diplomaticHook: undefined, treasury: Math.max(0, (k.treasury ?? 0) - tribute) }
+              : k
+          );
+          logMsg = `💰 You called in your debt: ${kingdom.name} paid ${tribute}g tribute to clear their obligation.`;
+          break;
+        }
+        case 'strengthen_alliance': {
+          newKingdoms = newKingdoms.map(k =>
+            k.id === kingdomId
+              ? { ...k, relation: Math.min(100, k.relation + 30), diplomaticHook: undefined }
+              : k
+          );
+          logMsg = `🤝 You reminded ${kingdom.name} of their debt. They renewed their commitment — relations improved significantly.`;
+          break;
+        }
+      }
+
+      const newState: GameState = { ...prev, resources: newResources, kingdoms: newKingdoms, log: [logMsg, ...prev.log].slice(0, 50) };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const dismissReignChronicle = useCallback(() => {
     setState(prev => {
       if (!prev.latestReignChronicle) return prev;
@@ -3858,7 +3915,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     arrangeMarriage, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
-    dismissReignChronicle, claimQuestReward,
+    dismissReignChronicle, claimQuestReward, useDiplomaticHook,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -3870,6 +3927,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     arrangeMarriage, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
-    dismissReignChronicle, claimQuestReward,
+    dismissReignChronicle, claimQuestReward, useDiplomaticHook,
   ]);
 });
