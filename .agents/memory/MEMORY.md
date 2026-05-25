@@ -1,0 +1,1 @@
+- [Lord system design](lord-system.md) — lords govern provinces, pay tax to king; key insertion points and patterns documented

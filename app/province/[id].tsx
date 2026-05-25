@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, ArrowUpCircle, Shield, Users, TrendingUp, Swords, Hammer, ChevronDown, ChevronUp, Eye, Lock } from "lucide-react-native";
+import { X, ArrowUpCircle, Shield, Users, TrendingUp, Swords, Hammer, ChevronDown, ChevronUp, Eye, Lock, Crown, UserX } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { PROVINCE_TYPE_ICONS, BUILDING_BLUEPRINTS, BLUEPRINT_UNLOCK_MAP, INITIAL_TECHNOLOGIES } from "@/mocks/gameData";
@@ -14,7 +14,7 @@ export default function ProvinceDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, upgradeBuilding, recruitArmy, constructBuilding, reinforceGarrison, visibilityMap } = useGame();
+  const { state, upgradeBuilding, recruitArmy, constructBuilding, reinforceGarrison, visibilityMap, assignLord, dismissLord } = useGame();
   const province = state.provinces.find(p => p.id === id);
   const isOwned = province?.owner === 'player';
   const isFogged = province ? !visibilityMap[province.id] : false;
@@ -62,6 +62,9 @@ export default function ProvinceDetailScreen() {
 
   const armiesHere = state.armies.filter(a => a.location === province.id);
   const ownerKingdom = !isOwned ? state.kingdoms.find(k => k.id === province.owner) : null;
+  const assignedLord = isOwned ? (state.lords ?? []).find(l => l.provinceId === province.id) : null;
+  const stewardshipCap = Math.floor(state.ruler.stewardship / 2) + 3;
+  const crownProvinceCount = (state.provinces ?? []).filter(p => p.owner === 'player' && !(state.lords ?? []).some(l => l.provinceId === p.id)).length;
   const canBuild = isOwned && province.buildings.length < 5;
   const unlockedIds = state.unlockedBlueprints ?? [];
   const typeFilteredBlueprints = BUILDING_BLUEPRINTS.filter(bp => {
@@ -171,6 +174,101 @@ export default function ProvinceDetailScreen() {
               {(province.loyalty ?? 80) < 40 && (
                 <View style={ps.loyaltyWarning}>
                   <Text style={ps.loyaltyWarningText}>⚠️ Low loyalty! Province may rebel. Use faith actions to restore order.</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {isOwned && !isFogged && (
+            <View style={ps.lordSection}>
+              <Text style={ps.sectionTitle}>Governance</Text>
+              {assignedLord ? (
+                <View style={ps.lordCard}>
+                  <View style={ps.lordCardHeader}>
+                    <Crown size={16} color={Colors.gold.primary} />
+                    <Text style={ps.lordName}>{assignedLord.name}</Text>
+                    <View style={ps.lordBadge}>
+                      <Text style={ps.lordBadgeText}>Lord</Text>
+                    </View>
+                  </View>
+                  <View style={ps.lordStatsRow}>
+                    <View style={ps.lordStat}>
+                      <Text style={ps.lordStatNum}>{assignedLord.skill}</Text>
+                      <Text style={ps.lordStatLbl}>Skill</Text>
+                    </View>
+                    <View style={ps.lordStat}>
+                      <Text style={[ps.lordStatNum, { color: assignedLord.loyalty > 60 ? Colors.status.success : assignedLord.loyalty > 30 ? Colors.status.warning : Colors.status.danger }]}>
+                        {assignedLord.loyalty}
+                      </Text>
+                      <Text style={ps.lordStatLbl}>Loyalty</Text>
+                    </View>
+                    <View style={ps.lordStat}>
+                      <Text style={ps.lordStatNum}>{Math.round(assignedLord.taxRate * 100)}%</Text>
+                      <Text style={ps.lordStatLbl}>Tax Rate</Text>
+                    </View>
+                    <View style={ps.lordStat}>
+                      <Text style={ps.lordStatNum}>+{assignedLord.skill * 3}</Text>
+                      <Text style={ps.lordStatLbl}>Levy/turn</Text>
+                    </View>
+                  </View>
+                  {assignedLord.loyalty < 30 && (
+                    <View style={ps.lordWarning}>
+                      <Text style={ps.lordWarningText}>⚠️ Low loyalty — risk of rebellion!</Text>
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={ps.dismissBtn}
+                    onPress={() => {
+                      Alert.alert(
+                        'Dismiss Lord',
+                        `Dismiss ${assignedLord.name}? This will raise unrest by 20 in ${province.name}.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Dismiss', style: 'destructive', onPress: () => {
+                            if (Platform.OS !== 'web') { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
+                            dismissLord(province.id);
+                          }},
+                        ]
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <UserX size={14} color={Colors.status.danger} />
+                    <Text style={ps.dismissBtnText}>Dismiss Lord</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={ps.crownLandCard}>
+                  <View style={ps.crownLandHeader}>
+                    <Crown size={15} color={Colors.text.dim} />
+                    <Text style={ps.crownLandTitle}>Crown Land</Text>
+                    {crownProvinceCount > stewardshipCap && (
+                      <View style={ps.overCapBadge}>
+                        <Text style={ps.overCapText}>Over cap!</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={ps.crownLandDesc}>
+                    Direct royal control. No lord's cut, but counts toward your stewardship cap ({crownProvinceCount}/{stewardshipCap} crown provinces).
+                  </Text>
+                  <TouchableOpacity
+                    style={[ps.assignBtn, state.resources.gold < 50 && ps.assignBtnDisabled]}
+                    onPress={() => {
+                      if (state.resources.gold < 50) {
+                        Alert.alert('Insufficient Gold', 'Appointing a lord costs 50 gold.');
+                        return;
+                      }
+                      if (Platform.OS !== 'web') { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
+                      assignLord(province.id);
+                    }}
+                    disabled={state.resources.gold < 50}
+                    activeOpacity={0.7}
+                  >
+                    <Crown size={14} color={state.resources.gold < 50 ? Colors.text.dim : Colors.bg.primary} />
+                    <Text style={[ps.assignBtnText, state.resources.gold < 50 && ps.assignBtnTextDisabled]}>
+                      Appoint Lord (50g)
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -500,6 +598,30 @@ const ps = StyleSheet.create({
   unrestWarningText: { fontSize: 11, color: '#ff4444', fontWeight: "600" as const },
   loyaltyWarning: { marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, backgroundColor: Colors.status.warning + '12', borderWidth: 1, borderColor: Colors.status.warning + '25' },
   loyaltyWarningText: { fontSize: 11, color: Colors.status.warning, fontWeight: "600" as const },
+  lordSection: { marginTop: 4 },
+  lordCard: { marginHorizontal: 16, backgroundColor: Colors.bg.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.gold.dim + '40', gap: 10 },
+  lordCardHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
+  lordName: { flex: 1, fontSize: 15, fontWeight: "700" as const, color: Colors.text.primary },
+  lordBadge: { backgroundColor: Colors.gold.primary + '20', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, borderWidth: 1, borderColor: Colors.gold.primary + '40' },
+  lordBadgeText: { fontSize: 10, fontWeight: "700" as const, color: Colors.gold.bright, textTransform: "uppercase" as const, letterSpacing: 0.8 },
+  lordStatsRow: { flexDirection: "row" as const, gap: 8 },
+  lordStat: { flex: 1, backgroundColor: Colors.bg.tertiary, borderRadius: 8, padding: 8, alignItems: "center" as const, gap: 2 },
+  lordStatNum: { fontSize: 16, fontWeight: "800" as const, color: Colors.text.primary },
+  lordStatLbl: { fontSize: 9, color: Colors.text.dim, textTransform: "uppercase" as const, letterSpacing: 0.8 },
+  lordWarning: { paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, backgroundColor: '#ff000012', borderWidth: 1, borderColor: '#ff000025' },
+  lordWarningText: { fontSize: 11, color: Colors.status.danger, fontWeight: "600" as const },
+  dismissBtn: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: Colors.status.danger + '40', backgroundColor: Colors.status.danger + '10' },
+  dismissBtnText: { fontSize: 13, fontWeight: "600" as const, color: Colors.status.danger },
+  crownLandCard: { marginHorizontal: 16, backgroundColor: Colors.bg.card, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: Colors.border.primary, gap: 10 },
+  crownLandHeader: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
+  crownLandTitle: { flex: 1, fontSize: 14, fontWeight: "700" as const, color: Colors.text.secondary },
+  overCapBadge: { backgroundColor: Colors.status.danger + '20', paddingHorizontal: 7, paddingVertical: 3, borderRadius: 5, borderWidth: 1, borderColor: Colors.status.danger + '40' },
+  overCapText: { fontSize: 10, fontWeight: "700" as const, color: Colors.status.danger },
+  crownLandDesc: { fontSize: 11, color: Colors.text.dim, lineHeight: 16 },
+  assignBtn: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, paddingVertical: 10, borderRadius: 8, backgroundColor: Colors.gold.primary },
+  assignBtnDisabled: { backgroundColor: Colors.bg.tertiary },
+  assignBtnText: { fontSize: 13, fontWeight: "700" as const, color: Colors.bg.primary },
+  assignBtnTextDisabled: { color: Colors.text.dim },
   levelBarBg: { height: 3, borderRadius: 2, backgroundColor: Colors.bg.tertiary, marginTop: 8, marginLeft: 34, overflow: "hidden" as const },
   levelBarFill: { height: "100%" as const, borderRadius: 2, backgroundColor: Colors.gold.primary },
   maxLevelBadge: { marginTop: 10, alignItems: "center" as const, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.gold.primary + '15', borderWidth: 1, borderColor: Colors.gold.primary + '30' },

@@ -132,6 +132,16 @@ export interface BuildingBlueprint {
   requiredType?: string[];
 }
 
+export interface Lord {
+  id: string;
+  name: string;
+  skill: number;
+  loyalty: number;
+  provinceId: string;
+  taxRate: number;
+  turnsAppointed: number;
+}
+
 export interface Province {
   id: string;
   name: string;
@@ -150,6 +160,7 @@ export interface Province {
   siegeAttacker?: string;
   loyalty?: number;
   unrest?: number;
+  assignedLordId?: string;
 }
 
 export interface Army {
@@ -540,6 +551,7 @@ export interface GameState {
   claimFabricationProgress?: number;
   overlordFavor?: number;
   refuseNextTribute?: boolean;
+  lords: Lord[];
 }
 
 export interface PendingChainEvent {
