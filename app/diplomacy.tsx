@@ -10,7 +10,7 @@ import { useGame } from "@/providers/GameProvider";
 import { Kingdom, AIPersonality } from "@/types/game";
 import { PERSONALITY_LABELS } from "@/mocks/gameData";
 
-type DiplomacyAction = 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war';
+type DiplomacyAction = 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war' | 'propose_vassalage';
 
 function KingdomCard({ kingdom, onAction, onNegotiate, onSurrender, onUseHook, index, rulerMarried, hasPendingProposal, highlighted }: {
   kingdom: Kingdom;
@@ -180,6 +180,11 @@ function KingdomCard({ kingdom, onAction, onNegotiate, onSurrender, onUseHook, i
               {kingdom.attitude !== 'allied' && (
                 <TouchableOpacity style={[d.actionBtn, d.allyBtn]} onPress={() => onAction(kingdom.id, 'ally')} activeOpacity={0.7}>
                   <Handshake size={14} color={Colors.status.info} /><Text style={d.allyText}>Ally (200g)</Text>
+                </TouchableOpacity>
+              )}
+              {kingdom.provinces.length <= 3 && !kingdom.isVassal && kingdom.attitude !== 'allied' && kingdom.attitude !== 'war' && (
+                <TouchableOpacity style={[d.actionBtn, { backgroundColor: Colors.gold.primary + '22', borderColor: Colors.gold.primary + '88', borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, flexDirection: 'row', alignItems: 'center', gap: 4 }]} onPress={() => onAction(kingdom.id, 'propose_vassalage')} activeOpacity={0.7}>
+                  <Text style={{ fontSize: 13 }}>👑</Text><Text style={{ fontSize: 12, color: Colors.gold.bright, fontWeight: '600' }}>Vassalize (200g)</Text>
                 </TouchableOpacity>
               )}
               {hasProposal ? (
@@ -354,7 +359,7 @@ export default function DiplomacyScreen() {
       );
       return;
     }
-    const costs: Record<DiplomacyAction, number> = { gift: 100, threaten: 0, ally: 200, peace: 150, demand_tribute: 0, declare_war: 0, propose_marriage: 150, call_to_war: 0 };
+    const costs: Record<DiplomacyAction, number> = { gift: 100, threaten: 0, ally: 200, peace: 150, demand_tribute: 0, declare_war: 0, propose_marriage: 150, call_to_war: 0, propose_vassalage: 200 };
     if (state.resources.gold < (costs[action] || 0)) {
       Alert.alert("Insufficient Gold", `You need ${costs[action]} gold.`);
       return;
@@ -415,7 +420,7 @@ export default function DiplomacyScreen() {
       label: '👑 Demand Vassalization',
       desc: `${peaceKingdom?.name ?? 'Enemy'} becomes your vassal, paying tribute each turn. They keep their lands but serve your crown.`,
       color: Colors.gold.bright,
-      available: warScore < -60 && enemyProvinces.length > 0,
+      available: warScore < -50 && enemyProvinces.length > 0,
     },
     {
       type: 'force_vassalize',

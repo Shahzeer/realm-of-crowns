@@ -2215,6 +2215,11 @@ export const [GameProvider, useGame] = createContextHook(() => {
             if (battle.conquered) {
               const buildingBoosts = getBuildingBoosts(targetProvince.buildings);
               newResources = applyResourceBoosts(newResources, buildingBoosts);
+              // Persist building boosts to base per-turn values so they survive recalculation each turn
+              if (buildingBoosts.goldPerTurn) newResources.baseGoldPerTurn = (newResources.baseGoldPerTurn ?? baseGPT) + buildingBoosts.goldPerTurn;
+              if (buildingBoosts.foodPerTurn) newResources.baseFoodPerTurn = (newResources.baseFoodPerTurn ?? baseFPT) + buildingBoosts.foodPerTurn;
+              if (buildingBoosts.militaryPerTurn) newResources.baseMilitaryPerTurn = (newResources.baseMilitaryPerTurn ?? baseMPT) + buildingBoosts.militaryPerTurn;
+              if (buildingBoosts.faithPerTurn) newResources.baseFaithPerTurn = (newResources.baseFaithPerTurn ?? baseFaithPT) + buildingBoosts.faithPerTurn;
               const boostText = formatResourceBoosts(buildingBoosts);
               newProvinces = newProvinces.map(p =>
                 p.id === targetProvince.id ? claimProvinceForPlayer(p) : p
@@ -2812,10 +2817,11 @@ export const [GameProvider, useGame] = createContextHook(() => {
       }
 
       // Populate full breakdown for turn summary popup
-      summary.goldGained = newResources.gold - prev.resources.gold;
-      summary.foodGained = newResources.food - prev.resources.food;
-      summary.militaryGained = newResources.military - prev.resources.military;
-      summary.faithGained = newResources.faith - prev.resources.faith;
+      // Compute income from regular per-turn sources so it matches the breakdown display
+      summary.goldGained = baseGPT + seasonEffect.gold + (summary.tradeIncome ?? 0) + (techBonuses.goldPerTurn || 0) + Math.max(0, councilGoldPT) + diffGold + pressureGold + vassalTributeTotal;
+      summary.foodGained = baseFPT + seasonEffect.food + (techBonuses.foodPerTurn || 0) + Math.max(0, councilFoodPT) + diffFood + pressureFood;
+      summary.militaryGained = baseMPT + seasonEffect.military + (techBonuses.militaryPerTurn || 0) + Math.max(0, councilMilPT) + diffMil + pressureMil;
+      summary.faithGained = baseFaithPT + (techBonuses.faithPerTurn || 0) + Math.max(0, councilFaithPT) + diffFaith;
       summary.breakdown = {
         base: { gold: baseGPT, food: baseFPT, military: baseMPT, faith: baseFaithPT },
         season: { gold: seasonEffect.gold, food: seasonEffect.food, military: seasonEffect.military },
@@ -2961,6 +2967,21 @@ export const [GameProvider, useGame] = createContextHook(() => {
               { id: `suc2_${nextTurn}`, text: 'A quiet ceremony', effects: 'Save gold, less prestige' },
             ],
           });
+          // Detect gender from heir name and strip honorific prefix (title shown separately)
+          const isFemaleHeir = heirName.startsWith('Princess ') || (heirName.startsWith('Lady ') && !heirName.includes('Lord '));
+          const isMaleHeir = heirName.startsWith('Prince ') || heirName.startsWith('Lord ');
+          if (isFemaleHeir) newRulerGender = 'female';
+          else if (isMaleHeir) newRulerGender = 'male';
+          const cleanedHeirName = heirName.replace(/^(Princess|Prince|Lady|Lord)\s+/, '');
+          newRuler = { ...newRuler, name: cleanedHeirName };
+          // Fix rulerTitle to match new heir's gender
+          if (newRulerTitle) {
+            if (newRulerGender === 'female') {
+              newRulerTitle = newRulerTitle.replace('High King', 'High Queen').replace(/\bKing\b/, 'Queen').replace(/\bLord\b/, 'Lady');
+            } else if (newRulerGender === 'male') {
+              newRulerTitle = newRulerTitle.replace('High Queen', 'High King').replace(/\bQueen\b/, 'King').replace(/\bLady\b/, 'Lord');
+            }
+          }
           rulerStartTurn = nextTurn;
           rulerStartYear = nextYear;
           rulerPeakProvinces = playerProvCount;
@@ -2995,6 +3016,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       // Custom kingdom title progression
       let newRulerTitle = prev.rulerTitle;
+      let newRulerGender = prev.rulerGender;
       if (prev.isCustomKingdom && prev.rulerTitle) {
         const finalProvCount = newProvinces.filter(p => p.owner === 'player').length;
         const isMale = prev.rulerGender === 'male';
@@ -3099,6 +3121,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         rulerProvincesLost,
         unlockedBlueprints: newUnlocked,
         rulerTitle: newRulerTitle,
+        rulerGender: newRulerGender,
         dailyQuests: updatedDailyQuests,
         lastQuestDate: today,
         vassalOfferPending,
@@ -3138,6 +3161,30 @@ export const [GameProvider, useGame] = createContextHook(() => {
       let newCouncil = [...prev.council];
       let newProvinces = [...prev.provinces];
       let newArmies = [...prev.armies];
+      let newKingdoms = [...prev.kingdoms];
+
+      // Apply ruler stat boosts mentioned in event effects text (e.g. "+2 Martial")
+      if (choice.effects) {
+        const statRegex = /\+(\d+)\s*(Martial|Diplomacy|Stewardship|Intrigue|Learning)/gi;
+        let sm: RegExpExecArray | null;
+        while ((sm = statRegex.exec(choice.effects)) !== null) {
+          const amt = parseInt(sm[1], 10);
+          const stat = sm[2].toLowerCase() as 'martial' | 'diplomacy' | 'stewardship' | 'intrigue' | 'learning';
+          newRuler[stat] = Math.min(25, newRuler[stat] + amt);
+        }
+      }
+
+      // Alliance Proposal accepted — form an alliance with the highest-relation eligible kingdom
+      if (choice.id === 'rc14') {
+        const candidate = prev.kingdoms
+          .filter(k => k.attitude !== 'war' && k.attitude !== 'allied' && k.attitude !== 'vassal')
+          .sort((a, b) => b.relation - a.relation)[0];
+        if (candidate) {
+          newKingdoms = prev.kingdoms.map(k =>
+            k.id === candidate.id ? { ...k, attitude: 'allied' as const, relation: Math.min(100, k.relation + 50) } : k
+          );
+        }
+      }
 
       if (choice.id === 'hcoa_warrior' && newHeir) {
         newHeir = { ...newHeir, path: 'warrior' as HeirPath, martial: newHeir.martial + 5, claimStrength: Math.min(100, newHeir.claimStrength + 3) };
@@ -3211,7 +3258,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const newState = {
         ...prev, resources: newResources, events: newEvents,
         heir: newHeir, ruler: newRuler, council: newCouncil, provinces: newProvinces,
-        armies: newArmies,
+        armies: newArmies, kingdoms: newKingdoms,
         log: [logEntry, ...prev.log].slice(0, 50),
         pendingChainEvents: pendingChains,
       } as GameState;
@@ -3258,7 +3305,9 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const destination = prev.provinces.find(p => p.id === destinationId);
       if (!destination) return prev;
 
-      const isEnemyTerritory = destination.owner !== 'player';
+      const allianceIds = new Set(prev.kingdoms.filter(k => k.attitude === 'allied').map(k => k.id));
+      const isAllyProvince = allianceIds.has(destination.owner);
+      const isEnemyTerritory = destination.owner !== 'player' && !isAllyProvince;
       const newStatus = isEnemyTerritory ? 'sieging' as const : 'marching' as const;
       const newArmies = prev.armies.map(a =>
         a.id === armyId
@@ -3273,7 +3322,9 @@ export const [GameProvider, useGame] = createContextHook(() => {
       }
       const logMsg = isEnemyTerritory
         ? `⚔️ ${army.name} begins siege of ${destination.name}!`
-        : `🚶 ${army.name} marches to ${destination.name}`;
+        : isAllyProvince
+          ? `🤝 ${army.name} passes through allied ${destination.name}`
+          : `🚶 ${army.name} marches to ${destination.name}`;
       const newState: GameState = { ...prev, armies: newArmies, provinces: newProvinces, log: [logMsg, ...prev.log].slice(0, 50) };
       saveMutation.mutate(newState);
       return newState;
@@ -3453,7 +3504,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
-  const sendDiplomacy = useCallback((kingdomId: string, action: 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war') => {
+  const sendDiplomacy = useCallback((kingdomId: string, action: 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war' | 'propose_vassalage') => {
     setState(prev => {
       const kingdom = prev.kingdoms.find(k => k.id === kingdomId);
       if (!kingdom) return prev;
@@ -3500,6 +3551,30 @@ export const [GameProvider, useGame] = createContextHook(() => {
           relationChange = 10;
           logMsg = `💍 Marriage proposal sent to ${kingdom.name}. They will respond next turn.`;
           break;
+        case 'propose_vassalage': {
+          const kingdomProvinces = prev.provinces.filter(p => p.owner === kingdomId);
+          if (kingdom.isVassal || kingdom.attitude === 'war' || kingdomProvinces.length > 3) return prev;
+          goldCost = 200;
+          const acceptChance = Math.max(0.1, Math.min(0.9, (kingdom.relation + 100) / 200 + (3 - kingdomProvinces.length) * 0.15));
+          if (Math.random() < acceptChance) {
+            const tribute = Math.max(20, kingdomProvinces.length * 15);
+            const vassalKingdoms = prev.kingdoms.map(k =>
+              k.id === kingdomId ? { ...k, isVassal: true, attitude: 'vassal' as const, relation: Math.min(100, k.relation + 20), vassalTribute: tribute } : k
+            );
+            const vassalState: GameState = {
+              ...prev,
+              resources: { ...prev.resources, gold: prev.resources.gold - goldCost },
+              kingdoms: vassalKingdoms,
+              log: [`👑 ${kingdom.name} has accepted your offer of vassalage! They will pay ${tribute}g tribute each turn.`, ...prev.log].slice(0, 50),
+            };
+            saveMutation.mutate(vassalState);
+            return vassalState;
+          } else {
+            logMsg = `${kingdom.name} rejected your vassalage offer — they value their independence.`;
+            relationChange = -10;
+          }
+          break;
+        }
         case 'call_to_war': {
           if (kingdom.attitude !== 'allied') return prev;
           const warTargets = prev.kingdoms.filter(k => k.attitude === 'war');

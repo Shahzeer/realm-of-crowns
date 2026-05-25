@@ -411,7 +411,9 @@ function KingdomScreen() {
           <View style={idx.rulerAvatar}><Crown size={18} color={Colors.gold.bright} /></View>
           <View style={idx.rulerInfo}>
             <Text style={idx.rulerName}>
-              {state.isCustomKingdom && state.rulerTitle ? `${state.rulerTitle} ${state.ruler.name}` : state.ruler.name}
+              {state.isCustomKingdom && state.rulerTitle
+                ? `${state.rulerTitle} ${state.ruler.name.replace(/^(Princess|Prince|Lady|Lord)\s+/i, '')}`
+                : state.ruler.name}
             </Text>
             <Text style={idx.dynastyName}>{state.ruler.dynasty}</Text>
           </View>
