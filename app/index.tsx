@@ -1,10 +1,10 @@
-import React, { useRef, useEffect, useCallback } from "react";
+import React, { useRef, useEffect, useCallback, useState as useStateHook } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Platform, Modal, Alert } from "react-native";
 import { useRouter, Redirect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { Swords, Globe, ScrollText, Crown, ChevronRight, Play, BookOpen, Users, Shield, Flame, RotateCcw, ArrowRightLeft, Eye, Sparkles, Trophy, X, TrendingUp, Settings, ShieldAlert, AlertTriangle, Bug, Wheat, Skull } from "lucide-react-native";
+import { Swords, Globe, ScrollText, Crown, ChevronRight, Play, BookOpen, Users, Shield, Flame, RotateCcw, ArrowRightLeft, Eye, Sparkles, Trophy, X, TrendingUp, Settings, ShieldAlert, AlertTriangle, Bug, Wheat, Skull, ChevronDown, ChevronUp, UserX, TrendingDown } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 
@@ -153,6 +153,100 @@ function TurnSummaryModal({ visible, onClose, summary }: { visible: boolean; onC
   );
 }
 
+function LordsOverviewPanel({ lords, provinces, stewardshipCap, onDismiss }: {
+  lords: import("@/types/game").Lord[];
+  provinces: import("@/types/game").Province[];
+  stewardshipCap: number;
+  onDismiss: (provinceId: string, lordName: string) => void;
+}) {
+  const [collapsed, setCollapsed] = useStateHook(false);
+  if (lords.length === 0) return null;
+
+  const crownCount = provinces.filter(p => p.owner === 'player' && !p.assignedLordId).length;
+  const overCap = Math.max(0, crownCount - stewardshipCap);
+
+  return (
+    <View style={idx.lordsPanel}>
+      <TouchableOpacity style={idx.lordsPanelHeader} onPress={() => setCollapsed(c => !c)} activeOpacity={0.7}>
+        <View style={idx.lordsPanelLeft}>
+          <Crown size={14} color={Colors.gold.bright} />
+          <Text style={idx.lordsPanelTitle}>Lords</Text>
+          <View style={idx.lordsPanelBadge}><Text style={idx.lordsPanelBadgeText}>{lords.length}</Text></View>
+        </View>
+        <View style={idx.lordsPanelRight}>
+          {overCap > 0 && (
+            <View style={idx.lordsCapWarning}>
+              <Text style={idx.lordsCapWarningText}>⚠️ {overCap} over cap</Text>
+            </View>
+          )}
+          {collapsed ? <ChevronDown size={16} color={Colors.text.dim} /> : <ChevronUp size={16} color={Colors.text.dim} />}
+        </View>
+      </TouchableOpacity>
+      {!collapsed && (
+        <View style={idx.lordsListWrap}>
+          {lords.map(lord => {
+            const province = provinces.find(p => p.id === lord.provinceId);
+            if (!province) return null;
+            const loyaltyColor = lord.loyalty >= 60 ? Colors.status.success : lord.loyalty >= 30 ? Colors.status.warning : Colors.status.danger;
+            const isLowLoyalty = lord.loyalty < 30;
+            const taxPct = Math.round(lord.taxRate * 100);
+            const levy = lord.skill * 3;
+            return (
+              <View key={lord.id} style={[idx.lordRow, isLowLoyalty && idx.lordRowDanger]}>
+                <View style={idx.lordRowMain}>
+                  <View style={idx.lordRowInfo}>
+                    <Text style={idx.lordRowName} numberOfLines={1}>{lord.name}</Text>
+                    <Text style={idx.lordRowProvince} numberOfLines={1}>{province.name}</Text>
+                  </View>
+                  <View style={idx.lordRowStats}>
+                    <View style={idx.lordStatChip}>
+                      <Text style={idx.lordStatLabel}>SKL</Text>
+                      <Text style={idx.lordStatValue}>{lord.skill}</Text>
+                    </View>
+                    <View style={idx.lordStatChip}>
+                      <Text style={idx.lordStatLabel}>TAX</Text>
+                      <Text style={idx.lordStatValue}>{taxPct}%</Text>
+                    </View>
+                    <View style={idx.lordStatChip}>
+                      <Text style={idx.lordStatLabel}>LEVY</Text>
+                      <Text style={idx.lordStatValue}>+{levy}</Text>
+                    </View>
+                    <View style={[idx.lordStatChip, { backgroundColor: loyaltyColor + '20', borderColor: loyaltyColor + '40' }]}>
+                      {lord.loyalty >= 50
+                        ? <TrendingUp size={10} color={loyaltyColor} />
+                        : <TrendingDown size={10} color={loyaltyColor} />}
+                      <Text style={[idx.lordStatValue, { color: loyaltyColor }]}>{lord.loyalty}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={idx.lordDismissBtn}
+                    onPress={() => {
+                      Alert.alert(
+                        'Dismiss Lord',
+                        `Dismiss ${lord.name} from ${province.name}?\n\nThis will raise unrest in the province by 20.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Dismiss', style: 'destructive', onPress: () => onDismiss(lord.provinceId, lord.name) },
+                        ]
+                      );
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <UserX size={15} color={Colors.status.danger} />
+                  </TouchableOpacity>
+                </View>
+                {isLowLoyalty && (
+                  <Text style={idx.lordRebellionWarn}>Rebellion risk! Loyalty critically low.</Text>
+                )}
+              </View>
+            );
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+
 export default function KingdomScreenGuard() {
   return <KingdomScreen />;
 }
@@ -161,7 +255,7 @@ function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward, acceptVassal, rejectVassal, declareIndependence, refuseTribute } = useGame();
+  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward, acceptVassal, rejectVassal, declareIndependence, refuseTribute, dismissLord } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -339,6 +433,11 @@ function KingdomScreen() {
   const unlockedAchievements = state.achievements.filter(a => a.unlocked).length;
   const pressureBadge = (state.pressures.plague.active ? 1 : 0) + state.pressures.nobleDisputes.filter(d => !d.resolved).length;
   const pressureSub = state.pressures.plague.active ? 'Plague!' : state.pressures.corruption > 30 ? 'Corruption' : 'Stable';
+  const stewardshipCap = Math.floor((state.ruler.stewardship ?? 8) / 2) + 3;
+  const handleDismissLord = useCallback((provinceId: string, lordName: string) => {
+    dismissLord?.(provinceId);
+    setToast({ visible: true, message: `${lordName} dismissed. Province unrest rises.`, type: 'warning' });
+  }, [dismissLord]);
 
   if (!isLoaded) {
     return (
@@ -513,6 +612,12 @@ function KingdomScreen() {
             quests={state.dailyQuests ?? []}
             onClaim={id => { claimQuestReward?.(id); setToast({ visible: true, message: 'Quest reward claimed!', type: 'success' }); }}
           />
+          <LordsOverviewPanel
+            lords={state.lords ?? []}
+            provinces={state.provinces}
+            stewardshipCap={stewardshipCap}
+            onDismiss={handleDismissLord}
+          />
           <Text style={idx.sectionTitle}>Realm Map</Text>
           <MapView provinces={state.provinces} armies={state.armies} onProvincePress={handleProvincePress} selectedProvinceId={selectedProvince?.id ?? null} visibilityMap={visibilityMap} />
           <Text style={idx.sectionTitle}>Command</Text>
@@ -655,4 +760,26 @@ const idx = StyleSheet.create({
   confirmCancelText: { fontSize: 14, fontWeight: "600" as const, color: Colors.text.secondary },
   confirmBtn: { flex: 1, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, paddingVertical: 12, borderRadius: 10, backgroundColor: Colors.gold.primary },
   confirmBtnText: { fontSize: 14, fontWeight: "700" as const, color: Colors.bg.primary },
+  lordsPanel: { marginHorizontal: 16, marginBottom: 8, backgroundColor: Colors.bg.card, borderRadius: 12, borderWidth: 1, borderColor: Colors.border.gold + '50', overflow: "hidden" as const },
+  lordsPanelHeader: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, paddingHorizontal: 14, paddingVertical: 11 },
+  lordsPanelLeft: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
+  lordsPanelTitle: { fontSize: 12, fontWeight: "700" as const, color: Colors.gold.bright, textTransform: "uppercase" as const, letterSpacing: 1 },
+  lordsPanelBadge: { backgroundColor: Colors.gold.dim + '40', borderRadius: 8, paddingHorizontal: 6, paddingVertical: 1 },
+  lordsPanelBadgeText: { fontSize: 10, fontWeight: "700" as const, color: Colors.gold.bright },
+  lordsPanelRight: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8 },
+  lordsCapWarning: { backgroundColor: Colors.status.warning + '20', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1, borderColor: Colors.status.warning + '40' },
+  lordsCapWarningText: { fontSize: 10, fontWeight: "700" as const, color: Colors.status.warning },
+  lordsListWrap: { borderTopWidth: 1, borderTopColor: Colors.border.primary },
+  lordRow: { paddingHorizontal: 14, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: Colors.border.primary + '60' },
+  lordRowDanger: { backgroundColor: Colors.status.danger + '08' },
+  lordRowMain: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
+  lordRowInfo: { flex: 1, minWidth: 0 },
+  lordRowName: { fontSize: 13, fontWeight: "600" as const, color: Colors.text.primary },
+  lordRowProvince: { fontSize: 10, color: Colors.text.dim, marginTop: 1 },
+  lordRowStats: { flexDirection: "row" as const, gap: 5 },
+  lordStatChip: { alignItems: "center" as const, backgroundColor: Colors.bg.tertiary, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 3, borderWidth: 1, borderColor: Colors.border.primary, minWidth: 36, flexDirection: "row" as const, gap: 2 },
+  lordStatLabel: { fontSize: 8, color: Colors.text.dim, textTransform: "uppercase" as const, letterSpacing: 0.3 },
+  lordStatValue: { fontSize: 10, fontWeight: "700" as const, color: Colors.text.primary },
+  lordDismissBtn: { width: 30, height: 30, borderRadius: 8, backgroundColor: Colors.status.danger + '15', borderWidth: 1, borderColor: Colors.status.danger + '30', alignItems: "center" as const, justifyContent: "center" as const },
+  lordRebellionWarn: { fontSize: 10, color: Colors.status.danger, fontWeight: "600" as const, marginTop: 4 },
 });
