@@ -1610,7 +1610,13 @@ export const [GameProvider, useGame] = createContextHook(() => {
       rulerProvincesLost: loaded.rulerProvincesLost ?? 0,
       pendingChainEvents: loaded.pendingChainEvents ?? [],
       unlockedBlueprints: loaded.unlockedBlueprints ?? [...STARTER_BLUEPRINT_IDS],
-      lords: loaded.lords ?? [],
+      lords: (loaded.lords ?? []).map((l: any) => ({
+        ...l,
+        provinceIds: l.provinceIds ?? (l.provinceId ? [l.provinceId] : []),
+        type: l.type ?? 'lord',
+        provinceId: undefined,
+      })),
+      warTaxActive: loaded.warTaxActive ?? false,
     };
   }
 
@@ -2170,10 +2176,13 @@ export const [GameProvider, useGame] = createContextHook(() => {
         return army;
       });
 
+      const isAtWar = prev.kingdoms.some(k => k.attitude === 'war');
+      const warTaxActive = (prev.warTaxActive ?? false) && isAtWar;
+
       let newProvinces = prev.provinces.map(p => {
         if (p.owner === 'player') {
           const popGrowth = Math.floor(p.population * 0.01 * (p.development / 100));
-          const hasLord = (prev.lords ?? []).some(l => l.provinceId === p.id);
+          const hasLord = (prev.lords ?? []).some(l => (l.provinceIds ?? []).includes(p.id));
           const garrisonGain = hasLord ? 0 : 5;
           return { ...p, population: p.population + popGrowth, garrison: Math.min(1000, p.garrison + garrisonGain) };
         }
@@ -2185,40 +2194,45 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const lordLogs: string[] = [];
       const lordRevoltEvents: GameEvent[] = [];
 
-      const survivingLords = (prev.lords ?? []).filter(lord => {
-        const province = newProvinces.find(p => p.id === lord.provinceId);
-        return province && province.owner === 'player';
-      });
+      // Update surviving lords: prune lost provinces, remove lords with none left
+      const survivingLords = (prev.lords ?? []).map(lord => {
+        const aliveIds = (lord.provinceIds ?? []).filter(pid => {
+          const p = newProvinces.find(pp => pp.id === pid);
+          return p && p.owner === 'player';
+        });
+        return { ...lord, provinceIds: aliveIds };
+      }).filter(lord => lord.provinceIds.length > 0);
+
+      const dipBonus = prev.ruler.diplomacy >= 14 ? 1 : 0;
+      const warTaxLoyaltyPenalty = warTaxActive ? -3 : 0;
 
       const updatedLords = survivingLords.map(lord => {
-        const province = newProvinces.find(p => p.id === lord.provinceId)!;
+        // Apply effects to each governed province
+        for (const pid of lord.provinceIds) {
+          const province = newProvinces.find(p => p.id === pid);
+          if (!province) continue;
 
-        const buildingGold = province.buildings.reduce(
-          (sum, b) => sum + ((b.production.goldPerTurn ?? 0) * b.level), 0
-        );
-        const cut = Math.floor(buildingGold * (1 - lord.taxRate));
-        lordTaxCut += cut;
-
-        const levyGarrison = lord.skill * 3;
-        newProvinces = newProvinces.map(p =>
-          p.id === lord.provinceId
-            ? { ...p, garrison: Math.min(1000, p.garrison + levyGarrison) }
-            : p
-        );
-
-        const unrestReduction = Math.floor(lord.skill / 8);
-        if (unrestReduction > 0) {
-          newProvinces = newProvinces.map(p =>
-            p.id === lord.provinceId
-              ? { ...p, unrest: Math.max(0, (p.unrest ?? 0) - unrestReduction) }
-              : p
+          const buildingGold = province.buildings.reduce(
+            (sum, b) => sum + ((b.production.goldPerTurn ?? 0) * b.level), 0
           );
+          const cut = Math.floor(buildingGold * (1 - lord.taxRate));
+          lordTaxCut += cut;
+
+          const levyGarrison = lord.skill * 3;
+          newProvinces = newProvinces.map(p =>
+            p.id === pid ? { ...p, garrison: Math.min(1000, p.garrison + levyGarrison) } : p
+          );
+
+          const unrestReduction = Math.floor(lord.skill / 8);
+          if (unrestReduction > 0) {
+            newProvinces = newProvinces.map(p =>
+              p.id === pid ? { ...p, unrest: Math.max(0, (p.unrest ?? 0) - unrestReduction) } : p
+            );
+          }
         }
 
         const drift = -2 + Math.floor(Math.random() * 4);
-        const dipBonus = prev.ruler.diplomacy >= 14 ? 1 : 0;
-        const newLoyalty = Math.max(0, Math.min(100, lord.loyalty + drift + dipBonus));
-
+        const newLoyalty = Math.max(0, Math.min(100, lord.loyalty + drift + dipBonus + warTaxLoyaltyPenalty));
         return { ...lord, loyalty: newLoyalty, turnsAppointed: lord.turnsAppointed + 1 };
       });
 
@@ -2227,7 +2241,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         lordLogs.push(`👑 Lords kept ${lordTaxCut}g from their provinces this turn`);
       }
 
-      const crownProvinces = newProvinces.filter(p => p.owner === 'player' && !updatedLords.some(l => l.provinceId === p.id)).length;
+      const crownProvinces = newProvinces.filter(p => p.owner === 'player' && !updatedLords.some(l => (l.provinceIds ?? []).includes(p.id))).length;
       const stewardshipCap = Math.floor(prev.ruler.stewardship / 2) + 3;
       if (crownProvinces > stewardshipCap) {
         const overCapBy = crownProvinces - stewardshipCap;
@@ -2236,26 +2250,43 @@ export const [GameProvider, useGame] = createContextHook(() => {
         lordLogs.push(`⚠️ Crown overstretch: ${crownProvinces} direct provinces (cap ${stewardshipCap}) — ${corruptionGold}g lost to corruption`);
       }
 
+      // === WAR TAX ===
+      let warTaxGoldBonus = 0;
+      if (warTaxActive) {
+        warTaxGoldBonus = Math.floor(newResources.gold * 0.25);
+        newResources.gold += warTaxGoldBonus;
+        newProvinces = newProvinces.map(p =>
+          p.owner === 'player'
+            ? { ...p, unrest: Math.min(100, (p.unrest ?? 0) + 8), loyalty: Math.max(0, (p.loyalty ?? 80) - 5) }
+            : p
+        );
+        lordLogs.push(`⚔️ War Tax: +${warTaxGoldBonus}g extracted from the realm. Provinces suffer unrest and dissatisfaction.`);
+      }
+
       updatedLords.forEach(lord => {
         if (lord.loyalty < 15 && Math.random() > 0.7) {
-          const province = newProvinces.find(p => p.id === lord.provinceId);
+          const primaryId = lord.provinceIds[0];
+          const province = primaryId ? newProvinces.find(p => p.id === primaryId) : undefined;
           if (province) {
-            newProvinces = newProvinces.map(p =>
-              p.id === lord.provinceId
-                ? { ...p, loyalty: Math.max(0, (p.loyalty ?? 80) - 25), unrest: Math.min(100, (p.unrest ?? 0) + 35) }
-                : p
-            );
-            lordLogs.push(`🔥 ${lord.name} of ${province.name} has raised the banner of rebellion!`);
+            lord.provinceIds.forEach(pid => {
+              newProvinces = newProvinces.map(p =>
+                p.id === pid
+                  ? { ...p, loyalty: Math.max(0, (p.loyalty ?? 80) - 25), unrest: Math.min(100, (p.unrest ?? 0) + 35) }
+                  : p
+              );
+            });
+            const extra = lord.provinceIds.length > 1 ? ` (and ${lord.provinceIds.length - 1} other province${lord.provinceIds.length > 2 ? 's' : ''})` : '';
+            lordLogs.push(`🔥 ${lord.name} of ${province.name}${extra} has raised the banner of rebellion!`);
             lordRevoltEvents.push({
               id: `lord_revolt_${lord.id}_${nextTurn}`,
               title: `Lord's Rebellion: ${lord.name}`,
-              description: `${lord.name}, lord of ${province.name}, has turned against the crown! Their treachery threatens the stability of your realm.`,
+              description: `${lord.name}, governor of ${province.name}${extra}, has turned against the crown! Their treachery threatens the stability of your realm.`,
               type: 'political' as const,
               turn: nextTurn,
               seen: false,
               choices: [
                 { id: `lr_crush_${lord.id}`, text: 'Crush the rebellion by force', effects: 'Restore order at military cost' },
-                { id: `lr_buy_${lord.id}`, text: 'Buy their loyalty back', effects: '+50 lord loyalty, costs gold', cost: { gold: 200 } },
+                { id: `lr_buy_${lord.id}`, text: 'Buy their loyalty back', effects: '+50 loyalty, costs gold', cost: { gold: 200 } },
               ],
             });
           }
@@ -2929,6 +2960,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
         diff: { gold: diffGold, food: diffFood, military: diffMil, faith: diffFaith },
         pressure: { gold: pressureGold, food: pressureFood, military: pressureMil },
         vassal: vassalTributeTotal,
+        lordTribute: lordTaxCut,
+        warTax: warTaxGoldBonus,
       };
       newProvinces = newProvinces.map(p => {
         const loyaltyHit = pressureResult.loyaltyPenalties[p.id];
@@ -3221,6 +3254,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         overlordFavor,
         refuseNextTribute: false,
         lords: updatedLords,
+        warTaxActive: isAtWar ? (prev.warTaxActive ?? false) : false,
       } as GameState;
       saveMutation.mutate(newState);
       return newState;
@@ -3932,24 +3966,40 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
-  const assignLord = useCallback((provinceId: string) => {
+  const assignLord = useCallback((provinceId: string, existingLordId?: string, type: 'lord' | 'peasant' = 'lord') => {
     setState(prev => {
       const province = prev.provinces.find(p => p.id === provinceId);
       if (!province || province.owner !== 'player') return prev;
-      if (prev.resources.gold < 50) return prev;
-      if ((prev.lords ?? []).some(l => l.provinceId === provinceId)) return prev;
+      if ((prev.lords ?? []).some(l => (l.provinceIds ?? []).includes(provinceId))) return prev;
+
+      if (existingLordId) {
+        const existing = (prev.lords ?? []).find(l => l.id === existingLordId);
+        if (!existing) return prev;
+        const newLords = prev.lords.map(l =>
+          l.id === existingLordId ? { ...l, provinceIds: [...(l.provinceIds ?? []), provinceId] } : l
+        );
+        const newProvinces = prev.provinces.map(p => p.id === provinceId ? { ...p, assignedLordId: existingLordId } : p);
+        const logMsg = `👑 ${existing.name}'s domain extended to include ${province.name}`;
+        const newState: GameState = { ...prev, lords: newLords, provinces: newProvinces, log: [logMsg, ...prev.log].slice(0, 50) };
+        saveMutation.mutate(newState);
+        return newState;
+      }
+
+      const cost = type === 'lord' ? 50 : 0;
+      if (prev.resources.gold < cost) return prev;
       const name = NOBLE_NAMES[Math.floor(Math.random() * NOBLE_NAMES.length)];
-      const skill = 5 + Math.floor(Math.random() * 11);
+      const skill = type === 'lord' ? 5 + Math.floor(Math.random() * 11) : 1 + Math.floor(Math.random() * 3);
       const taxRate = parseFloat((0.5 + skill / 50).toFixed(2));
-      const loyalty = 50 + Math.floor(Math.random() * 21);
-      const newLord = { id: `lord_${provinceId}_${prev.turn}`, name, skill, loyalty, provinceId, taxRate, turnsAppointed: 0 };
+      const loyalty = type === 'lord' ? 50 + Math.floor(Math.random() * 21) : 40 + Math.floor(Math.random() * 16);
+      const newLord = { id: `lord_${provinceId}_${prev.turn}`, name, skill, loyalty, provinceIds: [provinceId], taxRate, turnsAppointed: 0, type };
       const newProvinces = prev.provinces.map(p => p.id === provinceId ? { ...p, assignedLordId: newLord.id } : p);
-      const logMsg = `👑 ${name} appointed lord of ${province.name} (skill ${skill}, tax rate ${Math.round(taxRate * 100)}%)`;
+      const label = type === 'peasant' ? 'peasant overseer' : 'lord';
+      const logMsg = `👑 ${name} appointed ${label} of ${province.name} (skill ${skill}, tax ${Math.round(taxRate * 100)}%)`;
       const newState: GameState = {
         ...prev,
         provinces: newProvinces,
         lords: [...(prev.lords ?? []), newLord],
-        resources: { ...prev.resources, gold: prev.resources.gold - 50 },
+        resources: { ...prev.resources, gold: prev.resources.gold - cost },
         log: [logMsg, ...prev.log].slice(0, 50),
       };
       saveMutation.mutate(newState);
@@ -3959,21 +4009,44 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
   const dismissLord = useCallback((provinceId: string) => {
     setState(prev => {
-      const lord = (prev.lords ?? []).find(l => l.provinceId === provinceId);
+      const lord = (prev.lords ?? []).find(l => (l.provinceIds ?? []).includes(provinceId));
       if (!lord) return prev;
       const province = prev.provinces.find(p => p.id === provinceId);
       const newProvinces = prev.provinces.map(p =>
-        p.id === provinceId
-          ? { ...p, assignedLordId: undefined, unrest: Math.min(100, (p.unrest ?? 0) + 20) }
-          : p
+        p.id === provinceId ? { ...p, assignedLordId: undefined, unrest: Math.min(100, (p.unrest ?? 0) + 20) } : p
       );
-      const logMsg = `⚠️ ${lord.name} dismissed from ${province?.name ?? provinceId}. Unrest +20.`;
-      const newState: GameState = {
-        ...prev,
-        provinces: newProvinces,
-        lords: (prev.lords ?? []).filter(l => l.provinceId !== provinceId),
-        log: [logMsg, ...prev.log].slice(0, 50),
-      };
+      const remaining = (lord.provinceIds ?? []).filter(pid => pid !== provinceId);
+      const newLords = remaining.length === 0
+        ? (prev.lords ?? []).filter(l => l.id !== lord.id)
+        : (prev.lords ?? []).map(l => l.id === lord.id ? { ...l, provinceIds: remaining } : l);
+      const logMsg = `⚠️ ${lord.name} removed from ${province?.name ?? provinceId}. Unrest +20.`;
+      const newState: GameState = { ...prev, provinces: newProvinces, lords: newLords, log: [logMsg, ...prev.log].slice(0, 50) };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
+  const adjustLordTax = useCallback((lordId: string, delta: number) => {
+    setState(prev => {
+      const lord = (prev.lords ?? []).find(l => l.id === lordId);
+      if (!lord) return prev;
+      const newRate = Math.max(0.30, Math.min(0.95, lord.taxRate + delta));
+      const newLords = prev.lords.map(l => l.id === lordId ? { ...l, taxRate: parseFloat(newRate.toFixed(2)) } : l);
+      const newState: GameState = { ...prev, lords: newLords };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
+  const toggleWarTax = useCallback(() => {
+    setState(prev => {
+      const isAtWar = prev.kingdoms.some(k => k.attitude === 'war');
+      if (!isAtWar && !prev.warTaxActive) return prev;
+      const next = !prev.warTaxActive;
+      const logMsg = next
+        ? '⚔️ War Tax declared! Emergency levies extract 25% more gold but raise unrest and hurt lord loyalty.'
+        : '✅ War Tax lifted. The realm begins to settle.';
+      const newState: GameState = { ...prev, warTaxActive: next, log: [logMsg, ...prev.log].slice(0, 50) };
       saveMutation.mutate(newState);
       return newState;
     });
@@ -4424,7 +4497,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
     acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion, refuseTribute,
-    assignLord, dismissLord,
+    assignLord, dismissLord, adjustLordTax, toggleWarTax,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -4438,6 +4511,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
     acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion, refuseTribute,
-    assignLord, dismissLord,
+    assignLord, dismissLord, adjustLordTax, toggleWarTax,
   ]);
 });

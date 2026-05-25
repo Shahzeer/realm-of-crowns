@@ -137,9 +137,10 @@ export interface Lord {
   name: string;
   skill: number;
   loyalty: number;
-  provinceId: string;
+  provinceIds: string[];
   taxRate: number;
   turnsAppointed: number;
+  type: 'lord' | 'peasant';
 }
 
 export interface Province {
@@ -430,6 +431,8 @@ export interface TurnSummary {
     diff: { gold: number; food: number; military: number; faith: number };
     pressure: { gold: number; food: number; military: number };
     vassal?: number;
+    lordTribute?: number;
+    warTax?: number;
   };
 }
 
@@ -552,6 +555,7 @@ export interface GameState {
   overlordFavor?: number;
   refuseNextTribute?: boolean;
   lords: Lord[];
+  warTaxActive?: boolean;
 }
 
 export interface PendingChainEvent {

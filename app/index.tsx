@@ -4,7 +4,7 @@ import { useRouter, Redirect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { Swords, Globe, ScrollText, Crown, ChevronRight, Play, BookOpen, Users, Shield, Flame, RotateCcw, ArrowRightLeft, Eye, Sparkles, Trophy, X, TrendingUp, Settings, ShieldAlert, AlertTriangle, Bug, Wheat, Skull, ChevronDown, ChevronUp, UserX, TrendingDown } from "lucide-react-native";
+import { Swords, Globe, ScrollText, Crown, ChevronRight, Play, BookOpen, Users, Shield, Flame, RotateCcw, ArrowRightLeft, Eye, Sparkles, Trophy, X, TrendingUp, Settings, ShieldAlert, AlertTriangle, Bug, Wheat, Skull, ChevronDown, ChevronUp, UserX, TrendingDown, Minus, Plus } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 
@@ -30,7 +30,7 @@ function SeasonBadge({ season }: { season: string }) {
   );
 }
 
-function WarBanner({ wars }: { wars: Array<{ name: string; color: string }> }) {
+function WarBanner({ wars, warTaxActive, onToggleWarTax }: { wars: Array<{ name: string; color: string }>; warTaxActive?: boolean; onToggleWarTax?: () => void }) {
   const pulseAnim = useRef(new Animated.Value(0.6)).current;
   useEffect(() => {
     Animated.loop(Animated.sequence([
@@ -40,10 +40,22 @@ function WarBanner({ wars }: { wars: Array<{ name: string; color: string }> }) {
   }, []);
   if (wars.length === 0) return null;
   return (
-    <Animated.View style={[idx.warBanner, { opacity: pulseAnim }]}>
-      <Flame size={16} color="#ff4444" />
-      <Text style={idx.warBannerText}>AT WAR with {wars.map(w => w.name).join(', ')}</Text>
-    </Animated.View>
+    <View style={idx.warBannerWrap}>
+      <Animated.View style={[idx.warBanner, { opacity: pulseAnim }]}>
+        <Flame size={16} color="#ff4444" />
+        <Text style={[idx.warBannerText, { flex: 1 }]}>AT WAR with {wars.map(w => w.name).join(', ')}</Text>
+      </Animated.View>
+      <TouchableOpacity
+        style={[idx.warTaxBtn, warTaxActive && idx.warTaxBtnActive]}
+        onPress={onToggleWarTax}
+        activeOpacity={0.7}
+      >
+        <Swords size={12} color={warTaxActive ? '#ff4444' : Colors.text.dim} />
+        <Text style={[idx.warTaxBtnText, warTaxActive && { color: '#ff4444' }]}>
+          {warTaxActive ? 'War Tax ON' : 'War Tax OFF'}
+        </Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -106,10 +118,13 @@ function TurnSummaryModal({ visible, onClose, summary }: { visible: boolean; onC
                   { label: 'Difficulty bonus', gold: summary.breakdown.diff.gold, food: summary.breakdown.diff.food, mil: summary.breakdown.diff.military, faith: summary.breakdown.diff.faith, always: summary.breakdown.diff.gold > 0 },
                   { label: 'Pressures', gold: summary.breakdown.pressure.gold, food: summary.breakdown.pressure.food, mil: summary.breakdown.pressure.military, faith: 0, always: summary.breakdown.pressure.gold !== 0 || summary.breakdown.pressure.food !== 0 || summary.breakdown.pressure.military !== 0 },
                   { label: 'Vassal tributes', gold: summary.breakdown.vassal ?? 0, food: 0, mil: 0, faith: 0, always: (summary.breakdown.vassal ?? 0) > 0 },
+                  { label: 'Lord tribute (−)', gold: -(summary.breakdown.lordTribute ?? 0), food: 0, mil: 0, faith: 0, always: (summary.breakdown.lordTribute ?? 0) > 0 },
+                  { label: 'War tax bonus', gold: summary.breakdown.warTax ?? 0, food: 0, mil: 0, faith: 0, always: (summary.breakdown.warTax ?? 0) > 0 },
                 ].filter(r => r.always).map((row, i) => {
-                  const isPenalty = row.label === 'Pressures';
+                  const isPenalty = row.label === 'Pressures' || row.label === 'Lord tribute (−)';
                   const isSeason = row.label.startsWith('Season');
-                  const rowColor = isPenalty ? Colors.crimson.bright : isSeason ? Colors.status.warning : Colors.text.secondary;
+                  const isBonus = row.label === 'War tax bonus';
+                  const rowColor = isPenalty ? Colors.crimson.bright : isSeason ? Colors.status.warning : isBonus ? Colors.gold.bright : Colors.text.secondary;
                   const parts: string[] = [];
                   if (row.gold !== 0) parts.push(`💰${row.gold > 0 ? '+' : ''}${row.gold}`);
                   if (row.food !== 0) parts.push(`🌾${row.food > 0 ? '+' : ''}${row.food}`);
@@ -153,16 +168,18 @@ function TurnSummaryModal({ visible, onClose, summary }: { visible: boolean; onC
   );
 }
 
-function LordsOverviewPanel({ lords, provinces, stewardshipCap, onDismiss }: {
+function LordsOverviewPanel({ lords, provinces, stewardshipCap, onDismiss, onAdjustTax }: {
   lords: import("@/types/game").Lord[];
   provinces: import("@/types/game").Province[];
   stewardshipCap: number;
   onDismiss: (provinceId: string, lordName: string) => void;
+  onAdjustTax?: (lordId: string, delta: number) => void;
 }) {
   const [collapsed, setCollapsed] = useStateHook(false);
   if (lords.length === 0) return null;
 
   const crownCount = provinces.filter(p => p.owner === 'player' && !p.assignedLordId).length;
+  const lordCount = lords.length;
   const overCap = Math.max(0, crownCount - stewardshipCap);
 
   return (
@@ -170,10 +187,11 @@ function LordsOverviewPanel({ lords, provinces, stewardshipCap, onDismiss }: {
       <TouchableOpacity style={idx.lordsPanelHeader} onPress={() => setCollapsed(c => !c)} activeOpacity={0.7}>
         <View style={idx.lordsPanelLeft}>
           <Crown size={14} color={Colors.gold.bright} />
-          <Text style={idx.lordsPanelTitle}>Lords</Text>
-          <View style={idx.lordsPanelBadge}><Text style={idx.lordsPanelBadgeText}>{lords.length}</Text></View>
+          <Text style={idx.lordsPanelTitle}>Lords & Overseers</Text>
+          <View style={idx.lordsPanelBadge}><Text style={idx.lordsPanelBadgeText}>{lordCount}</Text></View>
         </View>
         <View style={idx.lordsPanelRight}>
+          <Text style={idx.lordsCrownInfo}>👑{crownCount} Crown · 🏰{lordCount} Lords</Text>
           {overCap > 0 && (
             <View style={idx.lordsCapWarning}>
               <Text style={idx.lordsCapWarningText}>⚠️ {overCap} over cap</Text>
@@ -185,18 +203,26 @@ function LordsOverviewPanel({ lords, provinces, stewardshipCap, onDismiss }: {
       {!collapsed && (
         <View style={idx.lordsListWrap}>
           {lords.map(lord => {
-            const province = provinces.find(p => p.id === lord.provinceId);
-            if (!province) return null;
+            const lordProvinces = (lord.provinceIds ?? []).map(pid => provinces.find(p => p.id === pid)).filter(Boolean) as import("@/types/game").Province[];
+            const primaryProvince = lordProvinces[0];
+            if (!primaryProvince) return null;
             const loyaltyColor = lord.loyalty >= 60 ? Colors.status.success : lord.loyalty >= 30 ? Colors.status.warning : Colors.status.danger;
             const isLowLoyalty = lord.loyalty < 30;
             const taxPct = Math.round(lord.taxRate * 100);
-            const levy = lord.skill * 3;
+            const levy = lord.skill * 3 * lordProvinces.length;
+            const isPeasant = lord.type === 'peasant';
             return (
               <View key={lord.id} style={[idx.lordRow, isLowLoyalty && idx.lordRowDanger]}>
                 <View style={idx.lordRowMain}>
                   <View style={idx.lordRowInfo}>
-                    <Text style={idx.lordRowName} numberOfLines={1}>{lord.name}</Text>
-                    <Text style={idx.lordRowProvince} numberOfLines={1}>{province.name}</Text>
+                    <View style={idx.lordRowNameRow}>
+                      <Text style={idx.lordRowName} numberOfLines={1}>{lord.name}</Text>
+                      {isPeasant && <View style={idx.peasantBadge}><Text style={idx.peasantBadgeText}>Peasant</Text></View>}
+                    </View>
+                    <Text style={idx.lordRowProvince} numberOfLines={2}>
+                      {lordProvinces.map(p => p.name).join(' · ')}
+                      {lordProvinces.length > 1 ? ` (${lordProvinces.length})` : ''}
+                    </Text>
                   </View>
                   <View style={idx.lordRowStats}>
                     <View style={idx.lordStatChip}>
@@ -204,8 +230,14 @@ function LordsOverviewPanel({ lords, provinces, stewardshipCap, onDismiss }: {
                       <Text style={idx.lordStatValue}>{lord.skill}</Text>
                     </View>
                     <View style={idx.lordStatChip}>
+                      <TouchableOpacity onPress={() => onAdjustTax?.(lord.id, -0.05)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 0 }}>
+                        <Minus size={9} color={Colors.text.dim} />
+                      </TouchableOpacity>
                       <Text style={idx.lordStatLabel}>TAX</Text>
                       <Text style={idx.lordStatValue}>{taxPct}%</Text>
+                      <TouchableOpacity onPress={() => onAdjustTax?.(lord.id, 0.05)} hitSlop={{ top: 6, bottom: 6, left: 0, right: 4 }}>
+                        <Plus size={9} color={Colors.text.dim} />
+                      </TouchableOpacity>
                     </View>
                     <View style={idx.lordStatChip}>
                       <Text style={idx.lordStatLabel}>LEVY</Text>
@@ -222,11 +254,13 @@ function LordsOverviewPanel({ lords, provinces, stewardshipCap, onDismiss }: {
                     style={idx.lordDismissBtn}
                     onPress={() => {
                       Alert.alert(
-                        'Dismiss Lord',
-                        `Dismiss ${lord.name} from ${province.name}?\n\nThis will raise unrest in the province by 20.`,
+                        'Remove Lord',
+                        `Remove ${lord.name} from all provinces?\n\nUnrest +20 in each province.`,
                         [
                           { text: 'Cancel', style: 'cancel' },
-                          { text: 'Dismiss', style: 'destructive', onPress: () => onDismiss(lord.provinceId, lord.name) },
+                          { text: 'Remove', style: 'destructive', onPress: () => {
+                            (lord.provinceIds ?? [lord.provinceId]).forEach((pid: string) => onDismiss(pid, lord.name));
+                          }},
                         ]
                       );
                     }}
@@ -255,7 +289,7 @@ function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward, acceptVassal, rejectVassal, declareIndependence, refuseTribute, dismissLord } = useGame();
+  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward, acceptVassal, rejectVassal, declareIndependence, refuseTribute, dismissLord, adjustLordTax, toggleWarTax } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -524,7 +558,7 @@ function KingdomScreen() {
       </View>
       <ResourceBar resources={state.resources} />
       <PressureIndicators pressures={state.pressures} onPress={() => navigateTo('/pressures')} />
-      <WarBanner wars={activeWars.map(w => ({ name: w.name, color: w.color }))} />
+      <WarBanner wars={activeWars.map(w => ({ name: w.name, color: w.color }))} warTaxActive={state.warTaxActive} onToggleWarTax={toggleWarTax} />
       {state.isPlayerVassal && state.playerOverlordId && (() => {
         const overlord = state.kingdoms.find(k => k.id === state.playerOverlordId);
         const tributeAmount = Math.max(30, Math.min(200, Math.floor((state.resources.goldPerTurn || 50) * 0.4)));
@@ -617,6 +651,7 @@ function KingdomScreen() {
             provinces={state.provinces}
             stewardshipCap={stewardshipCap}
             onDismiss={handleDismissLord}
+            onAdjustTax={adjustLordTax}
           />
           <Text style={idx.sectionTitle}>Realm Map</Text>
           <MapView provinces={state.provinces} armies={state.armies} onProvincePress={handleProvincePress} selectedProvinceId={selectedProvince?.id ?? null} visibilityMap={visibilityMap} />
@@ -678,8 +713,12 @@ const idx = StyleSheet.create({
   seasonBadge: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
   seasonIcon: { fontSize: 12 },
   seasonLabel: { fontSize: 10, fontWeight: "700" as const, letterSpacing: 0.5 },
-  warBanner: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 6, backgroundColor: '#ff000018', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#ff000030' },
+  warBannerWrap: { backgroundColor: '#ff000018', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#ff000030' },
+  warBanner: { flexDirection: "row" as const, alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 6, paddingHorizontal: 12 },
   warBannerText: { fontSize: 12, fontWeight: "800" as const, color: '#ff4444', letterSpacing: 1 },
+  warTaxBtn: { flexDirection: "row" as const, alignItems: "center", gap: 5, paddingVertical: 4, paddingHorizontal: 12, marginHorizontal: 12, marginBottom: 6, borderRadius: 6, backgroundColor: Colors.bg.tertiary, borderWidth: 1, borderColor: Colors.border.primary },
+  warTaxBtnActive: { backgroundColor: '#ff000025', borderColor: '#ff000060' },
+  warTaxBtnText: { fontSize: 11, fontWeight: "700" as const, color: Colors.text.dim },
   surrenderBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 7, backgroundColor: '#dc262618', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#dc262640' },
   surrenderBannerText: { flex: 1, fontSize: 12, fontWeight: "700" as const, color: '#ef4444' },
   vassalBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#1e1040', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#7c3aed50' },
@@ -781,5 +820,9 @@ const idx = StyleSheet.create({
   lordStatLabel: { fontSize: 8, color: Colors.text.dim, textTransform: "uppercase" as const, letterSpacing: 0.3 },
   lordStatValue: { fontSize: 10, fontWeight: "700" as const, color: Colors.text.primary },
   lordDismissBtn: { width: 30, height: 30, borderRadius: 8, backgroundColor: Colors.status.danger + '15', borderWidth: 1, borderColor: Colors.status.danger + '30', alignItems: "center" as const, justifyContent: "center" as const },
+  lordRowNameRow: { flexDirection: "row" as const, alignItems: "center", gap: 6 },
+  peasantBadge: { backgroundColor: Colors.bg.tertiary, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: Colors.border.primary },
+  peasantBadgeText: { fontSize: 9, fontWeight: "700" as const, color: Colors.text.dim, textTransform: "uppercase" as const },
+  lordsCrownInfo: { fontSize: 10, color: Colors.text.dim, marginRight: 6 },
   lordRebellionWarn: { fontSize: 10, color: Colors.status.danger, fontWeight: "600" as const, marginTop: 4 },
 });
