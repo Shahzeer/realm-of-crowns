@@ -556,6 +556,15 @@ export interface GameState {
   refuseNextTribute?: boolean;
   lords: Lord[];
   warTaxActive?: boolean;
+  pendingAllyAttacks?: Array<{
+    id: string;
+    allyId: string;
+    allyName: string;
+    targetId: string;
+    targetName: string;
+    attackPower: number;
+    turnsLeft: number;
+  }>;
 }
 
 export interface PendingChainEvent {

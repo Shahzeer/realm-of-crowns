@@ -219,23 +219,30 @@ export default function ProvinceDetailScreen() {
                   </View>
                   <View style={ps.taxAdjustRow}>
                     <Text style={ps.taxAdjustLabel}>Tax Rate</Text>
-                    <TouchableOpacity
-                      style={ps.taxStepBtn}
-                      onPress={() => { adjustLordTax?.(assignedLord.id, -0.05); }}
-                      activeOpacity={0.7}
-                    >
-                      <Minus size={12} color={Colors.text.primary} />
-                    </TouchableOpacity>
-                    <Text style={ps.taxAdjustValue}>{Math.round(assignedLord.taxRate * 100)}%</Text>
-                    <TouchableOpacity
-                      style={ps.taxStepBtn}
-                      onPress={() => { adjustLordTax?.(assignedLord.id, 0.05); }}
-                      activeOpacity={0.7}
-                    >
-                      <Plus size={12} color={Colors.text.primary} />
-                    </TouchableOpacity>
+                    <View style={ps.taxAdjustControls}>
+                      <TouchableOpacity
+                        style={ps.taxStepBtn}
+                        onPress={() => { if (Platform.OS !== 'web') { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } adjustLordTax?.(assignedLord.id, -0.05); }}
+                        activeOpacity={0.7}
+                      >
+                        <Minus size={14} color={Colors.text.primary} />
+                      </TouchableOpacity>
+                      <Text style={ps.taxAdjustValue}>{Math.round(assignedLord.taxRate * 100)}%</Text>
+                      <TouchableOpacity
+                        style={ps.taxStepBtn}
+                        onPress={() => { if (Platform.OS !== 'web') { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } adjustLordTax?.(assignedLord.id, 0.05); }}
+                        activeOpacity={0.7}
+                      >
+                        <Plus size={14} color={Colors.text.primary} />
+                      </TouchableOpacity>
+                    </View>
                     <Text style={ps.taxAdjustHint}>
-                      {assignedLord.taxRate >= 0.85 ? '⚠️ High — loyalty risk' : assignedLord.taxRate <= 0.40 ? '⬆️ Low — boost loyalty' : ''}
+                      {assignedLord.taxRate >= 0.85 ? '⚠️ High — loyalty risk' : assignedLord.taxRate <= 0.40 ? '📈 Low — boosts loyalty' : '✓ Stable'}
+                    </Text>
+                  </View>
+                  <View style={ps.lordBuildingNote}>
+                    <Text style={ps.lordBuildingNoteText}>
+                      Buildings still produce normally. The lord keeps {Math.round((1 - assignedLord.taxRate) * 100)}% of building gold; you keep {Math.round(assignedLord.taxRate * 100)}%. You can still build here.
                     </Text>
                   </View>
                   {assignedLord.loyalty < 30 && (
@@ -691,9 +698,12 @@ const ps = StyleSheet.create({
   lordProvinceList: { fontSize: 11, color: Colors.text.dim, fontStyle: "italic" as const },
   taxAdjustRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, paddingVertical: 4 },
   taxAdjustLabel: { fontSize: 12, color: Colors.text.secondary, fontWeight: "600" as const, width: 68 },
-  taxStepBtn: { width: 26, height: 26, borderRadius: 6, backgroundColor: Colors.bg.tertiary, alignItems: "center" as const, justifyContent: "center" as const, borderWidth: 1, borderColor: Colors.border.primary },
-  taxAdjustValue: { fontSize: 15, fontWeight: "800" as const, color: Colors.text.primary, width: 40, textAlign: "center" as const },
-  taxAdjustHint: { flex: 1, fontSize: 10, color: Colors.status.warning },
+  taxAdjustControls: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6 },
+  taxStepBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: Colors.bg.tertiary, alignItems: "center" as const, justifyContent: "center" as const, borderWidth: 1, borderColor: Colors.border.primary },
+  taxAdjustValue: { fontSize: 16, fontWeight: "800" as const, color: Colors.text.primary, width: 44, textAlign: "center" as const },
+  taxAdjustHint: { flex: 1, fontSize: 11, color: Colors.text.dim },
+  lordBuildingNote: { backgroundColor: Colors.bg.tertiary, borderRadius: 8, padding: 8, borderWidth: 1, borderColor: Colors.border.primary },
+  lordBuildingNoteText: { fontSize: 11, color: Colors.text.dim, lineHeight: 15 },
   levelBarBg: { height: 3, borderRadius: 2, backgroundColor: Colors.bg.tertiary, marginTop: 8, marginLeft: 34, overflow: "hidden" as const },
   levelBarFill: { height: "100%" as const, borderRadius: 2, backgroundColor: Colors.gold.primary },
   maxLevelBadge: { marginTop: 10, alignItems: "center" as const, paddingVertical: 6, borderRadius: 8, backgroundColor: Colors.gold.primary + '15', borderWidth: 1, borderColor: Colors.gold.primary + '30' },

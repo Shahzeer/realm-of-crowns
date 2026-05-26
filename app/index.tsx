@@ -230,16 +230,6 @@ function LordsOverviewPanel({ lords, provinces, stewardshipCap, onDismiss, onAdj
                       <Text style={idx.lordStatValue}>{lord.skill}</Text>
                     </View>
                     <View style={idx.lordStatChip}>
-                      <TouchableOpacity onPress={() => onAdjustTax?.(lord.id, -0.05)} hitSlop={{ top: 6, bottom: 6, left: 4, right: 0 }}>
-                        <Minus size={9} color={Colors.text.dim} />
-                      </TouchableOpacity>
-                      <Text style={idx.lordStatLabel}>TAX</Text>
-                      <Text style={idx.lordStatValue}>{taxPct}%</Text>
-                      <TouchableOpacity onPress={() => onAdjustTax?.(lord.id, 0.05)} hitSlop={{ top: 6, bottom: 6, left: 0, right: 4 }}>
-                        <Plus size={9} color={Colors.text.dim} />
-                      </TouchableOpacity>
-                    </View>
-                    <View style={idx.lordStatChip}>
                       <Text style={idx.lordStatLabel}>LEVY</Text>
                       <Text style={idx.lordStatValue}>+{levy}</Text>
                     </View>
@@ -249,6 +239,19 @@ function LordsOverviewPanel({ lords, provinces, stewardshipCap, onDismiss, onAdj
                         : <TrendingDown size={10} color={loyaltyColor} />}
                       <Text style={[idx.lordStatValue, { color: loyaltyColor }]}>{lord.loyalty}</Text>
                     </View>
+                  </View>
+                  <View style={idx.lordTaxRow}>
+                    <Text style={idx.lordTaxLabel}>Tax:</Text>
+                    <TouchableOpacity style={idx.lordTaxBtn} onPress={() => onAdjustTax?.(lord.id, -0.05)} activeOpacity={0.7}>
+                      <Minus size={11} color={Colors.text.primary} />
+                    </TouchableOpacity>
+                    <Text style={idx.lordTaxValue}>{taxPct}%</Text>
+                    <TouchableOpacity style={idx.lordTaxBtn} onPress={() => onAdjustTax?.(lord.id, 0.05)} activeOpacity={0.7}>
+                      <Plus size={11} color={Colors.text.primary} />
+                    </TouchableOpacity>
+                    <Text style={idx.lordTaxHint} numberOfLines={1}>
+                      {taxPct >= 85 ? '⚠️ loyalty risk' : taxPct <= 40 ? '📈 boosts loyalty' : '✓ stable'}
+                    </Text>
                   </View>
                   <TouchableOpacity
                     style={idx.lordDismissBtn}
@@ -559,6 +562,15 @@ function KingdomScreen() {
       <ResourceBar resources={state.resources} />
       <PressureIndicators pressures={state.pressures} onPress={() => navigateTo('/pressures')} />
       <WarBanner wars={activeWars.map(w => ({ name: w.name, color: w.color }))} warTaxActive={state.warTaxActive} onToggleWarTax={toggleWarTax} />
+      {(state.pendingAllyAttacks ?? []).length > 0 && (
+        <View style={idx.allyMarchBanner}>
+          {(state.pendingAllyAttacks ?? []).map(atk => (
+            <Text key={atk.id} style={idx.allyMarchText}>
+              ⚔️ {atk.allyName}'s army marching on {atk.targetName} — {atk.turnsLeft} turn{atk.turnsLeft > 1 ? 's' : ''} until assault
+            </Text>
+          ))}
+        </View>
+      )}
       {state.isPlayerVassal && state.playerOverlordId && (() => {
         const overlord = state.kingdoms.find(k => k.id === state.playerOverlordId);
         const tributeAmount = Math.max(30, Math.min(200, Math.floor((state.resources.goldPerTurn || 50) * 0.4)));
@@ -819,10 +831,17 @@ const idx = StyleSheet.create({
   lordStatChip: { alignItems: "center" as const, backgroundColor: Colors.bg.tertiary, borderRadius: 6, paddingHorizontal: 5, paddingVertical: 3, borderWidth: 1, borderColor: Colors.border.primary, minWidth: 36, flexDirection: "row" as const, gap: 2 },
   lordStatLabel: { fontSize: 8, color: Colors.text.dim, textTransform: "uppercase" as const, letterSpacing: 0.3 },
   lordStatValue: { fontSize: 10, fontWeight: "700" as const, color: Colors.text.primary },
+  lordTaxRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, marginTop: 4 },
+  lordTaxLabel: { fontSize: 11, color: Colors.text.dim, width: 28 },
+  lordTaxBtn: { width: 28, height: 28, borderRadius: 7, backgroundColor: Colors.bg.tertiary, alignItems: "center" as const, justifyContent: "center" as const, borderWidth: 1, borderColor: Colors.border.primary },
+  lordTaxValue: { fontSize: 13, fontWeight: "800" as const, color: Colors.text.primary, width: 38, textAlign: "center" as const },
+  lordTaxHint: { flex: 1, fontSize: 10, color: Colors.text.dim },
   lordDismissBtn: { width: 30, height: 30, borderRadius: 8, backgroundColor: Colors.status.danger + '15', borderWidth: 1, borderColor: Colors.status.danger + '30', alignItems: "center" as const, justifyContent: "center" as const },
   lordRowNameRow: { flexDirection: "row" as const, alignItems: "center", gap: 6 },
   peasantBadge: { backgroundColor: Colors.bg.tertiary, paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4, borderWidth: 1, borderColor: Colors.border.primary },
   peasantBadgeText: { fontSize: 9, fontWeight: "700" as const, color: Colors.text.dim, textTransform: "uppercase" as const },
   lordsCrownInfo: { fontSize: 10, color: Colors.text.dim, marginRight: 6 },
+  allyMarchBanner: { backgroundColor: '#1a2a1a', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#4ade8050', paddingHorizontal: 14, paddingVertical: 6, gap: 2 },
+  allyMarchText: { fontSize: 12, fontWeight: "600" as const, color: '#4ade80' },
   lordRebellionWarn: { fontSize: 10, color: Colors.status.danger, fontWeight: "600" as const, marginTop: 4 },
 });

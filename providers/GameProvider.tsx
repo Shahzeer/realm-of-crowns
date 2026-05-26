@@ -2231,7 +2231,9 @@ export const [GameProvider, useGame] = createContextHook(() => {
           }
         }
 
-        const drift = -2 + Math.floor(Math.random() * 4);
+        // Skill-based drift: skilled lords maintain/gain loyalty; unskilled lords drift down
+        const skillBonus = Math.floor((lord.skill - 7) / 4); // -1 at skill 3, 0 at skill 7-10, +1 at skill 11+
+        const drift = skillBonus + Math.floor(Math.random() * 3) - 1; // -2 to +2 depending on skill
         const newLoyalty = Math.max(0, Math.min(100, lord.loyalty + drift + dipBonus + warTaxLoyaltyPenalty));
         return { ...lord, loyalty: newLoyalty, turnsAppointed: lord.turnsAppointed + 1 };
       });
@@ -2371,6 +2373,59 @@ export const [GameProvider, useGame] = createContextHook(() => {
       });
 
       newArmies = newArmies.map(a => a.status === 'retreating' ? { ...a, status: 'idle' as const } : a);
+
+      // === PENDING ALLY ATTACKS ===
+      const allyAttackLogs: string[] = [];
+      const newPendingAllyAttacks: typeof prev.pendingAllyAttacks = [];
+      for (const attack of (prev.pendingAllyAttacks ?? [])) {
+        if (attack.turnsLeft <= 1) {
+          // Resolve the attack
+          const targetProv = newProvinces.find(p => p.id === attack.targetId);
+          if (targetProv && targetProv.owner !== 'player') {
+            const defPower = (targetProv.garrison ?? 100) + 40;
+            if (attack.attackPower > defPower * 0.75) {
+              // Ally wins — give province to player
+              newProvinces = newProvinces.map(p =>
+                p.id === attack.targetId
+                  ? { ...p, owner: 'player', garrison: 80, loyalty: 30, unrest: 40, siegeProgress: 0, underSiege: false, siegeAttacker: undefined }
+                  : p
+              );
+              // Free any player armies that were sieging this province
+              newArmies = newArmies.map(a =>
+                a.status === 'sieging' && a.location === attack.targetId
+                  ? { ...a, status: 'idle' as const }
+                  : a
+              );
+              summary.provincesConquered.push(attack.targetName);
+              allyAttackLogs.push(`⚔️ ${attack.allyName}'s forces stormed ${attack.targetName} and delivered it to your crown!`);
+            } else {
+              // Ally fails — weaken garrison
+              newProvinces = newProvinces.map(p =>
+                p.id === attack.targetId
+                  ? { ...p, garrison: Math.max(20, Math.floor((p.garrison ?? 100) * 0.7)) }
+                  : p
+              );
+              allyAttackLogs.push(`🛡️ ${attack.allyName}'s assault on ${attack.targetName} was repelled — the garrison is weakened but holds.`);
+            }
+          } else if (targetProv?.owner === 'player') {
+            allyAttackLogs.push(`✅ ${attack.allyName}'s forces arrived at ${attack.targetName}, but it was already secured.`);
+          }
+        } else {
+          newPendingAllyAttacks.push({ ...attack, turnsLeft: attack.turnsLeft - 1 });
+          // March progress log on the turn before arrival
+          if (attack.turnsLeft === 2) {
+            allyAttackLogs.push(`⚔️ ${attack.allyName}'s army approaches ${attack.targetName} — assault expected next turn!`);
+          }
+        }
+      }
+
+      // === CLEANUP: free any player army that is sieging a now-player-owned province ===
+      newArmies = newArmies.map(a => {
+        if (a.status !== 'sieging') return a;
+        const prov = newProvinces.find(p => p.id === a.location);
+        if (prov && prov.owner === 'player') return { ...a, status: 'idle' as const };
+        return a;
+      });
 
       const hasDivineRight = newTechnologies.find(t => t.id === 'tech_divine_right')?.researched ?? false;
       if (hasDivineRight) {
@@ -2992,6 +3047,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const allBattles = [...prev.battles, ...newBattlesFromSiege, ...aiBattles].slice(-20);
       const allLogs = [
         ...lordLogs,
+        ...allyAttackLogs,
         ...conquestLogs,
         ...marchClaimLogs,
         ...captureBoostLogs,
@@ -3255,6 +3311,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         refuseNextTribute: false,
         lords: updatedLords,
         warTaxActive: isAtWar ? (prev.warTaxActive ?? false) : false,
+        pendingAllyAttacks: newPendingAllyAttacks ?? [],
       } as GameState;
       saveMutation.mutate(newState);
       return newState;
@@ -3712,39 +3769,51 @@ export const [GameProvider, useGame] = createContextHook(() => {
           let ctw_resources = { ...prev.resources };
           let ctw_log = '';
 
+          let ctwArmies = [...prev.armies];
+
           if (roll < willingness * 0.65) {
-            // Ally attacks an enemy province
+            // Ally musters and marches — creates a pending ally attack over 2-3 turns
             const warTarget = warTargets[Math.floor(Math.random() * warTargets.length)];
             const enemyProvs = prev.provinces.filter(p => p.owner === warTarget.id);
             const allyTroops = kingdom.armies.reduce((s, a) => s + a.troops, 0);
             if (enemyProvs.length > 0 && allyTroops > 150) {
               const target = enemyProvs[Math.floor(Math.random() * enemyProvs.length)];
               const attackPower = allyTroops * 0.6 + kingdom.ruler.martial * 8;
-              const defPower = (target.garrison ?? 100) + warTarget.armies.reduce((s, a) => s + a.troops, 0) * 0.2;
-              if (attackPower > defPower) {
-                ctw_provinces = ctw_provinces.map(p =>
-                  p.id === target.id ? { ...p, owner: 'player', garrison: 80, loyalty: 30, unrest: 40, siegeProgress: 0, underSiege: false } : p
-                );
-                ctw_kingdoms = ctw_kingdoms.map(k => {
-                  if (k.id === warTarget.id) return { ...k, warScore: (k.warScore ?? 0) + 20, provinces: k.provinces.filter(id => id !== target.id) };
-                  if (k.id === kingdom.id) return { ...k, relation: Math.min(100, k.relation - 5) };
-                  return k;
-                });
-                ctw_log = `⚔️ ${kingdom.name} answered your call! They seized ${target.name} from ${warTarget.name} on your behalf!`;
-              } else {
-                ctw_kingdoms = ctw_kingdoms.map(k =>
-                  k.id === warTarget.id
-                    ? { ...k, armies: k.armies.map(a => ({ ...a, troops: Math.max(50, Math.floor(a.troops * 0.85)) })) }
-                    : k
-                );
-                ctw_log = `⚔️ ${kingdom.name} stormed ${target.name} but couldn't break through. The enemy garrison is weakened!`;
-              }
+              const turnsToArrive = 2 + Math.floor(Math.random() * 2); // 2 or 3 turns
+              const pendingAttack = {
+                id: `ally_atk_${prev.turn}_${target.id}`,
+                allyId: kingdom.id,
+                allyName: kingdom.name,
+                targetId: target.id,
+                targetName: target.name,
+                attackPower,
+                turnsLeft: turnsToArrive,
+              };
+              const existing = (prev.pendingAllyAttacks ?? []).filter(a => a.targetId !== target.id);
+              ctw_kingdoms = ctw_kingdoms.map(k => {
+                if (k.id === warTarget.id) return { ...k, warScore: (k.warScore ?? 0) + 10 };
+                if (k.id === kingdom.id) return { ...k, relation: Math.min(100, k.relation - 3) };
+                return k;
+              });
+              ctw_log = `⚔️ ${kingdom.name} answered your call! Their army is mustering and will march on ${target.name} in ${turnsToArrive} turn${turnsToArrive > 1 ? 's' : ''}!`;
+              const ctwState: GameState = {
+                ...prev,
+                resources: ctw_resources,
+                provinces: ctw_provinces,
+                kingdoms: ctw_kingdoms,
+                armies: ctwArmies,
+                pendingAllyAttacks: [...existing, pendingAttack],
+                log: [ctw_log, ...prev.log].slice(0, 50),
+              };
+              saveMutation.mutate(ctwState);
+              return ctwState;
             } else {
+              // Not enough troops — send resources instead
               const goldAid = 80 + Math.floor((kingdom.treasury ?? 0) * 0.04);
               const milAid = 40 + Math.floor(Math.random() * 80);
               ctw_resources = { ...ctw_resources, gold: ctw_resources.gold + goldAid, military: ctw_resources.military + milAid };
               ctw_kingdoms = ctw_kingdoms.map(k => k.id === kingdom.id ? { ...k, treasury: Math.max(0, (k.treasury ?? 0) - goldAid) } : k);
-              ctw_log = `💰 ${kingdom.name} couldn't field a proper army but rushed ${goldAid}g and ${milAid} troops to your cause!`;
+              ctw_log = `💰 ${kingdom.name} couldn't muster enough troops but rushed ${goldAid}g and ${milAid} soldiers to your cause!`;
             }
           } else if (roll < willingness * 0.65 + 0.25) {
             // Send resources
@@ -3752,7 +3821,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
             const milAid = 30 + Math.floor(Math.random() * 80);
             ctw_resources = { ...ctw_resources, gold: ctw_resources.gold + goldAid, military: ctw_resources.military + milAid };
             ctw_kingdoms = ctw_kingdoms.map(k => k.id === kingdom.id ? { ...k, treasury: Math.max(0, (k.treasury ?? 0) - goldAid) } : k);
-            ctw_log = `💰 ${kingdom.name} sent ${goldAid}g and ${milAid} reinforcements — they'll fight when able.`;
+            ctw_log = `💰 ${kingdom.name} sent ${goldAid}g and ${milAid} reinforcements — they'll send troops when their army is ready.`;
           } else {
             // Reject
             const reasons = [
@@ -3780,6 +3849,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
             resources: ctw_resources,
             provinces: ctw_provinces,
             kingdoms: ctw_kingdoms,
+            armies: ctwArmies,
+            pendingAllyAttacks: prev.pendingAllyAttacks ?? [],
             log: [ctw_log, ...prev.log].slice(0, 50),
           };
           saveMutation.mutate(ctwState);
