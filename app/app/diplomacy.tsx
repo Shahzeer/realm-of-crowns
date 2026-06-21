@@ -4,7 +4,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, Gift, AlertTriangle, Handshake, Flame, Flag, DollarSign, Eye, Heart, Megaphone, Scale, ChevronRight, Lock } from "lucide-react-native";
+import { X, Gift, AlertTriangle, Handshake, Flame, Flag, DollarSign, Eye, Heart, Megaphone, Scale, ChevronRight, Lock, ArrowRightLeft, TrendingUp } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { Kingdom, AIPersonality } from "@/types/game";
@@ -447,6 +447,28 @@ export default function DiplomacyScreen() {
         </View>
         <TouchableOpacity onPress={() => router.back()} style={d.closeBtn} testID="close-diplomacy"><X size={22} color={Colors.text.secondary} /></TouchableOpacity>
       </View>
+      <View style={d.quickNav}>
+        <TouchableOpacity style={d.quickNavBtn} onPress={() => router.push('/trade')} activeOpacity={0.75}>
+          <ArrowRightLeft size={15} color={Colors.gold.bright} />
+          <Text style={d.quickNavText}>Trade</Text>
+          <Text style={d.quickNavSub}>{state.activeTrades.length} deals</Text>
+          <ChevronRight size={13} color={Colors.text.dim} />
+        </TouchableOpacity>
+        <View style={d.quickNavDivider} />
+        <TouchableOpacity style={d.quickNavBtn} onPress={() => router.push('/espionage')} activeOpacity={0.75}>
+          <Eye size={15} color="#8b5cf6" />
+          <Text style={d.quickNavText}>Espionage</Text>
+          <Text style={d.quickNavSub}>{state.activeSpyMission ? 'Active' : 'Idle'}</Text>
+          <ChevronRight size={13} color={Colors.text.dim} />
+        </TouchableOpacity>
+        <View style={d.quickNavDivider} />
+        <TouchableOpacity style={d.quickNavBtn} onPress={() => router.push('/rankings')} activeOpacity={0.75}>
+          <TrendingUp size={15} color={Colors.status.info} />
+          <Text style={d.quickNavText}>Rankings</Text>
+          <Text style={d.quickNavSub}>Standings</Text>
+          <ChevronRight size={13} color={Colors.text.dim} />
+        </TouchableOpacity>
+      </View>
       <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }} showsVerticalScrollIndicator={false}>
         {discoveredKingdoms.map((kingdom, idx) => (
           <View key={kingdom.id} onLayout={e => { yOffsets.current[kingdom.id] = e.nativeEvent.layout.y; }}>
@@ -688,6 +710,11 @@ const d = StyleSheet.create({
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   title: { fontSize: 20, fontWeight: "800" as const, color: Colors.text.primary },
   closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.bg.card, alignItems: "center", justifyContent: "center" },
+  quickNav: { flexDirection: "row", marginHorizontal: 16, marginTop: 10, marginBottom: 2, backgroundColor: Colors.bg.card, borderRadius: 12, borderWidth: 1, borderColor: Colors.border.primary, overflow: "hidden" },
+  quickNavBtn: { flex: 1, flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 10, gap: 6 },
+  quickNavText: { fontSize: 12, fontWeight: "700" as const, color: Colors.text.primary, flex: 1 },
+  quickNavSub: { fontSize: 10, color: Colors.text.dim },
+  quickNavDivider: { width: 1, backgroundColor: Colors.border.primary, marginVertical: 8 },
   warCountBadge: { backgroundColor: '#ff000020', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   warCountText: { fontSize: 10, fontWeight: "700" as const, color: '#ff4444' },
   allyCountBadge: { backgroundColor: Colors.status.success + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
