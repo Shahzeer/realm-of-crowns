@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from "
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { X, Crown, BookOpen, Users, Sparkles, ShieldAlert, ChevronRight } from "lucide-react-native";
+import { X, Crown, BookOpen, Users, Sparkles, ShieldAlert, ChevronRight, MapPin } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 
@@ -22,6 +22,12 @@ export default function RealmScreen() {
   const highPressures = (state.pressures.plague.active ? 1 : 0) + activeNobleDisputes;
   const pressureSub = state.pressures.plague.active ? 'Plague active' : state.pressures.corruption > 30 ? 'High corruption' : state.pressures.warExhaustion > 30 ? 'War exhaustion' : 'Stable';
 
+  const playerProvinces = state.provinces.filter(p => p.owner === 'player');
+  const lords = state.lords ?? [];
+  const stewardshipCap = Math.floor(state.ruler.stewardship / 2) + 3;
+  const lordProvSet = new Set((lords).flatMap(l => l.provinceIds));
+  const directCount = playerProvinces.filter(p => !lordProvSet.has(p.id)).length;
+
   const hubs: Array<{
     path: string;
     icon: React.ReactNode;
@@ -33,6 +39,17 @@ export default function RealmScreen() {
     accent: string;
     badge?: number;
   }> = [
+    {
+      path: "/domains",
+      icon: <MapPin size={26} color={Colors.status.success} />,
+      iconBg: Colors.status.success + "20",
+      title: "Domains",
+      description: "Your provinces, lords, and crown direct holdings",
+      stat: `${playerProvinces.length}`,
+      statLabel: `${directCount}/${stewardshipCap} direct`,
+      accent: Colors.status.success,
+      badge: directCount > stewardshipCap ? 1 : undefined,
+    },
     {
       path: "/technology",
       icon: <BookOpen size={26} color={Colors.status.info} />,
