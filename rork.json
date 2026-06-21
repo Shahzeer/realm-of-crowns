@@ -2,7 +2,7 @@
   "apps": [
     {
       "name": "Realm of Crowns",
-      "path": ".",
+      "path": "app",
       "framework": "react-native"
     }
   ]
