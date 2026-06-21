@@ -2336,6 +2336,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       }
 
       const captureBoostLogs: string[] = [];
+      const conqueredKingdomIds: string[] = [];
       const siegingArmies = newArmies.filter(a => a.owner === 'player' && a.status === 'sieging');
       const newBattlesFromSiege: BattleResult[] = [];
       const resolvedSiegeProvinces = new Set<string>();
@@ -2382,12 +2383,10 @@ export const [GameProvider, useGame] = createContextHook(() => {
               );
               summary.provincesConquered.push(targetProvince.name);
               summary.battlesWon++;
-              // Player captured an enemy province — decrease that kingdom's war score
-              newKingdoms = newKingdoms.map(k =>
-                k.id === targetProvince.owner && k.attitude === 'war'
-                  ? { ...k, warScore: (k.warScore ?? 0) - 30 }
-                  : k
-              );
+              // Collect kingdom ids whose war score needs decreasing (applied after newKingdoms is declared)
+              if (targetProvince.owner && targetProvince.owner !== 'player') {
+                conqueredKingdomIds.push(targetProvince.owner);
+              }
             } else {
               const lossPerArmy = Math.ceil(battle.attackerLosses / allSiegersHere.length);
               const siegeArmyIds = new Set(allSiegersHere.map(a => a.id));
@@ -2481,9 +2480,18 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       const aiResult = processAITurn(prev.kingdoms, newProvinces, newArmies, nextTurn, prev.difficulty);
       let newKingdoms = aiResult.kingdoms;
+      // Apply war score decrements for provinces the player captured this turn
+      if (conqueredKingdomIds.length > 0) {
+        newKingdoms = newKingdoms.map(k =>
+          conqueredKingdomIds.includes(k.id) && k.attitude === 'war'
+            ? { ...k, warScore: (k.warScore ?? 0) - 30 }
+            : k
+        );
+      }
       newProvinces = aiResult.provinces;
       const aiBattles = aiResult.newBattles.map(b => ({ ...b, turn: nextTurn }));
       summary.aiActions = aiResult.logs;
+      let newEvents = [...prev.events, ...aiResult.newEvents.map(e => ({ ...e, turn: nextTurn })), ...revoltEvents, ...lordRevoltEvents];
 
       aiBattles.forEach(battle => {
         const defArmy = newArmies.find(a => a.location === battle.provinceId);
@@ -2634,8 +2642,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
         }
         return updatedCouncilor;
       });
-
-      let newEvents = [...prev.events, ...aiResult.newEvents.map(e => ({ ...e, turn: nextTurn })), ...revoltEvents, ...lordRevoltEvents];
 
       const pendingChains: PendingChainEvent[] = prev.pendingChainEvents ?? [];
       const triggeredChains = pendingChains.filter(pc => pc.triggerTurn <= nextTurn);
@@ -3157,6 +3163,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       if (summary.techCompleted) rulerTechResearched += 1;
 
+      let newRulerTitle = prev.rulerTitle;
+      let newRulerGender = prev.rulerGender;
       let freshPressures: KingdomPressures | undefined;
       if (newRuler.health <= 0) {
         const chronicle = buildReignChronicle(
@@ -3278,9 +3286,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
       }
 
       // Custom kingdom title progression
-      let newRulerTitle = prev.rulerTitle;
-      let newRulerGender = prev.rulerGender;
-
       // Apply staged regency-to-heir transfer (staged early to avoid TDZ)
       if (pendingRegencyTransfer) {
         const { heirName, oldRegentName, isFemale } = pendingRegencyTransfer;
@@ -3703,10 +3708,12 @@ export const [GameProvider, useGame] = createContextHook(() => {
       let newProvinces = prev.provinces;
       let newKingdoms = prev.kingdoms;
 
+      let boostText = '';
+      let boostedResources = prev.resources;
       if (battle.conquered) {
         const buildingBoosts = getBuildingBoosts(province.buildings);
-        const boostText = formatResourceBoosts(buildingBoosts);
-        const boostedResources = applyResourceBoosts(prev.resources, buildingBoosts);
+        boostText = formatResourceBoosts(buildingBoosts);
+        boostedResources = applyResourceBoosts(prev.resources, buildingBoosts);
         newProvinces = prev.provinces.map(p =>
           p.id === province.id ? claimProvinceForPlayer(p) : p
         );
