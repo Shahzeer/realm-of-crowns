@@ -2382,6 +2382,12 @@ export const [GameProvider, useGame] = createContextHook(() => {
               );
               summary.provincesConquered.push(targetProvince.name);
               summary.battlesWon++;
+              // Player captured an enemy province — decrease that kingdom's war score
+              newKingdoms = newKingdoms.map(k =>
+                k.id === targetProvince.owner && k.attitude === 'war'
+                  ? { ...k, warScore: (k.warScore ?? 0) - 30 }
+                  : k
+              );
             } else {
               const lossPerArmy = Math.ceil(battle.attackerLosses / allSiegersHere.length);
               const siegeArmyIds = new Set(allSiegersHere.map(a => a.id));
@@ -2655,7 +2661,16 @@ export const [GameProvider, useGame] = createContextHook(() => {
         const combinedPool = [...classicPool, ...narrativePool];
         if (combinedPool.length > 0) {
           const picked = combinedPool[Math.floor(Math.random() * combinedPool.length)];
-          newEvents.push({ ...picked, id: `${picked.id}_${nextTurn}`, turn: nextTurn, seen: false });
+          let pickedEvent: GameEvent = { ...picked, id: `${picked.id}_${nextTurn}`, turn: nextTurn, seen: false };
+          if (picked.id === 'rand_6') {
+            const allianceCandidate = newKingdoms
+              .filter(k => k.attitude !== 'war' && k.attitude !== 'allied' && k.attitude !== 'vassal')
+              .sort((a, b) => b.relation - a.relation)[0];
+            if (allianceCandidate) {
+              pickedEvent = { ...pickedEvent, description: `${allianceCandidate.name} sends an envoy offering a formal alliance through a royal marriage between your dynasties. A powerful bond awaits — but alliances come with expectations.` };
+            }
+          }
+          newEvents.push(pickedEvent);
           summary.eventsTriggered.push(picked.title);
         }
       }
@@ -3432,6 +3447,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       let newProvinces = [...prev.provinces];
       let newArmies = [...prev.armies];
       let newKingdoms = [...prev.kingdoms];
+      let newPressures = { ...prev.pressures };
 
       // Apply ruler stat boosts mentioned in event effects text (e.g. "+2 Martial")
       if (choice.effects) {
@@ -3516,6 +3532,59 @@ export const [GameProvider, useGame] = createContextHook(() => {
         });
       }
 
+      // Plague event choices
+      if (choice.id.startsWith('pq1_')) {
+        // Quarantine — contain and significantly reduce plague
+        newPressures = {
+          ...newPressures,
+          plague: { ...newPressures.plague, contained: true, severity: Math.max(0, (newPressures.plague.severity ?? 0) - 50) },
+        };
+      } else if (choice.id.startsWith('pq2_')) {
+        // Prayer — 60% chance to help, reduces severity
+        if (Math.random() < 0.6) {
+          newPressures = {
+            ...newPressures,
+            plague: { ...newPressures.plague, severity: Math.max(0, (newPressures.plague.severity ?? 0) - 30) },
+          };
+        }
+      }
+      // pq3_ = ignore, no effect needed
+
+      // Noble demand event choices
+      if (choice.id.startsWith('nd_grant_') || choice.id.startsWith('nd_refuse_') || choice.id.startsWith('nd_imprison_')) {
+        let disputeId = choice.id;
+        if (disputeId.startsWith('nd_grant_')) disputeId = disputeId.replace('nd_grant_', '');
+        else if (disputeId.startsWith('nd_refuse_')) disputeId = disputeId.replace('nd_refuse_', '');
+        else disputeId = disputeId.replace('nd_imprison_', '');
+        const dispute = newPressures.nobleDisputes.find(d => d.id === disputeId);
+        if (dispute) {
+          newPressures = {
+            ...newPressures,
+            nobleDisputes: newPressures.nobleDisputes.map(d => d.id === disputeId ? { ...d, resolved: true } : d),
+          };
+          if (choice.id.startsWith('nd_grant_')) {
+            newProvinces = newProvinces.map(p =>
+              p.id === dispute.province
+                ? { ...p, loyalty: Math.min(100, (p.loyalty ?? 60) + 15), unrest: Math.max(0, (p.unrest ?? 0) - 10) }
+                : p
+            );
+          } else if (choice.id.startsWith('nd_refuse_')) {
+            newProvinces = newProvinces.map(p =>
+              p.id === dispute.province
+                ? { ...p, loyalty: Math.max(0, (p.loyalty ?? 60) - 20), unrest: Math.min(100, (p.unrest ?? 0) + 15) }
+                : p
+            );
+          } else {
+            // Imprison — slight loyalty penalty but resolved
+            newProvinces = newProvinces.map(p =>
+              p.id === dispute.province
+                ? { ...p, loyalty: Math.max(0, (p.loyalty ?? 60) - 8) }
+                : p
+            );
+          }
+        }
+      }
+
       let pendingChains: PendingChainEvent[] = [...(prev.pendingChainEvents ?? [])];
       if (choice.followUpEventId && choice.followUpDelay) {
         pendingChains.push({
@@ -3528,7 +3597,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const newState = {
         ...prev, resources: newResources, events: newEvents,
         heir: newHeir, ruler: newRuler, council: newCouncil, provinces: newProvinces,
-        armies: newArmies, kingdoms: newKingdoms,
+        armies: newArmies, kingdoms: newKingdoms, pressures: newPressures,
         log: [logEntry, ...prev.log].slice(0, 50),
         pendingChainEvents: pendingChains,
       } as GameState;
