@@ -471,6 +471,8 @@ function KingdomScreen() {
   const pressureBadge = (state.pressures.plague.active ? 1 : 0) + state.pressures.nobleDisputes.filter(d => !d.resolved).length;
   const pressureSub = state.pressures.plague.active ? 'Plague!' : state.pressures.corruption > 30 ? 'Corruption' : 'Stable';
   const stewardshipCap = Math.floor((state.ruler.stewardship ?? 8) / 2) + 3;
+  const crownProvinces = playerProvinces.filter(p => !(state.lords ?? []).some(l => (l.provinceIds ?? []).includes(p.id))).length;
+  const isOverstretched = crownProvinces > stewardshipCap;
   const handleDismissLord = useCallback((provinceId: string, lordName: string) => {
     dismissLord?.(provinceId);
     setToast({ visible: true, message: `${lordName} dismissed. Province unrest rises.`, type: 'warning' });
@@ -542,6 +544,13 @@ function KingdomScreen() {
           </View>
         </View>
       </Modal>
+      {state.isRegency && (
+        <View style={idx.regencyBanner}>
+          <Text style={idx.regencyBannerText}>
+            👑 Regency — {state.ruler.name} rules until the heir comes of age
+          </Text>
+        </View>
+      )}
       <View style={idx.header}>
         <TouchableOpacity style={idx.rulerButton} onPress={() => navigateTo("/ruler")} activeOpacity={0.7} testID="ruler-button">
           <View style={idx.rulerAvatar}><Crown size={18} color={Colors.gold.bright} /></View>
@@ -549,9 +558,9 @@ function KingdomScreen() {
             <Text style={idx.rulerName}>
               {state.isCustomKingdom && state.rulerTitle
                 ? `${state.rulerTitle} ${state.ruler.name.replace(/^(Princess|Prince|Lady|Lord)\s+/i, '')}`
-                : state.ruler.name}
+                : state.isRegency ? `Queen Regent ${state.ruler.name}` : state.ruler.name}
             </Text>
-            <Text style={idx.dynastyName}>{state.ruler.dynasty}</Text>
+            <Text style={idx.dynastyName}>{state.ruler.dynasty}{state.isRegency && state.heir ? ` · Heir: ${state.heir.name} (age ${state.heir.age})` : ''}</Text>
           </View>
         </TouchableOpacity>
         <View style={idx.turnInfo}>
@@ -634,8 +643,14 @@ function KingdomScreen() {
             </View>
           )}
           <View style={idx.statsRow}>
-            <View style={idx.statCard}><Text style={idx.statValue}>{playerProvinces.length}</Text><Text style={idx.statLabel}>Provinces</Text></View>
-            <View style={idx.statCard}><Text style={idx.statValue}>{(totalPopulation / 1000).toFixed(1)}k</Text><Text style={idx.statLabel}>Pop</Text></View>
+            <TouchableOpacity style={idx.statCard} onPress={() => navigateTo('/provinces')} activeOpacity={0.7}>
+              <Text style={idx.statValue}>{playerProvinces.length}</Text>
+              <Text style={idx.statLabel}>Provinces</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[idx.statCard, isOverstretched && { borderColor: Colors.status.warning }]} onPress={() => navigateTo('/pressures')} activeOpacity={0.7}>
+              <Text style={[idx.statValue, isOverstretched && { color: Colors.status.warning }]}>{crownProvinces}/{stewardshipCap}</Text>
+              <Text style={idx.statLabel}>Direct</Text>
+            </TouchableOpacity>
             <View style={idx.statCard}><Text style={idx.statValue}>{totalTroops}</Text><Text style={idx.statLabel}>Troops</Text></View>
             <View style={idx.statCard}><Text style={idx.statValue}>{state.armies.length}</Text><Text style={idx.statLabel}>Armies</Text></View>
           </View>
@@ -733,6 +748,8 @@ const idx = StyleSheet.create({
   warTaxBtnText: { fontSize: 11, fontWeight: "700" as const, color: Colors.text.dim },
   surrenderBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 7, backgroundColor: '#dc262618', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#dc262640' },
   surrenderBannerText: { flex: 1, fontSize: 12, fontWeight: "700" as const, color: '#ef4444' },
+  regencyBanner: { paddingHorizontal: 14, paddingVertical: 7, backgroundColor: '#1a1030', borderBottomWidth: 1, borderColor: '#a78bfa50', alignItems: 'center' as const },
+  regencyBannerText: { fontSize: 11, color: '#a78bfa', fontWeight: '700' as const, letterSpacing: 0.4 },
   vassalBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#1e1040', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#7c3aed50' },
   vassalBannerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   vassalBannerIcon: { fontSize: 18 },

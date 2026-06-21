@@ -89,6 +89,8 @@ export default function PressuresScreen() {
 
   const { pressures } = state;
   const provCount = playerProvinces.length;
+  const stewardshipCap = Math.floor((state.ruler.stewardship ?? 8) / 2) + 3;
+  const crownProvinces = playerProvinces.filter(p => !(state.lords ?? []).some(l => (l.provinceIds ?? []).includes(p.id))).length;
 
   const handleReduceCorruption = useCallback((method: 'gold' | 'faith') => {
     if (method === 'gold' && state.resources.gold < 200) {
@@ -271,9 +273,10 @@ export default function PressuresScreen() {
             <View style={s.infoCard}>
               <AlertTriangle size={16} color={Colors.status.warning} />
               <View style={s.infoContent}>
-                <Text style={s.infoTitle}>Empire Overstretch</Text>
+                <Text style={s.infoTitle}>Crown Overstretch</Text>
                 <Text style={s.infoDesc}>
-                  Controlling {provCount} provinces (over 10) increases upkeep by {(provCount - 10) * 15}g/turn and reduces loyalty in outlying provinces. Release provinces or improve governance to reduce overstretch.
+                  You directly control {crownProvinces} provinces but your ruler's Stewardship ({state.ruler.stewardship}) allows only {stewardshipCap}. Each extra province costs +15g/turn upkeep and reduces loyalty.{'\n\n'}
+                  To fix: assign provinces to lords in the province screen, or upgrade your ruler's Stewardship stat (adds +0.5 slots per point).
                 </Text>
               </View>
             </View>

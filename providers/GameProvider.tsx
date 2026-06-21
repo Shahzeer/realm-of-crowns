@@ -215,6 +215,8 @@ function processKingdomPressures(
   turn: number,
   council: Array<{ role: string; skill: number; loyalty: number; task?: string }>,
   activeWarCount: number,
+  lords?: Array<{ provinceIds: string[] }>,
+  stewardshipCap?: number,
 ): {
   pressures: KingdomPressures;
   events: GameEvent[];
@@ -241,16 +243,22 @@ function processKingdomPressures(
     if (corruption > 30) logs.push(`🏛️ Corruption costs ${goldPenalty}g this turn`);
   }
 
+  const crownProvCount = lords
+    ? playerProvinces.filter(p => !lords.some(l => (l.provinceIds ?? []).includes(p.id))).length
+    : provCount;
+  const overstretThreshold = stewardshipCap ?? 10;
   let overstretch = 0;
-  if (provCount > 10) {
-    overstretch = Math.min(100, (provCount - 10) * 8);
-    const upkeepPenalty = Math.floor((provCount - 10) * 15);
+  if (crownProvCount > overstretThreshold) {
+    overstretch = Math.min(100, (crownProvCount - overstretThreshold) * 10);
+    const upkeepPenalty = Math.floor((crownProvCount - overstretThreshold) * 15);
     resourcePenalties.gold = (resourcePenalties.gold ?? 0) - upkeepPenalty;
-    if (overstretch > 0) logs.push(`⚠️ Empire overstretch! +${upkeepPenalty}g upkeep, loyalty penalties`);
+    if (overstretch > 0) logs.push(`⚠️ Crown overstretch! ${crownProvCount}/${overstretThreshold} direct provinces — +${upkeepPenalty}g upkeep`);
     const loyaltyHit = Math.floor(overstretch / 10);
-    playerProvinces.forEach(p => {
-      if (p.type !== 'capital') loyaltyPenalties[p.id] = (loyaltyPenalties[p.id] ?? 0) - loyaltyHit;
-    });
+    playerProvinces
+      .filter(p => p.type !== 'capital' && !lords?.some(l => (l.provinceIds ?? []).includes(p.id)))
+      .forEach(p => {
+        loyaltyPenalties[p.id] = (loyaltyPenalties[p.id] ?? 0) - loyaltyHit;
+      });
   }
 
   let famine = 0;
@@ -1989,6 +1997,9 @@ export const [GameProvider, useGame] = createContextHook(() => {
       summary.season = nextSeason;
       summary.year = nextYear;
 
+      let isRegency = prev.isRegency ?? false;
+      let regentHolderName = prev.regentHolderName ?? '';
+
       // Daily quest check — regenerate if date changed
       const today = new Date().toISOString().slice(0, 10);
       let updatedDailyQuests: DailyQuest[] =
@@ -2073,10 +2084,28 @@ export const [GameProvider, useGame] = createContextHook(() => {
       }
 
       let heirComingOfAge = false;
+      // Stage any regency-to-heir transfer; applied later where newRulerTitle/newRulerGender/allLogs are declared
+      let pendingRegencyTransfer: { heirName: string; oldRegentName: string; isFemale: boolean } | null = null;
       if (newHeir && newHeir.age >= 16 && !newHeir.comingOfAgeTriggered && !newHeir.path) {
         newHeir = { ...newHeir, comingOfAgeTriggered: true };
         heirComingOfAge = true;
         console.log(`[Game] Heir coming-of-age triggered for ${newHeir.name}`);
+        if (isRegency) {
+          const heirName = newHeir.name.replace(/^(Princess|Prince|Lady|Lord)\s+/, '');
+          const isFemale = newHeir.name.startsWith('Princess ') || (newHeir.name.startsWith('Lady ') && !newHeir.name.includes('Lord '));
+          newRuler = {
+            id: `ruler_${nextTurn}`, name: heirName, dynasty: prev.ruler.dynasty,
+            age: newHeir.age, health: 85 + Math.floor(Math.random() * 15), maxHealth: 100,
+            diplomacy: newHeir.diplomacy, martial: newHeir.martial,
+            stewardship: newHeir.stewardship, intrigue: newHeir.intrigue, learning: newHeir.learning,
+            traits: newHeir.traits ?? [], avatar: '👤',
+          };
+          pendingRegencyTransfer = { heirName, oldRegentName: regentHolderName, isFemale };
+          isRegency = false;
+          regentHolderName = '';
+          newHeir = null;
+          heirComingOfAge = false;
+        }
       }
 
       let heirEduCompleteLog: string | null = null;
@@ -2977,6 +3006,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
         nextTurn,
         newCouncil,
         activeWarCount,
+        updatedLords,
+        Math.floor(newRuler.stewardship / 2) + 3,
       );
       const pressureGold = pressureResult.resourcePenalties.gold ?? 0;
       const pressureFood = pressureResult.resourcePenalties.food ?? 0;
@@ -3171,6 +3202,45 @@ export const [GameProvider, useGame] = createContextHook(() => {
           rulerBattlesLost = 0;
           rulerProvincesConquered = 0;
           rulerProvincesLost = 0;
+        } else if (newHeir && newHeir.age < 16 && prev.ruler.spouse) {
+          // Heir too young — spouse becomes Queen Regent until heir comes of age
+          const regentName = prev.ruler.spouse.replace(/^Consort of /, 'Queen Regent ');
+          const regentDisplayName = regentName.startsWith('Queen Regent') ? regentName : `Queen Regent ${regentName}`;
+          newRuler = {
+            id: `regent_${nextTurn}`,
+            name: regentDisplayName.replace(/^Queen Regent /, ''),
+            dynasty: prev.ruler.dynasty,
+            age: prev.ruler.age - 5 + Math.floor(Math.random() * 10),
+            health: 70 + Math.floor(Math.random() * 20),
+            maxHealth: 100,
+            diplomacy: 8 + Math.floor(Math.random() * 5),
+            martial: 4 + Math.floor(Math.random() * 4),
+            stewardship: 8 + Math.floor(Math.random() * 5),
+            intrigue: 7 + Math.floor(Math.random() * 6),
+            learning: 7 + Math.floor(Math.random() * 5),
+            traits: [],
+            avatar: '👤',
+            spouse: undefined,
+          };
+          newRulerGender = 'female';
+          newRulerTitle = prev.rulerTitle
+            ? prev.rulerTitle.replace('High King', 'High Queen').replace(/\bKing\b/, 'Queen').replace(/\bLord\b/, 'Lady')
+            : 'Queen';
+          allLogs.unshift(`👑 ${prev.ruler.name} has died. ${newHeir.name} is too young to rule — ${regentDisplayName} holds power as regent until the heir comes of age.`);
+          newEvents.push({
+            id: `regency_${nextTurn}`, title: 'A Queen Regent Rises',
+            description: `${prev.ruler.name} has passed away. The heir, ${newHeir.name}, is only ${newHeir.age} years old. ${regentDisplayName} takes the throne as regent until the heir comes of age at 16.`,
+            type: 'personal', turn: nextTurn, seen: false,
+            choices: [
+              { id: `reg1_${nextTurn}`, text: 'Rally the lords behind the regency', effects: '+30 faith, lords accept the arrangement', cost: { gold: 150 }, reward: { faith: 30 } },
+              { id: `reg2_${nextTurn}`, text: 'A quiet transition of power', effects: 'Stability maintained, no fanfare' },
+            ],
+          });
+          freshPressures = getEmptyPressures();
+          rulerStartTurn = nextTurn;
+          rulerStartYear = nextYear;
+          isRegency = true;
+          regentHolderName = regentDisplayName;
         } else {
           gameOver = true;
           gameOverReason = `${prev.ruler.name} has died with no suitable heir. Your dynasty has ended.`;
@@ -3195,6 +3265,23 @@ export const [GameProvider, useGame] = createContextHook(() => {
       // Custom kingdom title progression
       let newRulerTitle = prev.rulerTitle;
       let newRulerGender = prev.rulerGender;
+
+      // Apply staged regency-to-heir transfer (staged early to avoid TDZ)
+      if (pendingRegencyTransfer) {
+        const { heirName, oldRegentName, isFemale } = pendingRegencyTransfer;
+        newRulerGender = isFemale ? 'female' : 'male';
+        newRulerTitle = isFemale ? 'Queen' : 'King';
+        allLogs.unshift(`👑 ${heirName} has come of age and taken the crown from regent ${oldRegentName}! A new era begins.`);
+        newEvents.push({
+          id: `heir_crowning_${nextTurn}`, title: `${heirName} Takes the Crown`,
+          description: `The heir ${heirName} has come of age and formally ends the regency of ${oldRegentName}. The young ruler now controls the realm directly.`,
+          type: 'personal', turn: nextTurn, seen: false,
+          choices: [
+            { id: `hc1_${nextTurn}`, text: 'Hold a grand coronation', effects: '+40 faith, realm celebrates', cost: { gold: 200 }, reward: { faith: 40 } },
+            { id: `hc2_${nextTurn}`, text: 'Take power quietly', effects: 'No cost, less prestige' },
+          ],
+        });
+      }
       if (prev.isCustomKingdom && prev.rulerTitle) {
         const finalProvCount = newProvinces.filter(p => p.owner === 'player').length;
         const isMale = prev.rulerGender === 'male';
@@ -3312,6 +3399,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
         lords: updatedLords,
         warTaxActive: isAtWar ? (prev.warTaxActive ?? false) : false,
         pendingAllyAttacks: newPendingAllyAttacks ?? [],
+        isRegency,
+        regentHolderName: regentHolderName || undefined,
       } as GameState;
       saveMutation.mutate(newState);
       return newState;

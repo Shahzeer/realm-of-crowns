@@ -547,6 +547,8 @@ export interface GameState {
   isCustomKingdom?: boolean;
   dailyQuests?: DailyQuest[];
   lastQuestDate?: string;
+  isRegency?: boolean;
+  regentHolderName?: string;
   vassalOfferPending?: { overlordId: string; capitalProvinceId: string };
   isPlayerVassal?: boolean;
   playerOverlordId?: string;
