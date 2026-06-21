@@ -2631,6 +2631,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         });
       }
 
+      const councilCompletions: string[] = [];
       let newCouncil = prev.council.map(c => {
         const loyaltyDrift = Math.floor(Math.random() * 5) - 2;
         let updatedCouncilor = { ...c, loyalty: Math.max(0, Math.min(100, c.loyalty + loyaltyDrift)) };
@@ -2638,7 +2639,9 @@ export const [GameProvider, useGame] = createContextHook(() => {
           const upgrade = { ...updatedCouncilor.activeUpgrade };
           upgrade.turnsRemaining -= 1;
           if (upgrade.turnsRemaining <= 0) {
-            updatedCouncilor = { ...updatedCouncilor, skill: updatedCouncilor.skill + 2, activeUpgrade: undefined };
+            const newSkill = updatedCouncilor.skill + 5;
+            updatedCouncilor = { ...updatedCouncilor, skill: newSkill, activeUpgrade: undefined };
+            councilCompletions.push(updatedCouncilor.name);
           } else {
             updatedCouncilor = { ...updatedCouncilor, activeUpgrade: upgrade };
           }
@@ -2827,6 +2830,9 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       // Council bonuses: passive (role-based) + active (task-based)
       const councilLogs: string[] = [];
+      councilCompletions.forEach(name => {
+        councilLogs.push(`📈 ${name} completed skill training! +5 skill — their contributions are now stronger.`);
+      });
       let councilGoldPT = 0, councilFoodPT = 0, councilMilPT = 0, councilFaithPT = 0;
       let newProvinceClaims = [...(prev.provinceClaims ?? [])];
       let newClaimFabricationProgress = prev.claimFabricationProgress ?? 0;

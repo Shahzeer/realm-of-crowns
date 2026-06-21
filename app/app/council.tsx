@@ -33,6 +33,32 @@ const TASK_KEYS: Record<string, string[]> = {
   chancellor: ['Improve relations', 'Negotiate trade', 'Forge alliances', 'Fabricate Claim'],
 };
 
+function getPassiveLabel(role: string, skill: number, loyalty: number): string {
+  const loyaltyMod = loyalty > 70 ? 1.0 : loyalty > 50 ? 0.75 : 0.5;
+  const passive = Math.max(1, Math.floor(skill / 6));
+  const val = Math.floor(passive * loyaltyMod);
+  switch (role) {
+    case 'marshal': return `+${val} military/turn`;
+    case 'steward': return `+${val} gold/turn`;
+    case 'chaplain': return `+${val} faith/turn`;
+    case 'chancellor': return `+1 relations/turn (all)`;
+    case 'spymaster': return `+${val} gold/turn`;
+  }
+  return '';
+}
+
+function getPassivePreviewLabel(role: string, skill: number, loyalty: number): string {
+  const loyaltyMod = loyalty > 70 ? 1.0 : loyalty > 50 ? 0.75 : 0.5;
+  const currentPassive = Math.floor(Math.max(1, Math.floor(skill / 6)) * loyaltyMod);
+  const futurePassive = Math.floor(Math.max(1, Math.floor((skill + 5) / 6)) * loyaltyMod);
+  const currentTask = Math.max(2, Math.floor(skill / 3));
+  const futureTask = Math.max(2, Math.floor((skill + 5) / 3));
+  if (futurePassive > currentPassive || futureTask > currentTask) {
+    return `After training: passive ${currentPassive}→${futurePassive}, task bonus ${currentTask}→${futureTask}`;
+  }
+  return `After training: task bonus ${currentTask}→${futureTask}`;
+}
+
 function getTaskLabel(role: string, task: string, skill: number, loyalty: number): string {
   const loyaltyMod = loyalty > 70 ? 1.0 : loyalty > 50 ? 0.75 : 0.5;
   const taskBonus = Math.max(2, Math.floor(skill / 3));
@@ -120,6 +146,12 @@ function CouncilorCard({ councilor, onAssignTask, onUpgrade, canUpgrade, index }
           <Text style={cc.traitEffect}>{councilor.trait.effect}</Text>
         </View>
 
+        <View style={[cc.passiveRow, { borderColor: roleColor + '30' }]}>
+          <Text style={cc.passiveLabel}>Passive</Text>
+          <Text style={[cc.passiveValue, { color: roleColor }]}>{getPassiveLabel(councilor.role, councilor.skill, councilor.loyalty)}</Text>
+          <Text style={cc.passiveHint}>always active</Text>
+        </View>
+
         <View style={cc.loyaltyBarBg}>
           <View style={[cc.loyaltyBarFill, { width: `${councilor.loyalty}%`, backgroundColor: loyaltyColor }]} />
         </View>
@@ -144,7 +176,7 @@ function CouncilorCard({ councilor, onAssignTask, onUpgrade, canUpgrade, index }
                 backgroundColor: roleColor
               }]} />
             </View>
-            <Text style={cc.trainingDesc}>+2 skill on completion</Text>
+            <Text style={cc.trainingDesc}>{getPassivePreviewLabel(councilor.role, councilor.skill, councilor.loyalty)}</Text>
           </View>
         )}
 
@@ -157,7 +189,7 @@ function CouncilorCard({ councilor, onAssignTask, onUpgrade, canUpgrade, index }
           >
             <ArrowUpCircle size={14} color={canUpgrade ? roleColor : Colors.text.dim} />
             <Text style={[cc.upgradeBtnText, { color: canUpgrade ? roleColor : Colors.text.dim }]}>
-              Train Skill (+2, 100g, 3 turns)
+              Train Skill (+5, 100g, 3 turns)
             </Text>
           </TouchableOpacity>
         )}
@@ -292,6 +324,10 @@ const cc = StyleSheet.create({
   traitIcon: { fontSize: 16 },
   traitName: { fontSize: 12, fontWeight: "600" as const, color: Colors.text.primary },
   traitEffect: { fontSize: 10, color: Colors.text.secondary, flex: 1 },
+  passiveRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, backgroundColor: Colors.bg.tertiary },
+  passiveLabel: { fontSize: 10, fontWeight: "700" as const, color: Colors.text.dim, textTransform: "uppercase" as const, letterSpacing: 1 },
+  passiveValue: { fontSize: 13, fontWeight: "700" as const, flex: 1 },
+  passiveHint: { fontSize: 10, color: Colors.text.dim },
   loyaltyBarBg: { height: 3, borderRadius: 2, backgroundColor: Colors.bg.tertiary, overflow: "hidden", marginTop: 8 },
   loyaltyBarFill: { height: "100%", borderRadius: 2 },
   trainingBar: { marginTop: 10, padding: 10, borderRadius: 8, borderWidth: 1, backgroundColor: Colors.bg.tertiary },
