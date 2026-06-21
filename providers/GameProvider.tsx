@@ -4440,11 +4440,15 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const updatedDisputes = prev.pressures.nobleDisputes.map(d =>
         d.id === disputeId ? { ...d, resolved: true } : d
       );
+      const updatedEvents = prev.events.map(e =>
+        e.id === `noble_dispute_${disputeId}` ? { ...e, seen: true } : e
+      );
       const newState: GameState = {
         ...prev,
         resources: newResources,
         provinces: newProvinces,
         pressures: { ...prev.pressures, nobleDisputes: updatedDisputes },
+        events: updatedEvents,
         log: [logMsg, ...prev.log].slice(0, 50),
       };
       saveMutation.mutate(newState);
