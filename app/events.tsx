@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { X, CheckCircle, Link, ChevronRight } from "lucide-react-native";
+import { X, CheckCircle, Link, ChevronRight, Crown } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 import { EventChoice, GameEvent } from "@/types/game";
@@ -19,11 +19,12 @@ const EVENT_COLORS: Record<string, string> = {
   personal: '#8b5cf6', dynasty: '#e07c3a',
 };
 
-function EventCard({ event, onChoice, resolved, index }: {
+function EventCard({ event, onChoice, resolved, index, onOpenPressures }: {
   event: GameEvent;
   onChoice: (id: string, c: EventChoice) => void;
   resolved: boolean;
   index: number;
+  onOpenPressures: () => void;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -46,7 +47,8 @@ function EventCard({ event, onChoice, resolved, index }: {
 
   const typeColor = EVENT_COLORS[event.type] || Colors.text.secondary;
   const isChain = !!event.isChainEvent;
-  const hasFollowUp = event.choices.some(c => c.followUpEventId);
+  const isNobleDemand = event.title.startsWith('Noble Demands:') ||
+    event.choices.some(c => c.id.startsWith('nd_grant_') || c.id.startsWith('nd_refuse_') || c.id.startsWith('nd_imprison_'));
 
   return (
     <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
@@ -79,35 +81,43 @@ function EventCard({ event, onChoice, resolved, index }: {
         </View>
         <Text style={ev.eventDesc}>{event.description}</Text>
         {!resolved && (
-          <View style={ev.choicesArea}>
-            {event.choices.map((choice) => (
-              <TouchableOpacity
-                key={choice.id}
-                style={[ev.choiceBtn, choice.followUpEventId ? ev.choiceBtnChain : null]}
-                onPress={() => onChoice(event.id, choice)}
-                activeOpacity={0.7}
-              >
-                <View style={ev.choiceHeader}>
-                  <Text style={ev.choiceText}>{choice.text}</Text>
+          isNobleDemand ? (
+            <TouchableOpacity style={ev.openPressuresBtn} onPress={onOpenPressures} activeOpacity={0.8}>
+              <Crown size={15} color={Colors.gold.bright} />
+              <Text style={ev.openPressuresBtnText}>Open Pressures</Text>
+              <ChevronRight size={15} color={Colors.gold.bright} />
+            </TouchableOpacity>
+          ) : (
+            <View style={ev.choicesArea}>
+              {event.choices.map((choice) => (
+                <TouchableOpacity
+                  key={choice.id}
+                  style={[ev.choiceBtn, choice.followUpEventId ? ev.choiceBtnChain : null]}
+                  onPress={() => onChoice(event.id, choice)}
+                  activeOpacity={0.7}
+                >
+                  <View style={ev.choiceHeader}>
+                    <Text style={ev.choiceText}>{choice.text}</Text>
+                    {choice.followUpEventId && (
+                      <ChevronRight size={14} color={Colors.gold.dim} />
+                    )}
+                  </View>
+                  <Text style={ev.choiceEffect}>{choice.effects}</Text>
                   {choice.followUpEventId && (
-                    <ChevronRight size={14} color={Colors.gold.dim} />
+                    <Text style={ev.chainHint}>Triggers follow-up in {choice.followUpDelay ?? '?'} turns</Text>
                   )}
-                </View>
-                <Text style={ev.choiceEffect}>{choice.effects}</Text>
-                {choice.followUpEventId && (
-                  <Text style={ev.chainHint}>Triggers follow-up in {choice.followUpDelay ?? '?'} turns</Text>
-                )}
-                <View style={ev.choiceCostRow}>
-                  {choice.cost && Object.entries(choice.cost).map(([k, v]) => (
-                    <Text key={k} style={ev.choiceCost}>-{v} {k}</Text>
-                  ))}
-                  {choice.reward && Object.entries(choice.reward).map(([k, v]) => (
-                    <Text key={k} style={ev.choiceReward}>+{v} {k}</Text>
-                  ))}
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+                  <View style={ev.choiceCostRow}>
+                    {choice.cost && Object.entries(choice.cost).map(([k, v]) => (
+                      <Text key={k} style={ev.choiceCost}>-{v} {k}</Text>
+                    ))}
+                    {choice.reward && Object.entries(choice.reward).map(([k, v]) => (
+                      <Text key={k} style={ev.choiceReward}>+{v} {k}</Text>
+                    ))}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )
         )}
       </View>
     </Animated.View>
@@ -188,7 +198,7 @@ export default function EventsScreen() {
           <>
             <Text style={ev.sectionTitle}>⚡ Pending Decisions ({filteredUnseen.length})</Text>
             {filteredUnseen.map((e, i) => (
-              <EventCard key={e.id} event={e} onChoice={handleChoice} resolved={false} index={i} />
+              <EventCard key={e.id} event={e} onChoice={handleChoice} resolved={false} index={i} onOpenPressures={() => router.push('/pressures')} />
             ))}
           </>
         )}
@@ -205,7 +215,7 @@ export default function EventsScreen() {
           <>
             <Text style={ev.sectionTitle}>Past Events</Text>
             {filteredSeen.map((e, i) => (
-              <EventCard key={e.id} event={e} onChoice={handleChoice} resolved={true} index={i} />
+              <EventCard key={e.id} event={e} onChoice={handleChoice} resolved={true} index={i} onOpenPressures={() => router.push('/pressures')} />
             ))}
           </>
         )}
@@ -278,6 +288,13 @@ const ev = StyleSheet.create({
   choiceCostRow: { flexDirection: "row", gap: 10, marginTop: 4, flexWrap: "wrap" as const },
   choiceCost: { fontSize: 11, color: Colors.crimson.bright },
   choiceReward: { fontSize: 11, color: Colors.status.success },
+  openPressuresBtn: {
+    flexDirection: "row" as const, alignItems: "center", justifyContent: "center",
+    gap: 8, marginTop: 14, paddingVertical: 12, paddingHorizontal: 16,
+    borderRadius: 10, borderWidth: 1,
+    borderColor: Colors.gold.bright + '50', backgroundColor: Colors.gold.bright + '12',
+  },
+  openPressuresBtnText: { fontSize: 14, fontWeight: "700" as const, color: Colors.gold.bright, flex: 1, textAlign: "center" as const },
   emptyState: { alignItems: "center", paddingTop: 80, gap: 8 },
   emptyIcon: { fontSize: 56, marginBottom: 8 },
   emptyTitle: { fontSize: 18, fontWeight: "700" as const, color: Colors.text.primary },
