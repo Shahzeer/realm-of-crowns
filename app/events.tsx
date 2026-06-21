@@ -140,10 +140,16 @@ export default function EventsScreen() {
 
   const seenEvents = useMemo(() => state.events.filter(e => e.seen), [state.events]);
 
+  const resolvedDisputeIds = useMemo(
+    () => new Set(state.pressures.nobleDisputes.filter(d => d.resolved).map(d => `noble_dispute_${d.id}`)),
+    [state.pressures.nobleDisputes]
+  );
+
   const filteredUnseen = useMemo(() => {
-    if (activeFilter === 'all') return unseenEvents;
-    return unseenEvents.filter(e => e.type === activeFilter);
-  }, [unseenEvents, activeFilter]);
+    const base = unseenEvents.filter(e => !resolvedDisputeIds.has(e.id));
+    if (activeFilter === 'all') return base;
+    return base.filter(e => e.type === activeFilter);
+  }, [unseenEvents, activeFilter, resolvedDisputeIds]);
 
   const filteredSeen = useMemo(() => {
     const base = activeFilter === 'all' ? seenEvents : seenEvents.filter(e => e.type === activeFilter);
