@@ -62,7 +62,7 @@ function ArmyCard({ army, provinces, onMove, onAttack, onReinforce, onDisband, o
   provinces: Province[];
   onMove: (armyId: string, destId: string) => void;
   onAttack: (armyId: string, provinceId: string) => void;
-  onReinforce: (armyId: string) => void;
+  onReinforce: (armyId: string, amount: number) => void;
   onDisband: (armyId: string) => void;
   onMerge: (armyId: string) => void;
   isMergeSource: boolean;
@@ -73,6 +73,8 @@ function ArmyCard({ army, provinces, onMove, onAttack, onReinforce, onDisband, o
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const [showMoveMenu, setShowMoveMenu] = useState(false);
+  const [confirmAttackDestId, setConfirmAttackDestId] = useState<string | null>(null);
+  const [showReinforceMenu, setShowReinforceMenu] = useState(false);
 
   useEffect(() => {
     Animated.parallel([
@@ -150,64 +152,109 @@ function ArmyCard({ army, provinces, onMove, onAttack, onReinforce, onDisband, o
           </View>
         )}
 
-        {isIdle && (
-          <View style={s.manageRow}>
-            <TouchableOpacity
-              style={[s.reinforceBtn, army.troops >= army.maxTroops && s.btnDisabled]}
-              onPress={() => onReinforce(army.id)}
-              disabled={army.troops >= army.maxTroops}
-              activeOpacity={0.7}
-            >
-              <Plus size={14} color={army.troops >= army.maxTroops ? Colors.text.dim : Colors.status.success} />
-              <Text style={[s.reinforceBtnText, army.troops >= army.maxTroops && { color: Colors.text.dim }]}>Reinforce</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.mergeBtn, isMergeSource && s.mergeBtnActive]}
-              onPress={() => onMerge(army.id)}
-              activeOpacity={0.7}
-            >
-              <Merge size={14} color={isMergeSource ? Colors.gold.bright : (mergeSourceId && !isMergeSource ? Colors.status.success : Colors.status.info)} />
-              <Text style={[s.mergeBtnText, isMergeSource && { color: Colors.gold.bright }, (mergeSourceId && !isMergeSource) && { color: Colors.status.success }]}>
-                {isMergeSource ? 'Selected ✓' : mergeSourceId ? 'Merge Here' : 'Merge'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={s.disbandBtn}
-              onPress={() => onDisband(army.id)}
-              activeOpacity={0.7}
-            >
-              <Trash2 size={14} color={Colors.crimson.bright} />
-              <Text style={s.disbandBtnText}>Disband</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {isIdle && (() => {
+          const armyProvince = provinces.find(p => p.id === army.location);
+          const availGarrison = armyProvince?.owner === 'player' ? (armyProvince?.garrison ?? 0) : 0;
+          const maxReinforce = army.maxTroops - army.troops;
+          const max = Math.min(maxReinforce, availGarrison);
+          const reinforceOpts = max > 0 ? [...new Set([Math.min(25, max), Math.min(50, max), Math.min(100, max), max].filter(v => v > 0))] : [];
+          return (
+            <View>
+              <View style={s.manageRow}>
+                <TouchableOpacity
+                  style={[s.reinforceBtn, (army.troops >= army.maxTroops || availGarrison <= 0) && s.btnDisabled]}
+                  onPress={() => {
+                    if (army.troops >= army.maxTroops || availGarrison <= 0) return;
+                    setShowReinforceMenu(v => !v);
+                    setShowMoveMenu(false);
+                  }}
+                  disabled={army.troops >= army.maxTroops || availGarrison <= 0}
+                  activeOpacity={0.7}
+                >
+                  <Plus size={14} color={(army.troops >= army.maxTroops || availGarrison <= 0) ? Colors.text.dim : Colors.status.success} />
+                  <Text style={[s.reinforceBtnText, (army.troops >= army.maxTroops || availGarrison <= 0) && { color: Colors.text.dim }]}>Reinforce</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.mergeBtn, isMergeSource && s.mergeBtnActive]}
+                  onPress={() => onMerge(army.id)}
+                  activeOpacity={0.7}
+                >
+                  <Merge size={14} color={isMergeSource ? Colors.gold.bright : (mergeSourceId && !isMergeSource ? Colors.status.success : Colors.status.info)} />
+                  <Text style={[s.mergeBtnText, isMergeSource && { color: Colors.gold.bright }, (mergeSourceId && !isMergeSource) && { color: Colors.status.success }]}>
+                    {isMergeSource ? 'Selected ✓' : mergeSourceId ? 'Merge Here' : 'Merge'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.disbandBtn}
+                  onPress={() => onDisband(army.id)}
+                  activeOpacity={0.7}
+                >
+                  <Trash2 size={14} color={Colors.crimson.bright} />
+                  <Text style={s.disbandBtnText}>Disband</Text>
+                </TouchableOpacity>
+              </View>
+              {showReinforceMenu && reinforceOpts.length > 0 && (
+                <View style={s.reinforceInlineMenu}>
+                  <Text style={s.reinforceMenuLabel}>Garrison available: {availGarrison} troops — pick how many to add:</Text>
+                  <View style={s.reinforceOptRow}>
+                    {reinforceOpts.map(n => (
+                      <TouchableOpacity key={n} style={s.reinforceOpt} onPress={() => { onReinforce(army.id, n); setShowReinforceMenu(false); }} activeOpacity={0.7}>
+                        <Text style={s.reinforceOptText}>+{n}</Text>
+                        <Text style={s.reinforceOptCost}>{Math.max(1, Math.floor(n * 0.5))}g</Text>
+                      </TouchableOpacity>
+                    ))}
+                    <TouchableOpacity style={s.reinforceOptCancel} onPress={() => setShowReinforceMenu(false)} activeOpacity={0.7}>
+                      <Text style={s.reinforceOptCancelText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
+          );
+        })()}
 
         {showMoveMenu && isIdle && connectedProvinces.length > 0 && (
           <View style={s.moveMenu}>
             <Text style={s.moveMenuTitle}>Move to:</Text>
             {connectedProvinces.map(dest => {
               const isEnemy = dest.owner !== 'player';
+              const isPendingAttack = confirmAttackDestId === dest.id;
               return (
-                <TouchableOpacity
-                  key={dest.id}
-                  style={[s.moveOption, isEnemy && s.moveOptionEnemy]}
-                  onPress={() => {
-                    if (isEnemy) {
-                      onAttack(army.id, dest.id);
-                    } else {
-                      onMove(army.id, dest.id);
-                    }
-                    setShowMoveMenu(false);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={s.moveOptionName}>{dest.name}</Text>
-                  {isEnemy ? (
-                    <View style={s.attackBadge}><Swords size={12} color={Colors.crimson.bright} /><Text style={s.attackBadgeText}>Attack</Text></View>
-                  ) : (
-                    <ChevronRight size={14} color={Colors.text.dim} />
+                <View key={dest.id}>
+                  <TouchableOpacity
+                    style={[s.moveOption, isEnemy && s.moveOptionEnemy, isPendingAttack && s.moveOptionConfirming]}
+                    onPress={() => {
+                      if (isEnemy) {
+                        setConfirmAttackDestId(isPendingAttack ? null : dest.id);
+                      } else {
+                        onMove(army.id, dest.id);
+                        setShowMoveMenu(false);
+                      }
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.moveOptionName}>{dest.name}</Text>
+                    {isEnemy ? (
+                      <View style={s.attackBadge}><Swords size={12} color={Colors.crimson.bright} /><Text style={s.attackBadgeText}>{isPendingAttack ? 'Cancel' : 'Attack'}</Text></View>
+                    ) : (
+                      <ChevronRight size={14} color={Colors.text.dim} />
+                    )}
+                  </TouchableOpacity>
+                  {isPendingAttack && (
+                    <TouchableOpacity
+                      style={s.confirmAttackBtn}
+                      onPress={() => {
+                        onAttack(army.id, dest.id);
+                        setConfirmAttackDestId(null);
+                        setShowMoveMenu(false);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Swords size={14} color="#fff" />
+                      <Text style={s.confirmAttackBtnText}>⚔️ Confirm Attack on {dest.name}</Text>
+                    </TouchableOpacity>
                   )}
-                </TouchableOpacity>
+                </View>
               );
             })}
           </View>
@@ -238,64 +285,18 @@ export default function ArmiesScreen() {
 
   const handleAttack = useCallback((armyId: string, provinceId: string) => {
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }
-    const province = state.provinces.find(p => p.id === provinceId);
-    Alert.alert(
-      "Attack Province",
-      `Send army to siege ${province?.name ?? 'enemy province'}? Using tactic: ${activeTactic.name}`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Attack!", style: "destructive", onPress: () => moveArmy(armyId, provinceId) },
-      ]
-    );
-  }, [moveArmy, state.provinces, activeTactic.name]);
+    moveArmy(armyId, provinceId);
+  }, [moveArmy]);
 
-  const handleReinforce = useCallback((armyId: string) => {
-    const army = state.armies.find(a => a.id === armyId);
-    if (!army) return;
-    const province = state.provinces.find(p => p.id === army.location);
-    const availGarrison = province?.owner === 'player' ? (province?.garrison ?? 0) : 0;
-    const maxReinforce = army.maxTroops - army.troops;
-    if (army.troops >= army.maxTroops) {
-      Alert.alert("At Full Strength", `${army.name} is already at maximum troop capacity.`);
-      return;
-    }
-    if (availGarrison <= 0) {
-      Alert.alert("No Garrison Available", `${province?.name ?? 'This province'} has no garrison troops to draw from. Reinforce the garrison first.`);
-      return;
-    }
-    const max = Math.min(maxReinforce, availGarrison);
-    const opt25 = Math.min(25, max);
-    const opt50 = Math.min(50, max);
-    const opt100 = Math.min(100, max);
-    const uniqueOpts = [...new Set([opt25, opt50, opt100, max].filter(v => v > 0))];
+  const handleReinforce = useCallback((armyId: string, amount: number) => {
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
-    Alert.alert(
-      "Reinforce from Garrison",
-      `${province?.name ?? 'Province'} garrison: ${availGarrison} available\nHow many to add to ${army.name}?`,
-      [
-        { text: "Cancel", style: "cancel" },
-        ...uniqueOpts.map(n => ({
-          text: `+${n} troops (${Math.max(1, Math.floor(n * 0.5))}g)`,
-          onPress: () => reinforceArmy(armyId, n),
-        })),
-      ]
-    );
-  }, [state.armies, state.provinces, reinforceArmy]);
+    reinforceArmy(armyId, amount);
+  }, [reinforceArmy]);
 
   const handleDisband = useCallback((armyId: string) => {
-    const army = state.armies.find(a => a.id === armyId);
-    if (!army) return;
-    const recovered = Math.floor(army.troops * 0.3);
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }
-    Alert.alert(
-      "Disband Army",
-      `Disband ${army.name}?\nYou will recover ${recovered} military points.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Disband", style: "destructive", onPress: () => disbandArmy(armyId) },
-      ]
-    );
-  }, [state.armies, disbandArmy]);
+    disbandArmy(armyId);
+  }, [disbandArmy]);
 
   const handleTacticSelect = useCallback((tacticId: string) => {
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); }
@@ -464,6 +465,17 @@ const s = StyleSheet.create({
   moveMenuTitle: { fontSize: 10, fontWeight: "700" as const, color: Colors.text.dim, letterSpacing: 1, marginBottom: 4, textTransform: "uppercase" as const },
   moveOption: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, backgroundColor: Colors.bg.card },
   moveOptionEnemy: { borderWidth: 1, borderColor: Colors.crimson.dark + '40' },
+  moveOptionConfirming: { borderColor: Colors.crimson.bright + '80', backgroundColor: Colors.crimson.bright + '15' },
+  confirmAttackBtn: { marginTop: 6, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, paddingVertical: 11, borderRadius: 8, backgroundColor: Colors.crimson.bright, },
+  confirmAttackBtnText: { fontSize: 13, fontWeight: "700" as const, color: "#fff" },
+  reinforceInlineMenu: { marginTop: 8, backgroundColor: Colors.bg.secondary, borderRadius: 8, padding: 10, borderWidth: 1, borderColor: Colors.status.success + '40' },
+  reinforceMenuLabel: { fontSize: 10, color: Colors.text.dim, marginBottom: 8 },
+  reinforceOptRow: { flexDirection: "row" as const, gap: 6, flexWrap: "wrap" as const },
+  reinforceOpt: { flex: 1, alignItems: "center" as const, paddingVertical: 8, borderRadius: 6, backgroundColor: Colors.status.success + '20', borderWidth: 1, borderColor: Colors.status.success + '40', minWidth: 50 },
+  reinforceOptText: { fontSize: 13, fontWeight: "700" as const, color: Colors.status.success },
+  reinforceOptCost: { fontSize: 10, color: Colors.text.dim, marginTop: 2 },
+  reinforceOptCancel: { alignItems: "center" as const, justifyContent: "center" as const, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 6, backgroundColor: Colors.bg.tertiary },
+  reinforceOptCancelText: { fontSize: 13, color: Colors.text.dim },
   moveOptionName: { fontSize: 13, fontWeight: "600" as const, color: Colors.text.primary },
   attackBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
   attackBadgeText: { fontSize: 11, fontWeight: "700" as const, color: Colors.crimson.bright },
