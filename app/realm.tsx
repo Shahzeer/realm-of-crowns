@@ -18,8 +18,9 @@ export default function RealmScreen() {
   }, []);
 
   const currentResearch = state.technologies.find(t => t.researched === false && t.available !== false);
-  const pressureCount = (state.pressures?.length ?? 0);
-  const highPressures = (state.pressures ?? []).filter(p => (p.value ?? 0) >= 20).length;
+  const activeNobleDisputes = state.pressures.nobleDisputes.filter(d => !d.resolved).length;
+  const highPressures = (state.pressures.plague.active ? 1 : 0) + activeNobleDisputes;
+  const pressureSub = state.pressures.plague.active ? 'Plague active' : state.pressures.corruption > 30 ? 'High corruption' : state.pressures.warExhaustion > 30 ? 'War exhaustion' : 'Stable';
 
   const hubs: Array<{
     path: string;
@@ -68,8 +69,8 @@ export default function RealmScreen() {
       iconBg: Colors.status.warning + "20",
       title: "Pressures",
       description: "Manage stability, corruption, and noble disputes",
-      stat: `${pressureCount}`,
-      statLabel: "Active",
+      stat: pressureSub,
+      statLabel: `${activeNobleDisputes} dispute${activeNobleDisputes !== 1 ? 's' : ''}`,
       accent: Colors.status.warning,
       badge: highPressures > 0 ? highPressures : undefined,
     },
