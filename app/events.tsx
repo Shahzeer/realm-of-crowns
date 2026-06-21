@@ -19,12 +19,13 @@ const EVENT_COLORS: Record<string, string> = {
   personal: '#8b5cf6', dynasty: '#e07c3a',
 };
 
-function EventCard({ event, onChoice, resolved, index, onOpenPressures }: {
+function EventCard({ event, onChoice, resolved, index, onOpenPressures, onDismiss }: {
   event: GameEvent;
   onChoice: (id: string, c: EventChoice) => void;
   resolved: boolean;
   index: number;
   onOpenPressures: () => void;
+  onDismiss?: () => void;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -82,11 +83,18 @@ function EventCard({ event, onChoice, resolved, index, onOpenPressures }: {
         <Text style={ev.eventDesc}>{event.description}</Text>
         {!resolved && (
           isNobleDemand ? (
-            <TouchableOpacity style={ev.openPressuresBtn} onPress={onOpenPressures} activeOpacity={0.8}>
-              <Crown size={15} color={Colors.gold.bright} />
-              <Text style={ev.openPressuresBtnText}>Open Pressures</Text>
-              <ChevronRight size={15} color={Colors.gold.bright} />
-            </TouchableOpacity>
+            <View style={ev.nobleDemandActions}>
+              <TouchableOpacity style={ev.openPressuresBtn} onPress={onOpenPressures} activeOpacity={0.8}>
+                <Crown size={15} color={Colors.gold.bright} />
+                <Text style={ev.openPressuresBtnText}>Open Pressures</Text>
+                <ChevronRight size={15} color={Colors.gold.bright} />
+              </TouchableOpacity>
+              {onDismiss && (
+                <TouchableOpacity style={ev.dismissBtn} onPress={onDismiss} activeOpacity={0.7}>
+                  <X size={16} color={Colors.text.dim} />
+                </TouchableOpacity>
+              )}
+            </View>
           ) : (
             <View style={ev.choicesArea}>
               {event.choices.map((choice) => (
@@ -130,7 +138,7 @@ export default function EventsScreen() {
   console.log("[RealmOfCrowns] Events render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, resolveEvent, unseenEvents } = useGame();
+  const { state, resolveEvent, dismissEvent, unseenEvents } = useGame();
   const [activeFilter, setActiveFilter] = React.useState<FilterType>('all');
 
   const handleChoice = useCallback((eventId: string, choice: EventChoice) => {
@@ -204,7 +212,7 @@ export default function EventsScreen() {
           <>
             <Text style={ev.sectionTitle}>⚡ Pending Decisions ({filteredUnseen.length})</Text>
             {filteredUnseen.map((e, i) => (
-              <EventCard key={e.id} event={e} onChoice={handleChoice} resolved={false} index={i} onOpenPressures={() => router.push('/pressures')} />
+              <EventCard key={e.id} event={e} onChoice={handleChoice} resolved={false} index={i} onOpenPressures={() => router.push('/pressures')} onDismiss={() => dismissEvent(e.id)} />
             ))}
           </>
         )}
@@ -294,13 +302,18 @@ const ev = StyleSheet.create({
   choiceCostRow: { flexDirection: "row", gap: 10, marginTop: 4, flexWrap: "wrap" as const },
   choiceCost: { fontSize: 11, color: Colors.crimson.bright },
   choiceReward: { fontSize: 11, color: Colors.status.success },
+  nobleDemandActions: { flexDirection: "row" as const, alignItems: "center", marginTop: 14, gap: 8 },
   openPressuresBtn: {
-    flexDirection: "row" as const, alignItems: "center", justifyContent: "center",
-    gap: 8, marginTop: 14, paddingVertical: 12, paddingHorizontal: 16,
+    flex: 1, flexDirection: "row" as const, alignItems: "center", justifyContent: "center",
+    gap: 8, paddingVertical: 12, paddingHorizontal: 16,
     borderRadius: 10, borderWidth: 1,
     borderColor: Colors.gold.bright + '50', backgroundColor: Colors.gold.bright + '12',
   },
   openPressuresBtnText: { fontSize: 14, fontWeight: "700" as const, color: Colors.gold.bright, flex: 1, textAlign: "center" as const },
+  dismissBtn: {
+    width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: Colors.border.primary, backgroundColor: Colors.bg.tertiary,
+  },
   emptyState: { alignItems: "center", paddingTop: 80, gap: 8 },
   emptyIcon: { fontSize: 56, marginBottom: 8 },
   emptyTitle: { fontSize: 18, fontWeight: "700" as const, color: Colors.text.primary },

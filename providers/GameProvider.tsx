@@ -237,7 +237,7 @@ function processKingdomPressures(
   const steward = council.find(c => c.role === 'steward');
   const stewardReduction = steward && steward.task === 'fight_corruption' ? (steward.skill * 0.3) : 0;
   corruption = Math.max(0, Math.min(100, corruption + corruptionGrowth - stewardReduction));
-  const goldPenalty = Math.floor(resources.goldPerTurn * (corruption / 200));
+  const goldPenalty = corruption > 20 ? Math.floor(resources.goldPerTurn * ((corruption - 20) / 200)) : 0;
   if (goldPenalty > 0) {
     resourcePenalties.gold = -goldPenalty;
     if (corruption > 30) logs.push(`🏛️ Corruption costs ${goldPenalty}g this turn`);
@@ -250,15 +250,17 @@ function processKingdomPressures(
   let overstretch = 0;
   if (crownProvCount > overstretThreshold) {
     overstretch = Math.min(100, (crownProvCount - overstretThreshold) * 10);
-    const upkeepPenalty = Math.floor((crownProvCount - overstretThreshold) * 15);
-    resourcePenalties.gold = (resourcePenalties.gold ?? 0) - upkeepPenalty;
-    if (overstretch > 0) logs.push(`⚠️ Crown overstretch! ${crownProvCount}/${overstretThreshold} direct provinces — +${upkeepPenalty}g upkeep`);
-    const loyaltyHit = Math.floor(overstretch / 10);
-    playerProvinces
-      .filter(p => p.type !== 'capital' && !lords?.some(l => (l.provinceIds ?? []).includes(p.id)))
-      .forEach(p => {
-        loyaltyPenalties[p.id] = (loyaltyPenalties[p.id] ?? 0) - loyaltyHit;
-      });
+    if (overstretch > 20) {
+      const upkeepPenalty = Math.floor((crownProvCount - overstretThreshold) * 15);
+      resourcePenalties.gold = (resourcePenalties.gold ?? 0) - upkeepPenalty;
+      logs.push(`⚠️ Crown overstretch! ${crownProvCount}/${overstretThreshold} direct provinces — +${upkeepPenalty}g upkeep`);
+      const loyaltyHit = Math.floor(overstretch / 10);
+      playerProvinces
+        .filter(p => p.type !== 'capital' && !lords?.some(l => (l.provinceIds ?? []).includes(p.id)))
+        .forEach(p => {
+          loyaltyPenalties[p.id] = (loyaltyPenalties[p.id] ?? 0) - loyaltyHit;
+        });
+    }
   }
 
   let famine = 0;
@@ -375,7 +377,7 @@ function processKingdomPressures(
   if (activeWarCount > 0) {
     const exhaustionBuild = 3 + (activeWarCount - 1) * 2;
     warExhaustion = Math.min(100, warExhaustion + exhaustionBuild);
-    const foodDrain = Math.floor(warExhaustion * 0.15);
+    const foodDrain = warExhaustion > 20 ? Math.floor(warExhaustion * 0.15) : 0;
     if (foodDrain > 0) {
       resourcePenalties.food = (resourcePenalties.food ?? 0) - foodDrain;
     }
@@ -3427,6 +3429,13 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const dismissEvent = useCallback((eventId: string) => {
+    setState(prev => ({
+      ...prev,
+      events: prev.events.map(e => e.id === eventId ? { ...e, seen: true } : e),
+    }));
+  }, []);
+
   const resolveEvent = useCallback((eventId: string, choice: EventChoice) => {
     setState(prev => {
       const newResources = { ...prev.resources };
@@ -4721,7 +4730,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
   }, [state.provinces, state.armies, state.activeSpyMission]);
 
   return useMemo(() => ({
-    state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
+    state, isLoaded, advanceTurn, resolveEvent, dismissEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
     sendDiplomacy, negotiatePeace, demandSurrender, cancelMarch, claimNeutralProvince, marchArmyToNeutral, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
@@ -4735,7 +4744,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion, refuseTribute,
     assignLord, dismissLord, adjustLordTax, toggleWarTax,
   }), [
-    state, isLoaded, advanceTurn, resolveEvent, recruitArmy, moveArmy,
+    state, isLoaded, advanceTurn, resolveEvent, dismissEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
     sendDiplomacy, negotiatePeace, demandSurrender, cancelMarch, claimNeutralProvince, marchArmyToNeutral, assignCouncilTask, resetGame, unseenEvents,
     playerProvinces, activeWars, recentBattles, currentResearch,
