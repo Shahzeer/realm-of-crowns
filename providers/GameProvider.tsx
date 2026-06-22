@@ -137,6 +137,7 @@ const defaultState: GameState = {
   log: ['Year 1066, Spring — Your reign begins.'],
   gameOver: false,
   victory: false,
+  victoryAvailable: false,
   gameStarted: false,
   activeTactic: 'balanced',
   activeTrades: [],
@@ -1598,6 +1599,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
       heir: loaded.heir ?? null,
       gameOver: loaded.gameOver ?? false,
       victory: loaded.victory ?? false,
+      victoryAvailable: loaded.victoryAvailable ?? false,
       gameStarted: loaded.gameStarted ?? false,
       activeTactic: loaded.activeTactic ?? 'balanced',
       activeTrades: loaded.activeTrades ?? [],
@@ -3280,17 +3282,18 @@ export const [GameProvider, useGame] = createContextHook(() => {
       }
 
       const totalProvinces = newProvinces.length;
+      let victoryAvailableFlag = prev.victoryAvailable ?? false;
       if (playerProvCount >= totalProvinces) {
-        victory = true;
+        victoryAvailableFlag = true;
         victoryType = 'Conquest Victory — You have united all lands under your banner!';
       } else if (playerProvCount >= Math.ceil(totalProvinces * 0.7) && prev.turn >= 50) {
-        victory = true;
+        victoryAvailableFlag = true;
         victoryType = 'Domination Victory — Your realm is the greatest power in the land!';
       } else if (newTechnologies.every(t => t.researched) && nextTurn >= 50) {
-        victory = true;
+        victoryAvailableFlag = true;
         victoryType = 'Cultural Victory — Your scholars have mastered all knowledge!';
       } else if (newResources.faith >= 1000) {
-        victory = true;
+        victoryAvailableFlag = true;
         victoryType = 'Faith Victory — The divine light of your realm illuminates all!';
       }
 
@@ -3392,7 +3395,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         resources: newResources, provinces: newProvinces, armies: newArmies,
         kingdoms: newKingdoms, events: newEvents, battles: allBattles,
         technologies: newTechnologies, council: newCouncil,
-        log: allLogs, gameOver, gameOverReason, victory, victoryType,
+        log: allLogs, gameOver, gameOverReason, victory, victoryType, victoryAvailable: victoryAvailableFlag,
         activeTrades, activeSpyMission,
         achievements: newAchievements,
         lastTurnSummary: summary,
@@ -4292,6 +4295,15 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const declareVictory = useCallback(() => {
+    setState(prev => {
+      if (!prev.victoryAvailable) return prev;
+      const newState: GameState = { ...prev, victory: true };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const toggleWarTax = useCallback(() => {
     setState(prev => {
       const isAtWar = prev.kingdoms.some(k => k.attitude === 'war');
@@ -4755,7 +4767,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
     acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion, refuseTribute,
-    assignLord, dismissLord, adjustLordTax, toggleWarTax,
+    assignLord, dismissLord, adjustLordTax, toggleWarTax, declareVictory,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, dismissEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -4769,6 +4781,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
     acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion, refuseTribute,
-    assignLord, dismissLord, adjustLordTax, toggleWarTax,
+    assignLord, dismissLord, adjustLordTax, toggleWarTax, declareVictory,
   ]);
 });

@@ -292,7 +292,7 @@ function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward, acceptVassal, rejectVassal, declareIndependence, refuseTribute, dismissLord, adjustLordTax, toggleWarTax } = useGame();
+  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward, acceptVassal, rejectVassal, declareIndependence, refuseTribute, dismissLord, adjustLordTax, toggleWarTax, declareVictory } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -321,7 +321,7 @@ function KingdomScreen() {
     }
   }, [unseenEvents.length, pulseAnim]);
 
-  useEffect(() => { if (state.gameOver || state.victory) setShowGameOver(true); }, [state.gameOver, state.victory]);
+  useEffect(() => { if (state.gameOver) setShowGameOver(true); }, [state.gameOver]);
 
   useEffect(() => {
     if (state.turn > prevTurn.current && state.lastTurnSummary) {
@@ -533,10 +533,25 @@ function KingdomScreen() {
       <Modal visible={showGameOver} transparent animationType="fade">
         <View style={idx.modalOverlay}>
           <View style={idx.modalCard}>
-            <LinearGradient colors={state.victory ? ['#1a3a1a', '#0d1117'] : ['#3a1a1a', '#0d1117']} style={StyleSheet.absoluteFill} />
-            <Text style={idx.modalIcon}>{state.victory ? '👑' : '💀'}</Text>
-            <Text style={idx.modalTitle}>{state.victory ? 'VICTORY!' : 'GAME OVER'}</Text>
-            <Text style={idx.modalDesc}>{state.victory ? state.victoryType : state.gameOverReason}</Text>
+            <LinearGradient colors={['#3a1a1a', '#0d1117']} style={StyleSheet.absoluteFill} />
+            <Text style={idx.modalIcon}>💀</Text>
+            <Text style={idx.modalTitle}>GAME OVER</Text>
+            <Text style={idx.modalDesc}>{state.gameOverReason}</Text>
+            <TouchableOpacity style={idx.modalBtn} onPress={handleReset} activeOpacity={0.7}>
+              <RotateCcw size={18} color={Colors.bg.primary} />
+              <Text style={idx.modalBtnText}>New Game</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={state.victory} transparent animationType="fade">
+        <View style={idx.modalOverlay}>
+          <View style={idx.modalCard}>
+            <LinearGradient colors={['#1a3a1a', '#0d1117']} style={StyleSheet.absoluteFill} />
+            <Text style={idx.modalIcon}>👑</Text>
+            <Text style={idx.modalTitle}>VICTORY!</Text>
+            <Text style={idx.modalDesc}>{state.victoryType}</Text>
+            <Text style={[idx.modalDesc, { marginTop: 8, fontSize: 13, color: Colors.text.secondary }]}>Your dynasty's legacy is written in the chronicles of the realm.</Text>
             <TouchableOpacity style={idx.modalBtn} onPress={handleReset} activeOpacity={0.7}>
               <RotateCcw size={18} color={Colors.bg.primary} />
               <Text style={idx.modalBtnText}>New Game</Text>
@@ -635,6 +650,36 @@ function KingdomScreen() {
           <ChevronRight size={14} color="#ef4444" />
         </TouchableOpacity>
       ))}
+      {state.victoryAvailable && !state.victory && (
+        <View style={idx.victoryBanner}>
+          <View style={idx.victoryBannerLeft}>
+            <Text style={idx.victoryBannerIcon}>👑</Text>
+            <View>
+              <Text style={idx.victoryBannerTitle}>Victory Achieved!</Text>
+              <Text style={idx.victoryBannerSub}>{state.victoryType}</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={idx.victoryDeclareBtn}
+            onPress={() => Alert.alert(
+              'Declare Victory?',
+              'End your reign in triumph and write your dynasty\'s legacy into the chronicles.',
+              [
+                { text: 'Keep Playing', style: 'cancel' },
+                { text: '👑 Declare Victory', onPress: declareVictory },
+              ]
+            )}
+            activeOpacity={0.8}
+          >
+            <Text style={idx.victoryDeclareBtnText}>Declare</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+      {!state.victoryAvailable && state.resources.faith >= 800 && state.resources.faith < 1000 && (
+        <View style={idx.faithWarnBanner}>
+          <Text style={idx.faithWarnText}>🙏 Faith {state.resources.faith}/1000 — at 1,000 a Faith Victory becomes available</Text>
+        </View>
+      )}
       <ScrollView ref={scrollRef} style={idx.scrollContent} contentContainerStyle={{ paddingBottom: insets.bottom + 100 }} showsVerticalScrollIndicator={false}>
         <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
           {seasonEffect && (
@@ -742,6 +787,15 @@ const idx = StyleSheet.create({
   surrenderBannerText: { flex: 1, fontSize: 12, fontWeight: "700" as const, color: '#ef4444' },
   regencyBanner: { paddingHorizontal: 14, paddingVertical: 7, backgroundColor: '#1a1030', borderBottomWidth: 1, borderColor: '#a78bfa50', alignItems: 'center' as const },
   regencyBannerText: { fontSize: 11, color: '#a78bfa', fontWeight: '700' as const, letterSpacing: 0.4 },
+  victoryBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#1a3a1a', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#22c55e50' },
+  victoryBannerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
+  victoryBannerIcon: { fontSize: 24 },
+  victoryBannerTitle: { fontSize: 13, fontWeight: "800" as const, color: '#4ade80' },
+  victoryBannerSub: { fontSize: 11, color: '#86efac', marginTop: 1 },
+  victoryDeclareBtn: { paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#22c55e', borderRadius: 10 },
+  victoryDeclareBtnText: { fontSize: 13, fontWeight: "800" as const, color: '#052e16' },
+  faithWarnBanner: { paddingHorizontal: 14, paddingVertical: 6, backgroundColor: '#1a1a30', borderBottomWidth: 1, borderColor: '#818cf840' },
+  faithWarnText: { fontSize: 11, color: '#818cf8', fontWeight: '600' as const },
   vassalBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#1e1040', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#7c3aed50' },
   vassalBannerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   vassalBannerIcon: { fontSize: 18 },

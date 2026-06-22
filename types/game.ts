@@ -515,6 +515,7 @@ export interface GameState {
   gameOverReason?: string;
   victory: boolean;
   victoryType?: string;
+  victoryAvailable?: boolean;
   selectedKingdom?: string;
   gameStarted: boolean;
   activeTactic: string;
