@@ -643,11 +643,11 @@ function KingdomScreen() {
             </View>
           )}
           <View style={idx.statsRow}>
-            <TouchableOpacity style={idx.statCard} onPress={() => navigateTo('/provinces')} activeOpacity={0.7}>
+            <TouchableOpacity style={idx.statCard} onPress={() => navigateTo('/domains')} activeOpacity={0.7}>
               <Text style={idx.statValue}>{playerProvinces.length}</Text>
               <Text style={idx.statLabel}>Provinces</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[idx.statCard, isOverstretched && { borderColor: Colors.status.warning }]} onPress={() => navigateTo('/pressures')} activeOpacity={0.7}>
+            <TouchableOpacity style={[idx.statCard, isOverstretched && { borderColor: Colors.status.warning }]} onPress={() => navigateTo('/domains')} activeOpacity={0.7}>
               <Text style={[idx.statValue, isOverstretched && { color: Colors.status.warning }]}>{crownProvinces}/{stewardshipCap}</Text>
               <Text style={idx.statLabel}>Direct</Text>
             </TouchableOpacity>
