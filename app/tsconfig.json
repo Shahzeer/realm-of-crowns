@@ -5,12 +5,27 @@
     "paths": {
       "@/*": [
         "../*"
+      ],
+      "*": [
+        "./*"
       ]
     }
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    "../components/**/*.ts",
+    "../components/**/*.tsx",
+    "../providers/**/*.ts",
+    "../providers/**/*.tsx",
+    "../types/**/*.ts",
+    "../types/**/*.tsx",
+    "../mocks/**/*.ts",
+    "../mocks/**/*.tsx",
+    "../constants/**/*.ts",
+    "../constants/**/*.tsx",
+    "../utils/**/*.ts",
+    "../utils/**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
   ]
