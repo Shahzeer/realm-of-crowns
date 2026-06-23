@@ -379,57 +379,57 @@ export default function DiplomacyScreen() {
   const warScoreBarWidth = Math.min(100, Math.abs(warScore) * 1.2);
   const warScoreSide = warScore < 0 ? 'left' : 'right';
 
-  const termOptions: Array<{ type: PeaceTermType; label: string; desc: string; color: string; available: boolean }> = [
+  const termOptions = ([
     {
-      type: 'white_peace',
+      type: 'white_peace' as const,
       label: '🕊️ White Peace',
       desc: 'End the war with no conditions. Both sides return to pre-war borders.',
       color: Colors.text.secondary,
       available: warScore < 60,
     },
     {
-      type: 'reparations',
+      type: 'reparations' as const,
       label: '💰 Demand Reparations (+300g)',
       desc: `${peaceKingdom?.name ?? 'Enemy'} pays 300 gold to end the war.`,
       color: Colors.gold.bright,
       available: isWinning,
     },
     {
-      type: 'demand_province',
+      type: 'demand_province' as const,
       label: '🏰 Demand Province',
       desc: `Claim one of ${peaceKingdom?.name ?? "enemy"}'s provinces as the price of peace.`,
       color: Colors.status.success,
       available: isWinning && enemyProvinces.length > 0,
     },
     {
-      type: 'pay_reparations',
+      type: 'pay_reparations' as const,
       label: '💸 Pay Reparations (-300g)',
       desc: 'Pay 300 gold to end the war on your terms.',
       color: Colors.status.warning,
       available: isLosing,
     },
     {
-      type: 'cede_province',
+      type: 'cede_province' as const,
       label: '📜 Cede Province',
       desc: 'Give up one of your border provinces to secure peace.',
       color: Colors.crimson.bright,
       available: isLosing && playerBorderProvinces.length > 0,
     },
     {
-      type: 'vassalize',
+      type: 'vassalize' as const,
       label: '👑 Demand Vassalization',
       desc: `${peaceKingdom?.name ?? 'Enemy'} becomes your vassal, paying tribute each turn. They keep their lands but serve your crown.`,
       color: Colors.gold.bright,
       available: warScore < -50 && enemyProvinces.length > 0,
     },
     {
-      type: 'force_vassalize',
+      type: 'force_vassalize' as const,
       label: '⚔️ Force Into Your Kingdom',
       desc: `Absorb ${peaceKingdom?.name ?? 'Enemy'} as a full vassal state. Their ruler submits, pays tribute, and cannot refuse. Requires total dominance.`,
       color: '#a78bfa',
       available: warScore < -50 && enemyProvinces.length > 0,
     },
-  ].filter(t => t.available);
+  ] as const).filter(t => t.available);
 
   return (
     <View style={[d.root, { paddingTop: insets.top }]}>

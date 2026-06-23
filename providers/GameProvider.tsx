@@ -100,6 +100,7 @@ function formatResourceBoosts(boosts: Partial<Resources>): string {
   const labels: Record<keyof Resources, string> = {
     gold: 'gold', food: 'food', military: 'military', faith: 'faith',
     goldPerTurn: 'gold/turn', foodPerTurn: 'food/turn', militaryPerTurn: 'military/turn', faithPerTurn: 'faith/turn',
+    baseGoldPerTurn: 'base gold/turn', baseFoodPerTurn: 'base food/turn', baseMilitaryPerTurn: 'base military/turn', baseFaithPerTurn: 'base faith/turn',
   };
   return (Object.entries(boosts) as Array<[keyof Resources, number]>)
     .filter(([, value]) => value > 0)
@@ -2781,7 +2782,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
                   const newRumors = [...existingIntel.rumors, intelRumor].slice(-3);
                   newKingdoms = newKingdoms.map(k =>
                     k.id === targetKingdom.id
-                      ? { ...k, intel: { confidence: newConfidence, personalityGuesses: newGuesses, rumors: newRumors, armyStrength: totalTroops } }
+                      ? { ...k, intel: { confidence: newConfidence, personalityGuesses: newGuesses, rumors: newRumors, armyStrength: totalTroops, lastUpdatedTurn: prev.turn } }
                       : k
                   );
                   spyLog += ` ${targetKingdom.name}: ~${totalTroops} troops, ~${treasuryEstimate}g treasury. Intel confidence: ${newConfidence}%.`;
@@ -3859,7 +3860,8 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
-  const sendDiplomacy = useCallback((kingdomId: string, action: 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war' | 'propose_vassalage') => {
+  type DiplomacyAction = 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war' | 'propose_vassalage';
+  const sendDiplomacy = useCallback((kingdomId: string, action: DiplomacyAction) => {
     setState(prev => {
       const kingdom = prev.kingdoms.find(k => k.id === kingdomId);
       if (!kingdom) return prev;
@@ -4037,17 +4039,18 @@ export const [GameProvider, useGame] = createContextHook(() => {
         if (k.id !== kingdomId) return k;
         const newRelation = Math.max(-100, Math.min(100, k.relation + relationChange));
         let newAttitude = k.attitude;
-        if (action === 'declare_war') { newAttitude = 'war'; }
-        else if (action === 'call_to_war') { newAttitude = 'allied'; }
-        else if (action === 'peace' && k.attitude === 'war' && newRelation > -30) { newAttitude = 'hostile'; }
-        else if (action === 'ally' && newRelation > 30) { newAttitude = 'allied'; }
-        else if (action !== 'demand_tribute' && action !== 'propose_marriage') {
+        const act = action as DiplomacyAction;
+        if (act === 'declare_war') { newAttitude = 'war'; }
+        else if (act === 'call_to_war') { newAttitude = 'allied'; }
+        else if (act === 'peace' && k.attitude === 'war' && newRelation > -30) { newAttitude = 'hostile'; }
+        else if (act === 'ally' && newRelation > 30) { newAttitude = 'allied'; }
+        else if (act !== 'demand_tribute' && act !== 'propose_marriage') {
           if (newRelation > 50) newAttitude = 'friendly';
           else if (newRelation > 0) newAttitude = 'neutral';
           else if (newRelation > -50) newAttitude = 'hostile';
         }
-        const marriageProposal = action === 'propose_marriage' ? { proposedTurn: prev.turn } : k.marriageProposal;
-        return { ...k, relation: newRelation, attitude: newAttitude, warScore: action === 'peace' ? 0 : k.warScore, allyOf: action === 'call_to_war' ? [...new Set([...(k.allyOf ?? []), ...warTargets])] : k.allyOf, marriageProposal };
+        const marriageProposal = act === 'propose_marriage' ? { proposedTurn: prev.turn } : k.marriageProposal;
+        return { ...k, relation: newRelation, attitude: newAttitude, warScore: act === 'peace' ? 0 : k.warScore, allyOf: act === 'call_to_war' ? [...new Set([...(k.allyOf ?? []), ...warTargets])] : k.allyOf, marriageProposal };
       });
       const newState: GameState = {
         ...prev,

@@ -262,7 +262,7 @@ function LordsOverviewPanel({ lords, provinces, stewardshipCap, onDismiss, onAdj
                         [
                           { text: 'Cancel', style: 'cancel' },
                           { text: 'Remove', style: 'destructive', onPress: () => {
-                            (lord.provinceIds ?? [lord.provinceId]).forEach((pid: string) => onDismiss(pid, lord.name));
+                            lord.provinceIds.forEach((pid: string) => onDismiss(pid, lord.name));
                           }},
                         ]
                       );

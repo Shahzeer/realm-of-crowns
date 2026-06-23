@@ -207,7 +207,7 @@ export interface Kingdom {
   ruler: Ruler;
   provinces: string[];
   relation: number;
-  attitude: 'friendly' | 'neutral' | 'hostile' | 'allied' | 'war';
+  attitude: 'friendly' | 'neutral' | 'hostile' | 'allied' | 'war' | 'vassal';
   color: string;
   strength: number;
   armies: Army[];
