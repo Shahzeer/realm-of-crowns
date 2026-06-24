@@ -100,7 +100,6 @@ function formatResourceBoosts(boosts: Partial<Resources>): string {
   const labels: Record<keyof Resources, string> = {
     gold: 'gold', food: 'food', military: 'military', faith: 'faith',
     goldPerTurn: 'gold/turn', foodPerTurn: 'food/turn', militaryPerTurn: 'military/turn', faithPerTurn: 'faith/turn',
-    baseGoldPerTurn: 'base gold/turn', baseFoodPerTurn: 'base food/turn', baseMilitaryPerTurn: 'base military/turn', baseFaithPerTurn: 'base faith/turn',
   };
   return (Object.entries(boosts) as Array<[keyof Resources, number]>)
     .filter(([, value]) => value > 0)
@@ -137,7 +136,6 @@ const defaultState: GameState = {
   log: ['Year 1066, Spring — Your reign begins.'],
   gameOver: false,
   victory: false,
-  victoryAvailable: false,
   gameStarted: false,
   activeTactic: 'balanced',
   activeTrades: [],
@@ -1599,7 +1597,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
       heir: loaded.heir ?? null,
       gameOver: loaded.gameOver ?? false,
       victory: loaded.victory ?? false,
-      victoryAvailable: loaded.victoryAvailable ?? false,
       gameStarted: loaded.gameStarted ?? false,
       activeTactic: loaded.activeTactic ?? 'balanced',
       activeTrades: loaded.activeTrades ?? [],
@@ -2633,7 +2630,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
         });
       }
 
-      const councilCompletions: string[] = [];
       let newCouncil = prev.council.map(c => {
         const loyaltyDrift = Math.floor(Math.random() * 5) - 2;
         let updatedCouncilor = { ...c, loyalty: Math.max(0, Math.min(100, c.loyalty + loyaltyDrift)) };
@@ -2641,9 +2637,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
           const upgrade = { ...updatedCouncilor.activeUpgrade };
           upgrade.turnsRemaining -= 1;
           if (upgrade.turnsRemaining <= 0) {
-            const newSkill = updatedCouncilor.skill + 5;
-            updatedCouncilor = { ...updatedCouncilor, skill: newSkill, activeUpgrade: undefined };
-            councilCompletions.push(updatedCouncilor.name);
+            updatedCouncilor = { ...updatedCouncilor, skill: updatedCouncilor.skill + 2, activeUpgrade: undefined };
           } else {
             updatedCouncilor = { ...updatedCouncilor, activeUpgrade: upgrade };
           }
@@ -2787,7 +2781,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
                   const newRumors = [...existingIntel.rumors, intelRumor].slice(-3);
                   newKingdoms = newKingdoms.map(k =>
                     k.id === targetKingdom.id
-                      ? { ...k, intel: { confidence: newConfidence, personalityGuesses: newGuesses, rumors: newRumors, armyStrength: totalTroops, lastUpdatedTurn: prev.turn } }
+                      ? { ...k, intel: { confidence: newConfidence, personalityGuesses: newGuesses, rumors: newRumors, armyStrength: totalTroops } }
                       : k
                   );
                   spyLog += ` ${targetKingdom.name}: ~${totalTroops} troops, ~${treasuryEstimate}g treasury. Intel confidence: ${newConfidence}%.`;
@@ -2832,9 +2826,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
 
       // Council bonuses: passive (role-based) + active (task-based)
       const councilLogs: string[] = [];
-      councilCompletions.forEach(name => {
-        councilLogs.push(`📈 ${name} completed skill training! +5 skill — their contributions are now stronger.`);
-      });
       let councilGoldPT = 0, councilFoodPT = 0, councilMilPT = 0, councilFaithPT = 0;
       let newProvinceClaims = [...(prev.provinceClaims ?? [])];
       let newClaimFabricationProgress = prev.claimFabricationProgress ?? 0;
@@ -3282,18 +3273,17 @@ export const [GameProvider, useGame] = createContextHook(() => {
       }
 
       const totalProvinces = newProvinces.length;
-      let victoryAvailableFlag = prev.victoryAvailable ?? false;
       if (playerProvCount >= totalProvinces) {
-        victoryAvailableFlag = true;
+        victory = true;
         victoryType = 'Conquest Victory — You have united all lands under your banner!';
       } else if (playerProvCount >= Math.ceil(totalProvinces * 0.7) && prev.turn >= 50) {
-        victoryAvailableFlag = true;
+        victory = true;
         victoryType = 'Domination Victory — Your realm is the greatest power in the land!';
       } else if (newTechnologies.every(t => t.researched) && nextTurn >= 50) {
-        victoryAvailableFlag = true;
+        victory = true;
         victoryType = 'Cultural Victory — Your scholars have mastered all knowledge!';
       } else if (newResources.faith >= 1000) {
-        victoryAvailableFlag = true;
+        victory = true;
         victoryType = 'Faith Victory — The divine light of your realm illuminates all!';
       }
 
@@ -3395,7 +3385,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         resources: newResources, provinces: newProvinces, armies: newArmies,
         kingdoms: newKingdoms, events: newEvents, battles: allBattles,
         technologies: newTechnologies, council: newCouncil,
-        log: allLogs, gameOver, gameOverReason, victory, victoryType, victoryAvailable: victoryAvailableFlag,
+        log: allLogs, gameOver, gameOverReason, victory, victoryType,
         activeTrades, activeSpyMission,
         achievements: newAchievements,
         lastTurnSummary: summary,
@@ -3869,8 +3859,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
-  type DiplomacyAction = 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war' | 'propose_vassalage';
-  const sendDiplomacy = useCallback((kingdomId: string, action: DiplomacyAction) => {
+  const sendDiplomacy = useCallback((kingdomId: string, action: 'gift' | 'threaten' | 'ally' | 'declare_war' | 'peace' | 'demand_tribute' | 'propose_marriage' | 'call_to_war' | 'propose_vassalage') => {
     setState(prev => {
       const kingdom = prev.kingdoms.find(k => k.id === kingdomId);
       if (!kingdom) return prev;
@@ -4048,18 +4037,17 @@ export const [GameProvider, useGame] = createContextHook(() => {
         if (k.id !== kingdomId) return k;
         const newRelation = Math.max(-100, Math.min(100, k.relation + relationChange));
         let newAttitude = k.attitude;
-        const act = action as DiplomacyAction;
-        if (act === 'declare_war') { newAttitude = 'war'; }
-        else if (act === 'call_to_war') { newAttitude = 'allied'; }
-        else if (act === 'peace' && k.attitude === 'war' && newRelation > -30) { newAttitude = 'hostile'; }
-        else if (act === 'ally' && newRelation > 30) { newAttitude = 'allied'; }
-        else if (act !== 'demand_tribute' && act !== 'propose_marriage') {
+        if (action === 'declare_war') { newAttitude = 'war'; }
+        else if (action === 'call_to_war') { newAttitude = 'allied'; }
+        else if (action === 'peace' && k.attitude === 'war' && newRelation > -30) { newAttitude = 'hostile'; }
+        else if (action === 'ally' && newRelation > 30) { newAttitude = 'allied'; }
+        else if (action !== 'demand_tribute' && action !== 'propose_marriage') {
           if (newRelation > 50) newAttitude = 'friendly';
           else if (newRelation > 0) newAttitude = 'neutral';
           else if (newRelation > -50) newAttitude = 'hostile';
         }
-        const marriageProposal = act === 'propose_marriage' ? { proposedTurn: prev.turn } : k.marriageProposal;
-        return { ...k, relation: newRelation, attitude: newAttitude, warScore: act === 'peace' ? 0 : k.warScore, allyOf: act === 'call_to_war' ? [...new Set([...(k.allyOf ?? []), ...warTargets])] : k.allyOf, marriageProposal };
+        const marriageProposal = action === 'propose_marriage' ? { proposedTurn: prev.turn } : k.marriageProposal;
+        return { ...k, relation: newRelation, attitude: newAttitude, warScore: action === 'peace' ? 0 : k.warScore, allyOf: action === 'call_to_war' ? [...new Set([...(k.allyOf ?? []), ...warTargets])] : k.allyOf, marriageProposal };
       });
       const newState: GameState = {
         ...prev,
@@ -4290,15 +4278,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
       const newRate = Math.max(0.30, Math.min(0.95, lord.taxRate + delta));
       const newLords = prev.lords.map(l => l.id === lordId ? { ...l, taxRate: parseFloat(newRate.toFixed(2)) } : l);
       const newState: GameState = { ...prev, lords: newLords };
-      saveMutation.mutate(newState);
-      return newState;
-    });
-  }, [saveMutation]);
-
-  const declareVictory = useCallback(() => {
-    setState(prev => {
-      if (!prev.victoryAvailable) return prev;
-      const newState: GameState = { ...prev, victory: true };
       saveMutation.mutate(newState);
       return newState;
     });
@@ -4767,7 +4746,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
     acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion, refuseTribute,
-    assignLord, dismissLord, adjustLordTax, toggleWarTax, declareVictory,
+    assignLord, dismissLord, adjustLordTax, toggleWarTax,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, dismissEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -4781,6 +4760,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
     dismissReignChronicle, claimQuestReward, useDiplomaticHook,
     acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion, refuseTribute,
-    assignLord, dismissLord, adjustLordTax, toggleWarTax, declareVictory,
+    assignLord, dismissLord, adjustLordTax, toggleWarTax,
   ]);
 });

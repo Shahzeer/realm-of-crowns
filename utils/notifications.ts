@@ -1,6 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Platform } from "react-native";
-import type { NotificationTriggerInput } from "expo-notifications";
 
 const LAST_PLAYED_KEY = "realm_last_played_at";
 const LAST_NOTIF_KEY  = "realm_last_notification_scheduled";
@@ -70,7 +69,7 @@ export async function scheduleNativeReminder(): Promise<void> {
         body: "Your realm awaits, my liege. New events and opportunities have emerged.",
         sound: true,
       },
-      trigger: { type: 'timeInterval' as const, seconds: 24 * 60 * 60, repeats: false } as NotificationTriggerInput,
+      trigger: { seconds: 24 * 60 * 60, repeats: false },
     });
 
     await AsyncStorage.setItem(LAST_NOTIF_KEY, String(now));

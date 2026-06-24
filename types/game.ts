@@ -207,7 +207,7 @@ export interface Kingdom {
   ruler: Ruler;
   provinces: string[];
   relation: number;
-  attitude: 'friendly' | 'neutral' | 'hostile' | 'allied' | 'war' | 'vassal';
+  attitude: 'friendly' | 'neutral' | 'hostile' | 'allied' | 'war';
   color: string;
   strength: number;
   armies: Army[];
@@ -515,7 +515,6 @@ export interface GameState {
   gameOverReason?: string;
   victory: boolean;
   victoryType?: string;
-  victoryAvailable?: boolean;
   selectedKingdom?: string;
   gameStarted: boolean;
   activeTactic: string;

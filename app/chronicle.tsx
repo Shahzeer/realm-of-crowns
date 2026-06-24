@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from "
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { X, BookOpen, Crown, ChevronRight, Shield, Trophy } from "lucide-react-native";
+import { X, BookOpen, Crown, ChevronRight } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 
@@ -113,22 +113,6 @@ export default function ChronicleScreen() {
               <Text style={s.tabBadgeText}>{chronicles.length}</Text>
             </View>
           )}
-        </TouchableOpacity>
-      </View>
-
-      <View style={s.quickNav}>
-        <TouchableOpacity style={s.quickNavBtn} onPress={() => router.push('/battles')} activeOpacity={0.75}>
-          <Shield size={16} color={Colors.crimson.bright} />
-          <Text style={s.quickNavText}>Battles</Text>
-          <Text style={s.quickNavSub}>{state.battles.length} fought</Text>
-          <ChevronRight size={13} color={Colors.text.dim} />
-        </TouchableOpacity>
-        <View style={s.quickNavDivider} />
-        <TouchableOpacity style={s.quickNavBtn} onPress={() => router.push('/achievements')} activeOpacity={0.75}>
-          <Trophy size={16} color={Colors.gold.bright} />
-          <Text style={s.quickNavText}>Achievements</Text>
-          <Text style={s.quickNavSub}>{state.achievements.filter(a => a.unlocked).length}/{state.achievements.length}</Text>
-          <ChevronRight size={13} color={Colors.text.dim} />
         </TouchableOpacity>
       </View>
 
@@ -341,11 +325,6 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center", paddingHorizontal: 4,
   },
   tabBadgeText: { fontSize: 10, fontWeight: "800" as const, color: Colors.gold.bright },
-  quickNav: { flexDirection: "row", marginHorizontal: 16, marginVertical: 8, backgroundColor: Colors.bg.card, borderRadius: 12, borderWidth: 1, borderColor: Colors.border.primary, overflow: "hidden" },
-  quickNavBtn: { flex: 1, flexDirection: "row", alignItems: "center", paddingVertical: 10, paddingHorizontal: 12, gap: 7 },
-  quickNavText: { fontSize: 13, fontWeight: "700" as const, color: Colors.text.primary, flex: 1 },
-  quickNavSub: { fontSize: 11, color: Colors.text.dim },
-  quickNavDivider: { width: 1, backgroundColor: Colors.border.primary, marginVertical: 8 },
   summaryRow: { flexDirection: "row", paddingHorizontal: 16, paddingTop: 8, paddingBottom: 8, gap: 10 },
   summaryCard: { flex: 1, backgroundColor: Colors.bg.card, borderRadius: 10, paddingVertical: 12, alignItems: "center", borderWidth: 1, borderColor: Colors.border.primary },
   summaryValue: { fontSize: 20, fontWeight: "800" as const, color: Colors.gold.bright },
