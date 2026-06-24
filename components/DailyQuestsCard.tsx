@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   Animated,
 } from "react-native";
-import { CheckCircle, Gift, Star } from "lucide-react-native";
+import { CheckCircle, Gift, Star, ChevronDown, ChevronUp } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { DailyQuest } from "@/types/game";
 
@@ -96,32 +96,50 @@ export default function DailyQuestsCard({
   quests: DailyQuest[];
   onClaim: (id: string) => void;
 }) {
+  const [collapsed, setCollapsed] = useState(false);
+
   if (!quests || quests.length === 0) return null;
 
   const allClaimed = quests.every((q) => q.claimed);
   const doneCount = quests.filter((q) => q.claimed).length;
+  const pendingCount = quests.filter((q) => q.completed && !q.claimed).length;
 
   return (
     <View style={dq.card}>
-      <View style={dq.header}>
+      <TouchableOpacity
+        style={dq.header}
+        onPress={() => setCollapsed(c => !c)}
+        activeOpacity={0.7}
+      >
         <Star size={16} color={Colors.gold.bright} />
         <Text style={dq.headerTitle}>Daily Quests</Text>
+        {pendingCount > 0 && !collapsed && (
+          <View style={dq.pendingBadge}>
+            <Text style={dq.pendingBadgeText}>{pendingCount} ready</Text>
+          </View>
+        )}
         <Text style={dq.headerSub}>
           {allClaimed ? "All complete!" : `${doneCount}/${quests.length} claimed`}
         </Text>
-      </View>
+        {collapsed
+          ? <ChevronDown size={16} color={Colors.text.dim} />
+          : <ChevronUp size={16} color={Colors.text.dim} />
+        }
+      </TouchableOpacity>
 
-      {allClaimed ? (
-        <View style={dq.allDone}>
-          <Text style={dq.allDoneIcon}>🏆</Text>
-          <Text style={dq.allDoneText}>Quests complete! New quests tomorrow.</Text>
-        </View>
-      ) : (
-        <View style={dq.list}>
-          {quests.map((q) => (
-            <QuestRow key={q.id} quest={q} onClaim={onClaim} />
-          ))}
-        </View>
+      {!collapsed && (
+        allClaimed ? (
+          <View style={dq.allDone}>
+            <Text style={dq.allDoneIcon}>🏆</Text>
+            <Text style={dq.allDoneText}>Quests complete! New quests tomorrow.</Text>
+          </View>
+        ) : (
+          <View style={dq.list}>
+            {quests.map((q) => (
+              <QuestRow key={q.id} quest={q} onClaim={onClaim} />
+            ))}
+          </View>
+        )
       )}
     </View>
   );
@@ -158,6 +176,20 @@ const dq = StyleSheet.create({
     fontSize: 11,
     color: Colors.text.secondary,
     fontWeight: "600" as const,
+  },
+  pendingBadge: {
+    backgroundColor: Colors.gold.bright + "25",
+    borderRadius: 5,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: Colors.gold.bright + "50",
+  },
+  pendingBadgeText: {
+    fontSize: 9,
+    fontWeight: "800" as const,
+    color: Colors.gold.bright,
+    letterSpacing: 0.5,
   },
   list: {
     paddingVertical: 4,

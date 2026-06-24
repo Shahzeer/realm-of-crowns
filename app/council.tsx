@@ -33,6 +33,24 @@ const TASK_KEYS: Record<string, string[]> = {
   chancellor: ['Improve relations', 'Negotiate trade', 'Forge alliances', 'Fabricate Claim'],
 };
 
+function getPassiveContribution(role: string, skill: number, loyalty: number): string {
+  const loyaltyMod = loyalty > 70 ? 1.0 : loyalty > 50 ? 0.75 : 0.5;
+  switch (role) {
+    case 'marshal':
+      return `+${Math.max(1, Math.floor(skill / 5))} army morale recovery/turn`;
+    case 'steward':
+      return `-${Math.max(1, Math.floor(skill * 0.2 * loyaltyMod))}% corruption growth · stewardship cap +${Math.floor(skill / 3)}`;
+    case 'spymaster':
+      return `${Math.min(95, 10 + Math.floor(skill * loyaltyMod))}% spy detection chance/turn`;
+    case 'chaplain':
+      return `+${Math.max(1, Math.floor(skill / 6 * loyaltyMod))} faith/turn from ministry`;
+    case 'chancellor':
+      return `+${Math.max(1, Math.floor(skill / 5 * loyaltyMod))} relations/turn with all kingdoms`;
+    default:
+      return 'Advises the crown';
+  }
+}
+
 function getTaskLabel(role: string, task: string, skill: number, loyalty: number): string {
   const loyaltyMod = loyalty > 70 ? 1.0 : loyalty > 50 ? 0.75 : 0.5;
   const taskBonus = Math.max(2, Math.floor(skill / 3));
@@ -161,6 +179,13 @@ function CouncilorCard({ councilor, onAssignTask, onUpgrade, canUpgrade, index }
             </Text>
           </TouchableOpacity>
         )}
+
+        <View style={[cc.passiveRow, { borderColor: roleColor + '25' }]}>
+          <Text style={cc.passiveLabel}>Passive Contribution</Text>
+          <Text style={[cc.passiveValue, { color: roleColor }]}>
+            {getPassiveContribution(councilor.role, councilor.skill, councilor.loyalty)}
+          </Text>
+        </View>
 
         {councilor.task && (
           <View style={[cc.currentTask, { borderColor: roleColor + '40' }]}>
@@ -314,4 +339,7 @@ const cc = StyleSheet.create({
   taskBtnText: { fontSize: 12, color: Colors.text.secondary },
   betrayalWarning: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, marginTop: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8, backgroundColor: Colors.crimson.dark + '25', borderWidth: 1, borderColor: Colors.crimson.bright + '40' },
   betrayalText: { fontSize: 11, fontWeight: "600" as const, color: Colors.crimson.bright, flex: 1 },
+  passiveRow: { marginTop: 10, paddingTop: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, borderWidth: 1, backgroundColor: Colors.bg.tertiary, gap: 2 },
+  passiveLabel: { fontSize: 9, fontWeight: "700" as const, color: Colors.text.dim, letterSpacing: 1, textTransform: "uppercase" as const },
+  passiveValue: { fontSize: 12, fontWeight: "600" as const },
 });

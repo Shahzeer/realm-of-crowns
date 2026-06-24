@@ -533,14 +533,60 @@ function KingdomScreen() {
       <Modal visible={showGameOver} transparent animationType="fade">
         <View style={idx.modalOverlay}>
           <View style={idx.modalCard}>
-            <LinearGradient colors={state.victory ? ['#1a3a1a', '#0d1117'] : ['#3a1a1a', '#0d1117']} style={StyleSheet.absoluteFill} />
-            <Text style={idx.modalIcon}>{state.victory ? '👑' : '💀'}</Text>
-            <Text style={idx.modalTitle}>{state.victory ? 'VICTORY!' : 'GAME OVER'}</Text>
-            <Text style={idx.modalDesc}>{state.victory ? state.victoryType : state.gameOverReason}</Text>
-            <TouchableOpacity style={idx.modalBtn} onPress={handleReset} activeOpacity={0.7}>
-              <RotateCcw size={18} color={Colors.bg.primary} />
-              <Text style={idx.modalBtnText}>New Game</Text>
-            </TouchableOpacity>
+            {(() => {
+              if (!state.victory) {
+                return (
+                  <>
+                    <LinearGradient colors={['#3a1a1a', '#0d1117']} style={StyleSheet.absoluteFill} />
+                    <Text style={idx.modalIcon}>💀</Text>
+                    <Text style={[idx.modalTitle, { color: '#ef4444' }]}>GAME OVER</Text>
+                    <Text style={idx.modalDesc}>{state.gameOverReason}</Text>
+                    <TouchableOpacity style={[idx.modalBtn, { backgroundColor: '#7f1d1d', borderWidth: 1, borderColor: '#ef4444' }]} onPress={handleReset} activeOpacity={0.7}>
+                      <RotateCcw size={18} color="#fff" />
+                      <Text style={[idx.modalBtnText, { color: '#fff' }]}>Start New Reign</Text>
+                    </TouchableOpacity>
+                  </>
+                );
+              }
+              const vt = state.victoryType ?? '';
+              const isConquest = vt.includes('Conquest');
+              const isDomination = vt.includes('Domination');
+              const isCultural = vt.includes('Cultural');
+              const isFaith = vt.includes('Faith');
+              const victoryIcon = isConquest ? '⚔️' : isDomination ? '👑' : isCultural ? '📚' : isFaith ? '✨' : '🏆';
+              const victoryColor = isConquest ? '#ef4444' : isDomination ? Colors.gold.bright : isCultural ? Colors.status.info : isFaith ? '#c084fc' : Colors.gold.bright;
+              const victoryGradient: [string, string] = isConquest ? ['#3a1a1a', '#0d1117'] : isDomination ? ['#1a1810', '#0d1117'] : isCultural ? ['#0a1a2a', '#0d1117'] : ['#1a0a2a', '#0d1117'];
+              const explanation = isConquest
+                ? 'Your armies swept across the realm, subjugating all rivals. No banner stands but yours.'
+                : isDomination
+                ? 'Your realm outgrew every rival in power, wealth, and might. History will remember your dynasty.'
+                : isCultural
+                ? 'Your scholars mastered every art and science. The light of knowledge radiates from your kingdom.'
+                : isFaith
+                ? 'Through divine blessing and pious works, your realm became the spiritual heart of the world.'
+                : 'Your reign stands as a testament to greatness. The chronicles will speak of you for ages.';
+              return (
+                <>
+                  <LinearGradient colors={victoryGradient} style={StyleSheet.absoluteFill} />
+                  <Text style={idx.modalIcon}>{victoryIcon}</Text>
+                  <Text style={[idx.modalTitle, { color: victoryColor }]}>VICTORY!</Text>
+                  <Text style={[idx.modalVictoryType, { color: victoryColor + 'cc' }]}>
+                    {vt.split('—')[0].trim()}
+                  </Text>
+                  <Text style={idx.modalDesc}>{explanation}</Text>
+                  <View style={idx.victoryBtnRow}>
+                    <TouchableOpacity style={[idx.modalBtn, { backgroundColor: victoryColor, flex: 1 }]} onPress={() => navigateTo('/chronicle')} activeOpacity={0.7}>
+                      <BookOpen size={16} color={Colors.bg.primary} />
+                      <Text style={idx.modalBtnText}>View Chronicle</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[idx.modalBtn, { backgroundColor: Colors.bg.tertiary, borderWidth: 1, borderColor: Colors.border.primary, flex: 1 }]} onPress={handleReset} activeOpacity={0.7}>
+                      <RotateCcw size={16} color={Colors.text.primary} />
+                      <Text style={[idx.modalBtnText, { color: Colors.text.primary }]}>New Game</Text>
+                    </TouchableOpacity>
+                  </View>
+                </>
+              );
+            })()}
           </View>
         </View>
       </Modal>
@@ -647,7 +693,7 @@ function KingdomScreen() {
               <Text style={idx.statValue}>{playerProvinces.length}</Text>
               <Text style={idx.statLabel}>Provinces</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[idx.statCard, isOverstretched && { borderColor: Colors.status.warning }]} onPress={() => navigateTo('/pressures')} activeOpacity={0.7}>
+            <TouchableOpacity style={[idx.statCard, isOverstretched && { borderColor: Colors.status.warning }]} onPress={() => navigateTo('/domains')} activeOpacity={0.7}>
               <Text style={[idx.statValue, isOverstretched && { color: Colors.status.warning }]}>{crownProvinces}/{stewardshipCap}</Text>
               <Text style={idx.statLabel}>Direct</Text>
             </TouchableOpacity>
@@ -682,9 +728,23 @@ function KingdomScreen() {
           />
           <Text style={idx.sectionTitle}>Realm Map</Text>
           <MapView provinces={state.provinces} armies={state.armies} onProvincePress={handleProvincePress} selectedProvinceId={selectedProvince?.id ?? null} visibilityMap={visibilityMap} />
+          <View style={idx.quickNavRow}>
+            {[
+              { path: "/chronicle", icon: "📜", label: "Chronicle", color: Colors.food.light },
+              { path: "/diplomacy", icon: "🌍", label: "Diplomacy", color: Colors.gold.primary },
+              { path: "/domains", icon: "🏰", label: "Domains", color: Colors.gold.dim },
+              { path: "/pressures", icon: "⚠️", label: "Pressures", color: Colors.status.warning },
+            ].map(item => (
+              <TouchableOpacity key={item.path} style={idx.quickNavBtn} onPress={() => navigateTo(item.path)} activeOpacity={0.7}>
+                <Text style={idx.quickNavIcon}>{item.icon}</Text>
+                <Text style={[idx.quickNavLabel, { color: item.color }]}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
           <Text style={idx.sectionTitle}>Command</Text>
           <View style={idx.commandGrid}>
             {[
+              { path: "/domains", icon: <Crown size={22} color={Colors.gold.bright} />, bg: Colors.gold.dim + "30", title: "Domains", sub: `${(state.lords ?? []).length} lords · ${playerProvinces.length} provinces`, id: "domains-btn" },
               { path: "/armies", icon: <Swords size={22} color={Colors.crimson.bright} />, bg: Colors.military.blood + "30", title: "Armies", sub: `${state.armies.length} forces`, id: "armies-btn" },
               { path: "/diplomacy", icon: <Globe size={22} color={Colors.gold.primary} />, bg: Colors.gold.dim + "30", title: "Diplomacy", sub: `${state.kingdoms.length} kingdoms`, id: "diplomacy-btn" },
               { path: "/trade", icon: <ArrowRightLeft size={22} color={Colors.gold.bright} />, bg: Colors.gold.bright + "15", title: "Trade", sub: `${state.activeTrades.length} deals`, id: "trade-btn" },
@@ -861,4 +921,10 @@ const idx = StyleSheet.create({
   allyMarchBanner: { backgroundColor: '#1a2a1a', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#4ade8050', paddingHorizontal: 14, paddingVertical: 6, gap: 2 },
   allyMarchText: { fontSize: 12, fontWeight: "600" as const, color: '#4ade80' },
   lordRebellionWarn: { fontSize: 10, color: Colors.status.danger, fontWeight: "600" as const, marginTop: 4 },
+  quickNavRow: { flexDirection: "row" as const, paddingHorizontal: 16, paddingVertical: 8, gap: 8, marginBottom: 4 },
+  quickNavBtn: { flex: 1, alignItems: "center" as const, justifyContent: "center" as const, paddingVertical: 10, backgroundColor: Colors.bg.card, borderRadius: 10, borderWidth: 1, borderColor: Colors.border.primary, gap: 4 },
+  quickNavIcon: { fontSize: 18 },
+  quickNavLabel: { fontSize: 10, fontWeight: "700" as const, letterSpacing: 0.3 },
+  modalVictoryType: { fontSize: 13, fontWeight: "700" as const, letterSpacing: 1, marginBottom: 10, textAlign: "center" as const },
+  victoryBtnRow: { flexDirection: "row" as const, gap: 10, width: "100%" as const },
 });

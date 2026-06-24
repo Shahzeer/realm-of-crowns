@@ -334,8 +334,8 @@ function processKingdomPressures(
     }
   }
 
-  let nobleDisputes = pressures.nobleDisputes.filter(d => !d.resolved);
-  if (nobleDisputes.length < 3 && provCount > 3 && Math.random() < 0.08) {
+  let nobleDisputes = pressures.nobleDisputes.filter(d => !d.resolved || (turn - d.turnCreated) < 5);
+  if (nobleDisputes.filter(d => !d.resolved).length < 3 && provCount > 3 && Math.random() < 0.08) {
     const targetProvince = playerProvinces.filter(p => p.type !== 'capital')[Math.floor(Math.random() * Math.max(1, playerProvinces.length - 1))];
     if (targetProvince) {
       const nobleName = NOBLE_NAMES[Math.floor(Math.random() * NOBLE_NAMES.length)];
