@@ -86,6 +86,7 @@ function RootLayoutNav() {
       <Stack.Screen name="pressures" options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: false }} />
       <Stack.Screen name="reign-summary" options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: false }} />
       <Stack.Screen name="domains" options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: false }} />
+      <Stack.Screen name="realm" options={{ presentation: "modal", animation: "slide_from_bottom", headerShown: false }} />
     </Stack>
   );
 }

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from "
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { X, BookOpen, Crown, ChevronRight } from "lucide-react-native";
+import { X, BookOpen, Crown, ChevronRight, Shield, Trophy } from "lucide-react-native";
 import Colors from "@/constants/colors";
 import { useGame } from "@/providers/GameProvider";
 
@@ -89,6 +89,17 @@ export default function ChronicleScreen() {
         </View>
         <TouchableOpacity onPress={() => router.back()} style={s.closeBtn} testID="close-chronicle">
           <X size={22} color={Colors.text.secondary} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={s.subNavRow}>
+        <TouchableOpacity style={s.subNavBtn} onPress={() => router.push('/battles' as any)} activeOpacity={0.75}>
+          <Shield size={16} color={Colors.crimson.bright} />
+          <Text style={[s.subNavLabel, { color: Colors.crimson.bright }]}>Battles</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={s.subNavBtn} onPress={() => router.push('/achievements' as any)} activeOpacity={0.75}>
+          <Trophy size={16} color={Colors.gold.bright} />
+          <Text style={[s.subNavLabel, { color: Colors.gold.bright }]}>Achievements</Text>
         </TouchableOpacity>
       </View>
 
@@ -311,6 +322,13 @@ const s = StyleSheet.create({
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   title: { fontSize: 20, fontWeight: "800" as const, color: Colors.text.primary },
   closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.bg.card, alignItems: "center", justifyContent: "center" },
+  subNavRow: { flexDirection: "row", marginHorizontal: 16, marginTop: 10, gap: 8 },
+  subNavBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 9, borderRadius: 10,
+    backgroundColor: Colors.bg.card, borderWidth: 1, borderColor: Colors.border.primary,
+  },
+  subNavLabel: { fontSize: 12, fontWeight: "700" as const },
   tabRow: { flexDirection: "row", marginHorizontal: 16, marginTop: 10, marginBottom: 6, gap: 8 },
   tabBtn: {
     flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,

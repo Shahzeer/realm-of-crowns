@@ -733,7 +733,7 @@ function KingdomScreen() {
               { path: "/chronicle", icon: "📜", label: "Chronicle", color: Colors.food.light },
               { path: "/diplomacy", icon: "🌍", label: "Diplomacy", color: Colors.gold.primary },
               { path: "/domains", icon: "🏰", label: "Domains", color: Colors.gold.dim },
-              { path: "/pressures", icon: "⚠️", label: "Pressures", color: Colors.status.warning },
+              { path: "/realm", icon: "🏯", label: "Realm", color: "#a78bfa" },
             ].map(item => (
               <TouchableOpacity key={item.path} style={idx.quickNavBtn} onPress={() => navigateTo(item.path)} activeOpacity={0.7}>
                 <Text style={idx.quickNavIcon}>{item.icon}</Text>
@@ -747,17 +747,9 @@ function KingdomScreen() {
               { path: "/domains", icon: <Crown size={22} color={Colors.gold.bright} />, bg: Colors.gold.dim + "30", title: "Domains", sub: `${(state.lords ?? []).length} lords · ${playerProvinces.length} provinces`, id: "domains-btn" },
               { path: "/armies", icon: <Swords size={22} color={Colors.crimson.bright} />, bg: Colors.military.blood + "30", title: "Armies", sub: `${state.armies.length} forces`, id: "armies-btn" },
               { path: "/diplomacy", icon: <Globe size={22} color={Colors.gold.primary} />, bg: Colors.gold.dim + "30", title: "Diplomacy", sub: `${state.kingdoms.length} kingdoms`, id: "diplomacy-btn" },
-              { path: "/trade", icon: <ArrowRightLeft size={22} color={Colors.gold.bright} />, bg: Colors.gold.bright + "15", title: "Trade", sub: `${state.activeTrades.length} deals`, id: "trade-btn" },
-              { path: "/espionage", icon: <Eye size={22} color="#8b5cf6" />, bg: '#8b5cf620', title: "Espionage", sub: state.activeSpyMission ? 'Active' : 'Send spies', id: "espionage-btn" },
               { path: "/events", icon: <ScrollText size={22} color={Colors.faith.light} />, bg: Colors.faith.purple + "30", title: "Events", sub: unseenEvents.length > 0 ? `${unseenEvents.length} awaiting` : "All quiet", id: "events-btn", badge: unseenEvents.length },
-              { path: "/faith", icon: <Sparkles size={22} color={Colors.faith.light} />, bg: Colors.faith.purple + "20", title: "Faith", sub: `${state.resources.faith} pts`, id: "faith-btn" },
-              { path: "/technology", icon: <BookOpen size={22} color={Colors.status.info} />, bg: Colors.status.info + "20", title: "Research", sub: currentResearch ? currentResearch.name : 'Choose', id: "tech-btn" },
-              { path: "/council", icon: <Users size={22} color="#8b5cf6" />, bg: '#8b5cf620', title: "Council", sub: `${state.council.length} advisors`, id: "council-btn" },
-              { path: "/battles", icon: <Shield size={22} color={Colors.crimson.bright} />, bg: Colors.crimson.dark + "30", title: "Battles", sub: `${state.battles.length} fought`, id: "battles-btn" },
-              { path: "/pressures", icon: <ShieldAlert size={22} color={Colors.status.warning} />, bg: Colors.status.warning + "20", title: "Pressures", sub: pressureSub, id: "pressures-btn", badge: pressureBadge },
-              { path: "/achievements", icon: <Trophy size={22} color={Colors.gold.bright} />, bg: Colors.gold.dim + "20", title: "Achievements", sub: `${unlockedAchievements}/${state.achievements.length}`, id: "achievements-btn" },
-              { path: "/rankings", icon: <TrendingUp size={22} color={Colors.status.info} />, bg: Colors.status.info + "15", title: "Rankings", sub: "Standings", id: "rankings-btn" },
               { path: "/chronicle", icon: <BookOpen size={22} color={Colors.food.light} />, bg: Colors.food.green + "20", title: "Chronicle", sub: `${state.log.length} entries`, id: "chronicle-btn" },
+              { path: "/realm", icon: <Shield size={22} color="#a78bfa" />, bg: '#a78bfa18', title: "Realm", sub: "Council · Faith · Research", id: "realm-btn", badge: pressureBadge },
               { path: "/settings", icon: <Settings size={22} color={Colors.text.secondary} />, bg: Colors.text.dim + "20", title: "Settings", sub: "Options", id: "settings-btn" },
             ].map(cmd => (
               <TouchableOpacity key={cmd.id} style={[idx.commandCard, cmd.badge && cmd.badge > 0 ? idx.commandCardHighlight : undefined]} onPress={() => navigateTo(cmd.path)} activeOpacity={0.7} testID={cmd.id}>

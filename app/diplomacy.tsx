@@ -447,6 +447,21 @@ export default function DiplomacyScreen() {
         </View>
         <TouchableOpacity onPress={() => router.back()} style={d.closeBtn} testID="close-diplomacy"><X size={22} color={Colors.text.secondary} /></TouchableOpacity>
       </View>
+      <View style={d.subNavRow}>
+        <TouchableOpacity style={d.subNavBtn} onPress={() => router.push('/espionage' as any)} activeOpacity={0.75}>
+          <Eye size={16} color="#a78bfa" />
+          <Text style={[d.subNavLabel, { color: "#a78bfa" }]}>Espionage</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={d.subNavBtn} onPress={() => router.push('/rankings' as any)} activeOpacity={0.75}>
+          <Scale size={16} color={Colors.status.info} />
+          <Text style={[d.subNavLabel, { color: Colors.status.info }]}>Rankings</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={d.subNavBtn} onPress={() => router.push('/trade' as any)} activeOpacity={0.75}>
+          <DollarSign size={16} color={Colors.gold.bright} />
+          <Text style={[d.subNavLabel, { color: Colors.gold.bright }]}>Trade</Text>
+        </TouchableOpacity>
+      </View>
+
       <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: insets.bottom + 20 }} showsVerticalScrollIndicator={false}>
         {discoveredKingdoms.map((kingdom, idx) => (
           <View key={kingdom.id} onLayout={e => { yOffsets.current[kingdom.id] = e.nativeEvent.layout.y; }}>
@@ -688,6 +703,13 @@ const d = StyleSheet.create({
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
   title: { fontSize: 20, fontWeight: "800" as const, color: Colors.text.primary },
   closeBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.bg.card, alignItems: "center", justifyContent: "center" },
+  subNavRow: { flexDirection: "row" as const, marginHorizontal: 16, marginTop: 10, marginBottom: 4, gap: 8 },
+  subNavBtn: {
+    flex: 1, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6,
+    paddingVertical: 9, borderRadius: 10,
+    backgroundColor: Colors.bg.card, borderWidth: 1, borderColor: Colors.border.primary,
+  },
+  subNavLabel: { fontSize: 12, fontWeight: "700" as const },
   warCountBadge: { backgroundColor: '#ff000020', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
   warCountText: { fontSize: 10, fontWeight: "700" as const, color: '#ff4444' },
   allyCountBadge: { backgroundColor: Colors.status.success + '20', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
