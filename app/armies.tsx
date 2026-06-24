@@ -57,7 +57,7 @@ function TacticCard({ tactic, isActive, onSelect }: { tactic: CombatTactic; isAc
   );
 }
 
-function ArmyCard({ army, provinces, onMove, onAttack, onReinforce, onDisband, onMerge, isMergeSource, mergeSourceId, index, resources }: {
+function ArmyCard({ army, provinces, onMove, onAttack, onReinforce, onDisband, onMerge, onAssault, isMergeSource, mergeSourceId, index, resources }: {
   army: Army;
   provinces: Province[];
   onMove: (armyId: string, destId: string) => void;
@@ -65,6 +65,7 @@ function ArmyCard({ army, provinces, onMove, onAttack, onReinforce, onDisband, o
   onReinforce: (armyId: string, amount: number) => void;
   onDisband: (armyId: string) => void;
   onMerge: (armyId: string) => void;
+  onAssault: (armyId: string, provinceId: string) => void;
   isMergeSource: boolean;
   mergeSourceId: string | null;
   index: number;
@@ -142,6 +143,26 @@ function ArmyCard({ army, provinces, onMove, onAttack, onReinforce, onDisband, o
             <Text style={[s.locationText, { color: Colors.crimson.bright }]}>⚔️ Sieging...</Text>
           )}
         </View>
+
+        {army.status === 'sieging' && (
+          <TouchableOpacity
+            style={s.assaultBtn}
+            onPress={() => {
+              Alert.alert(
+                '⚔️ Assault Now?',
+                `Launch an immediate assault on ${province?.name ?? 'the province'} instead of waiting for the siege to complete. You will command the battle directly.`,
+                [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: '⚔️ Assault', onPress: () => onAssault(army.id, army.location) },
+                ]
+              );
+            }}
+            activeOpacity={0.8}
+          >
+            <Swords size={13} color={Colors.crimson.bright} />
+            <Text style={s.assaultBtnText}>⚔️ Assault Now</Text>
+          </TouchableOpacity>
+        )}
 
         {isIdle && (
           <View style={s.actionRow}>
@@ -268,7 +289,7 @@ export default function ArmiesScreen() {
   console.log("[RealmOfCrowns] Armies render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, moveArmy, setActiveTactic, winProbability, reinforceArmy, disbandArmy, mergeArmies } = useGame();
+  const { state, moveArmy, setActiveTactic, winProbability, reinforceArmy, disbandArmy, mergeArmies, stageBattle } = useGame();
   const [showTactics, setShowTactics] = useState(false);
   const [mergeSourceId, setMergeSourceId] = useState<string | null>(null);
   const totalTroops = state.armies.reduce((sum, a) => sum + a.troops, 0);
@@ -287,6 +308,12 @@ export default function ArmiesScreen() {
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }
     moveArmy(armyId, provinceId);
   }, [moveArmy]);
+
+  const handleAssault = useCallback((armyId: string, provinceId: string) => {
+    if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); }
+    stageBattle(armyId, provinceId);
+    router.back();
+  }, [stageBattle, router]);
 
   const handleReinforce = useCallback((armyId: string, amount: number) => {
     if (Platform.OS !== "web") { void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); }
@@ -399,6 +426,7 @@ export default function ArmiesScreen() {
             onReinforce={handleReinforce}
             onDisband={handleDisband}
             onMerge={handleMerge}
+            onAssault={handleAssault}
             isMergeSource={mergeSourceId === army.id}
             mergeSourceId={mergeSourceId}
             index={idx}
@@ -489,6 +517,8 @@ const s = StyleSheet.create({
   disbandBtn: { flex: 1, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: Colors.crimson.bright + '40', backgroundColor: Colors.crimson.bright + '10' },
   disbandBtnText: { fontSize: 12, fontWeight: "600" as const, color: Colors.crimson.bright },
   btnDisabled: { opacity: 0.4 },
+  assaultBtn: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, marginHorizontal: 14, marginTop: 8, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.crimson.dark + '30', borderWidth: 1, borderColor: Colors.crimson.bright + '60' },
+  assaultBtnText: { fontSize: 12, fontWeight: "800" as const, color: Colors.crimson.bright, letterSpacing: 0.5 },
   mergeBanner: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, marginHorizontal: 16, marginBottom: 10, paddingVertical: 10, borderRadius: 10, backgroundColor: Colors.status.info + '10', borderWidth: 1, borderColor: Colors.status.info + '30' },
   mergeBannerActive: { flexDirection: "row" as const, alignItems: "center" as const, gap: 8, marginHorizontal: 16, marginBottom: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: Colors.gold.dim + '15', borderWidth: 1, borderColor: Colors.gold.dim + '50' },
   mergeBannerText: { fontSize: 12, fontWeight: "600" as const, color: Colors.status.info, flex: 1 },

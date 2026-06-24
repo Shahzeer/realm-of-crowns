@@ -292,7 +292,7 @@ function KingdomScreen() {
   console.log("[RealmOfCrowns] Kingdom screen render");
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward, acceptVassal, rejectVassal, declareIndependence, refuseTribute, dismissLord, adjustLordTax, toggleWarTax, declarePendingVictory } = useGame();
+  const { state, isLoaded, advanceTurn, unseenEvents, playerProvinces, activeWars, recentBattles, currentResearch, resetGame, dismissTutorial, newAchievements, recruitArmy, reinforceGarrison, claimNeutralProvince, marchArmyToNeutral, cancelMarch, visibilityMap, investigateRumor, dismissRumor, claimQuestReward, acceptVassal, rejectVassal, declareIndependence, refuseTribute, dismissLord, adjustLordTax, toggleWarTax, declarePendingVictory, dismissPendingBattle } = useGame();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -632,6 +632,32 @@ function KingdomScreen() {
           </Text>
         </View>
       )}
+      {!!state.pendingBattle && (
+        <View style={idx.pendingBattleBanner}>
+          <View style={{ flex: 1 }}>
+            <Text style={idx.pendingBattleTitle}>⚔️ Assault Staged: {state.pendingBattle.provinceName}</Text>
+            <Text style={idx.pendingBattleSub}>
+              {state.pendingBattle.attackerTroops.toLocaleString()} vs {state.pendingBattle.defenderTroops.toLocaleString()} defenders
+            </Text>
+          </View>
+          <View style={idx.pendingBattleBtns}>
+            <TouchableOpacity
+              style={idx.pendingBattleAutoBtn}
+              onPress={() => dismissPendingBattle()}
+              activeOpacity={0.8}
+            >
+              <Text style={idx.pendingBattleAutoBtnText}>Auto</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={idx.pendingBattleCommandBtn}
+              onPress={() => router.push('/command-battle' as any)}
+              activeOpacity={0.8}
+            >
+              <Text style={idx.pendingBattleCommandBtnText}>Command ⚔️</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
       <View style={idx.header}>
         <TouchableOpacity style={idx.rulerButton} onPress={() => navigateTo("/ruler")} activeOpacity={0.7} testID="ruler-button">
           <View style={idx.rulerAvatar}><Crown size={18} color={Colors.gold.bright} /></View>
@@ -844,6 +870,14 @@ const idx = StyleSheet.create({
   victoryDeclareBtnText: { fontSize: 12, fontWeight: '800' as const, color: '#fff' },
   faithWarningBanner: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 6, paddingHorizontal: 14, paddingVertical: 6, backgroundColor: '#1a0a2a', borderBottomWidth: 1, borderColor: '#c084fc40' },
   faithWarningText: { fontSize: 11, color: '#c084fc', fontWeight: '600' as const },
+  pendingBattleBanner: { flexDirection: 'row' as const, alignItems: 'center' as const, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#1f0a0a', borderBottomWidth: 2, borderColor: Colors.crimson.bright + '70', gap: 10 },
+  pendingBattleTitle: { fontSize: 13, fontWeight: '800' as const, color: Colors.crimson.bright },
+  pendingBattleSub: { fontSize: 11, color: Colors.crimson.bright + 'aa', marginTop: 1 },
+  pendingBattleBtns: { flexDirection: 'row' as const, gap: 6 },
+  pendingBattleAutoBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: Colors.bg.tertiary, borderWidth: 1, borderColor: Colors.border.primary },
+  pendingBattleAutoBtnText: { fontSize: 11, fontWeight: '700' as const, color: Colors.text.secondary },
+  pendingBattleCommandBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8, backgroundColor: Colors.crimson.dark, borderWidth: 1, borderColor: Colors.crimson.bright },
+  pendingBattleCommandBtnText: { fontSize: 11, fontWeight: '800' as const, color: '#fff' },
   vassalBanner: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 9, backgroundColor: '#1e1040', borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#7c3aed50' },
   vassalBannerLeft: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   vassalBannerIcon: { fontSize: 18 },

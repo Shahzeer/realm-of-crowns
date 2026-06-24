@@ -3776,6 +3776,147 @@ export const [GameProvider, useGame] = createContextHook(() => {
     });
   }, [saveMutation]);
 
+  const stageBattle = useCallback((armyId: string, provinceId: string) => {
+    setState(prev => {
+      const army = prev.armies.find(a => a.id === armyId);
+      const province = prev.provinces.find(p => p.id === provinceId);
+      if (!army || !province || province.owner === 'player') return prev;
+      const ownerKingdom = prev.kingdoms.find(k => k.id === province.owner);
+      const ownerArmy = ownerKingdom?.armies.find(a => a.location === province.id);
+      const totalDefenderTroops = province.garrison + (ownerArmy?.troops ?? 0);
+      const pendingBattle = {
+        id: `battle_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        provinceId: province.id,
+        provinceName: province.name,
+        armyId: army.id,
+        attackerName: army.name,
+        defenderName: ownerKingdom?.name ?? `Garrison of ${province.name}`,
+        attackerTroops: army.troops,
+        defenderTroops: totalDefenderTroops,
+        attackerMorale: army.morale,
+        defenderMorale: ownerArmy?.morale ?? 55,
+      };
+      return { ...prev, pendingBattle };
+    });
+  }, []);
+
+  const dismissPendingBattle = useCallback(() => {
+    setState(prev => {
+      if (!prev.pendingBattle) return prev;
+      const pb = prev.pendingBattle;
+      const army = prev.armies.find(a => a.id === pb.armyId);
+      const province = prev.provinces.find(p => p.id === pb.provinceId);
+      if (!army || !province || province.owner === 'player') return { ...prev, pendingBattle: undefined };
+      const defenderArmy: Army = {
+        id: 'def_garrison', name: `Garrison of ${province.name}`, owner: province.owner,
+        troops: province.garrison, maxTroops: province.garrison, morale: 60,
+        commander: 'Local Captain', location: province.id, status: 'fighting',
+      };
+      const ownerKingdom = prev.kingdoms.find(k => k.id === province.owner);
+      const ownerArmy = ownerKingdom?.armies.find(a => a.location === province.id);
+      const totalDefender = ownerArmy ? { ...ownerArmy, troops: ownerArmy.troops + province.garrison } : defenderArmy;
+      const battle = resolveBattle(army, totalDefender, 0, province, prev.activeTactic);
+      battle.turn = prev.turn;
+      let newArmies = prev.armies.map(a =>
+        a.id === pb.armyId
+          ? { ...a, troops: Math.max(50, a.troops - battle.attackerLosses), morale: Math.max(10, a.morale - (battle.conquered ? 5 : 20)), status: battle.conquered ? 'idle' as const : 'retreating' as const, location: battle.conquered ? province.id : a.location }
+          : a
+      );
+      let newProvinces = prev.provinces;
+      let newKingdoms = prev.kingdoms;
+      let boostedResources = prev.resources;
+      let boostText = '';
+      if (battle.conquered) {
+        const buildingBoosts = getBuildingBoosts(province.buildings);
+        boostText = formatResourceBoosts(buildingBoosts);
+        boostedResources = applyResourceBoosts(prev.resources, buildingBoosts);
+        newProvinces = prev.provinces.map(p => p.id === province.id ? claimProvinceForPlayer(p) : p);
+        newKingdoms = prev.kingdoms.map(k =>
+          k.id === province.owner ? { ...k, provinces: k.provinces.filter(pid => pid !== province.id), warScore: (k.warScore ?? 0) - 25 } : k
+        );
+        if (ownerKingdom && ownerArmy) {
+          newKingdoms = newKingdoms.map(k =>
+            k.id === ownerKingdom.id ? { ...k, armies: k.armies.map(a => a.id === ownerArmy.id ? { ...a, troops: Math.max(20, a.troops - battle.defenderLosses) } : a) } : k
+          );
+        }
+      }
+      const logMsg = battle.conquered
+        ? `⚔️ ASSAULT VICTORY! ${army.name} stormed ${province.name}!${boostText ? ` Captured: ${boostText}.` : ''}`
+        : `❌ ${army.name}'s assault on ${province.name} was repelled`;
+      const newState: GameState = {
+        ...prev, pendingBattle: undefined, armies: newArmies, provinces: newProvinces, kingdoms: newKingdoms,
+        resources: battle.conquered ? boostedResources : prev.resources,
+        battles: [...prev.battles, battle].slice(-20), log: [logMsg, ...prev.log].slice(0, 50),
+        dailyQuests: battle.conquered ? updateQuestProgress(prev.dailyQuests ?? [], 'win_battle', 1) : prev.dailyQuests,
+      };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
+  const resolvePendingBattle = useCallback((outcome: { winner: 'player' | 'enemy'; playerHpPct: number; enemyHpPct: number }) => {
+    setState(prev => {
+      if (!prev.pendingBattle) return prev;
+      const pb = prev.pendingBattle;
+      const army = prev.armies.find(a => a.id === pb.armyId);
+      const province = prev.provinces.find(p => p.id === pb.provinceId);
+      if (!army || !province) return { ...prev, pendingBattle: undefined };
+      const conquered = outcome.winner === 'player';
+      const attackerLosses = Math.floor(pb.attackerTroops * Math.max(0, 1 - outcome.playerHpPct / 100) * 0.7);
+      const defenderLosses = Math.floor(pb.defenderTroops * Math.max(0, 1 - outcome.enemyHpPct / 100) * 0.8);
+      const ownerKingdom = prev.kingdoms.find(k => k.id === province.owner);
+      const ownerArmy = ownerKingdom?.armies.find(a => a.location === province.id);
+      let newArmies = prev.armies.map(a =>
+        a.id === pb.armyId
+          ? { ...a, troops: Math.max(50, a.troops - attackerLosses), morale: Math.max(10, a.morale - (conquered ? 5 : 20)), status: conquered ? 'idle' as const : 'retreating' as const, location: conquered ? province.id : a.location }
+          : a
+      );
+      let newProvinces = prev.provinces;
+      let newKingdoms = prev.kingdoms;
+      let boostedResources = prev.resources;
+      let boostText = '';
+      if (conquered && province.owner !== 'player') {
+        const buildingBoosts = getBuildingBoosts(province.buildings);
+        boostText = formatResourceBoosts(buildingBoosts);
+        boostedResources = applyResourceBoosts(prev.resources, buildingBoosts);
+        if (buildingBoosts.goldPerTurn) boostedResources.baseGoldPerTurn = (boostedResources.baseGoldPerTurn ?? prev.resources.goldPerTurn) + buildingBoosts.goldPerTurn;
+        if (buildingBoosts.foodPerTurn) boostedResources.baseFoodPerTurn = (boostedResources.baseFoodPerTurn ?? prev.resources.foodPerTurn) + buildingBoosts.foodPerTurn;
+        if (buildingBoosts.militaryPerTurn) boostedResources.baseMilitaryPerTurn = (boostedResources.baseMilitaryPerTurn ?? prev.resources.militaryPerTurn) + buildingBoosts.militaryPerTurn;
+        if (buildingBoosts.faithPerTurn) boostedResources.baseFaithPerTurn = (boostedResources.baseFaithPerTurn ?? prev.resources.faithPerTurn) + buildingBoosts.faithPerTurn;
+        newProvinces = prev.provinces.map(p => p.id === province.id ? claimProvinceForPlayer(p) : p);
+        newKingdoms = prev.kingdoms.map(k =>
+          k.id === province.owner ? { ...k, provinces: k.provinces.filter(pid => pid !== province.id), warScore: (k.warScore ?? 0) - 25 } : k
+        );
+        if (ownerKingdom && ownerArmy) {
+          newKingdoms = newKingdoms.map(k =>
+            k.id === ownerKingdom.id ? { ...k, armies: k.armies.map(a => a.id === ownerArmy.id ? { ...a, troops: Math.max(20, a.troops - defenderLosses) } : a) } : k
+          );
+        }
+      }
+      const battle = enrichBattleResult({
+        id: pb.id, turn: prev.turn,
+        attackerName: pb.attackerName, defenderName: pb.defenderName,
+        attackerTroops: pb.attackerTroops, defenderTroops: pb.defenderTroops,
+        attackerLosses, defenderLosses,
+        winner: conquered ? 'attacker' : 'defender',
+        provinceName: pb.provinceName, provinceId: pb.provinceId,
+        conquered, tacticUsed: prev.activeTactic,
+      });
+      battle.turn = prev.turn;
+      const logMsg = conquered
+        ? `⚔️ VICTORY! You commanded ${army.name} to victory at ${pb.provinceName}!${boostText ? ` Captured: ${boostText}.` : ''}`
+        : `❌ ${army.name} was defeated at the Battle of ${pb.provinceName}`;
+      const newState: GameState = {
+        ...prev, pendingBattle: undefined, armies: newArmies, provinces: newProvinces, kingdoms: newKingdoms,
+        resources: conquered ? boostedResources : prev.resources,
+        battles: [...prev.battles, battle].slice(-20), log: [logMsg, ...prev.log].slice(0, 50),
+        dailyQuests: conquered ? updateQuestProgress(prev.dailyQuests ?? [], 'win_battle', 1) : prev.dailyQuests,
+      };
+      saveMutation.mutate(newState);
+      return newState;
+    });
+  }, [saveMutation]);
+
   const upgradeBuilding = useCallback((provinceId: string, buildingId: string) => {
     setState(prev => {
       const province = prev.provinces.find(p => p.id === provinceId);
@@ -4767,6 +4908,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     dismissReignChronicle, claimQuestReward, useDiplomaticHook, declarePendingVictory,
     acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion, refuseTribute,
     assignLord, dismissLord, adjustLordTax, toggleWarTax,
+    stageBattle, dismissPendingBattle, resolvePendingBattle,
   }), [
     state, isLoaded, advanceTurn, resolveEvent, dismissEvent, recruitArmy, moveArmy,
     attackProvince, upgradeBuilding, constructBuilding, startResearch,
@@ -4781,5 +4923,6 @@ export const [GameProvider, useGame] = createContextHook(() => {
     dismissReignChronicle, claimQuestReward, useDiplomaticHook, declarePendingVictory,
     acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion, refuseTribute,
     assignLord, dismissLord, adjustLordTax, toggleWarTax,
+    stageBattle, dismissPendingBattle, resolvePendingBattle,
   ]);
 });

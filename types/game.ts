@@ -568,6 +568,20 @@ export interface GameState {
     turnsLeft: number;
   }>;
   pendingVictory?: { victoryType: string };
+  pendingBattle?: PendingBattle;
+}
+
+export interface PendingBattle {
+  id: string;
+  provinceId: string;
+  provinceName: string;
+  armyId: string;
+  attackerName: string;
+  defenderName: string;
+  attackerTroops: number;
+  defenderTroops: number;
+  attackerMorale: number;
+  defenderMorale: number;
 }
 
 export interface PrestigeRecord {
