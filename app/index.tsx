@@ -689,7 +689,7 @@ function KingdomScreen() {
             </View>
           )}
           <View style={idx.statsRow}>
-            <TouchableOpacity style={idx.statCard} onPress={() => navigateTo('/provinces')} activeOpacity={0.7}>
+            <TouchableOpacity style={idx.statCard} onPress={() => navigateTo('/domains')} activeOpacity={0.7}>
               <Text style={idx.statValue}>{playerProvinces.length}</Text>
               <Text style={idx.statLabel}>Provinces</Text>
             </TouchableOpacity>
