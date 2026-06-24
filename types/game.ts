@@ -567,6 +567,21 @@ export interface GameState {
     attackPower: number;
     turnsLeft: number;
   }>;
+  pendingVictory?: { victoryType: string };
+}
+
+export interface PrestigeRecord {
+  id: string;
+  dynastyName: string;
+  rulerName: string;
+  outcome: 'conquest' | 'domination' | 'cultural' | 'faith' | 'defeat';
+  victoryType?: string;
+  causeOfDeath?: string;
+  turnCount: number;
+  peakProvinces: number;
+  finalScore: number;
+  datePlayed: string;
+  difficulty: 'easy' | 'normal' | 'hard';
 }
 
 export interface PendingChainEvent {

@@ -1,0 +1,30 @@
+make each victory condition opt-in (show a "Declare Victory" button rather than auto-ending), so the game never ends under you without you choosing it.
+No more auto-ending on victory. When a victory condition is met, the game now:
+1.	Shows a green banner at the top of the home screen — "Victory Achieved!" with the victory type (e.g. "Faith Victory — The divine light of your realm illuminates all!") and a green Declare button
+2.	Tapping Declare shows a confirmation alert — "Keep Playing" or "👑 Declare Victory" — so you're always in control
+3.	Only after you confirm does the full victory screen appear, with a new game option
+Additionally:
+•	Faith warning — a subtle indigo banner appears when your faith is between 800–999, telling you how close you are to a Faith Victory so it's never a surprise
+•	Defeats (game over from losing all provinces, dying without an heir, etc.) still end the game immediately as before — those are genuine endings, not choices
+
+add a "Prestige" system — instead of just ending on victory, your final score gets logged to a dynasty hall of fame that tracks your best runs across multiple playthroughs.
+After each game ends (victory or defeat), your run gets scored and saved to a local leaderboard — your personal dynasty chronicles across all playthroughs.
+________________________________________
+Scoring — a final prestige score calculated from:
+•	Turns survived
+•	Provinces held at peak
+•	Victory type (Conquest > Domination > Cultural > Faith, or "Fallen" for defeat)
+•	Ruler stats, technologies researched, battles won, lords appointed
+•	Any bonus for doing it on fewer turns (efficiency bonus)
+Hall of Fame — a screen (accessible from the main menu or Settings) showing your past runs ranked by prestige score, each showing:
+•	Dynasty name + ruler name
+•	Victory type or cause of death
+•	Turn count, peak provinces, final score
+•	Date played
+Dynasty legacy bonus (optional stretch) — your top prestige score could carry a small starting bonus into new games (a few extra gold or +1 to a stat) to reward repeat play.
+Storage — all run records saved locally in AsyncStorage alongside the current save. The current game save is separate, so the hall of fame persists across new games.
+________________________________________
+It's self-contained — no server, no accounts needed. The main work is:
+1.	Calculating the score on game end (victory or defeat)
+2.	Saving run records to AsyncStorage
+3.	A Hall of Fame screen to browse past runs

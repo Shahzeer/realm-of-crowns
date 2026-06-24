@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 
 import { computeVisibility, VisibilityMap } from '@/utils/fogOfWar';
+import { buildPrestigeRecord, savePrestigeRecord } from '@/utils/prestige';
 import {
   GameState,
   Ruler,
@@ -3273,18 +3274,17 @@ export const [GameProvider, useGame] = createContextHook(() => {
       }
 
       const totalProvinces = newProvinces.length;
-      if (playerProvCount >= totalProvinces) {
-        victory = true;
-        victoryType = 'Conquest Victory — You have united all lands under your banner!';
-      } else if (playerProvCount >= Math.ceil(totalProvinces * 0.7) && prev.turn >= 50) {
-        victory = true;
-        victoryType = 'Domination Victory — Your realm is the greatest power in the land!';
-      } else if (newTechnologies.every(t => t.researched) && nextTurn >= 50) {
-        victory = true;
-        victoryType = 'Cultural Victory — Your scholars have mastered all knowledge!';
-      } else if (newResources.faith >= 1000) {
-        victory = true;
-        victoryType = 'Faith Victory — The divine light of your realm illuminates all!';
+      let pendingVictory: { victoryType: string } | undefined = prev.pendingVictory;
+      if (!gameOver && !prev.victory) {
+        if (playerProvCount >= totalProvinces) {
+          pendingVictory = { victoryType: 'Conquest Victory — You have united all lands under your banner!' };
+        } else if (playerProvCount >= Math.ceil(totalProvinces * 0.7) && prev.turn >= 50) {
+          pendingVictory = { victoryType: 'Domination Victory — Your realm is the greatest power in the land!' };
+        } else if (newTechnologies.every(t => t.researched) && nextTurn >= 50) {
+          pendingVictory = { victoryType: 'Cultural Victory — Your scholars have mastered all knowledge!' };
+        } else if (newResources.faith >= 1000) {
+          pendingVictory = { victoryType: 'Faith Victory — The divine light of your realm illuminates all!' };
+        }
       }
 
       // Custom kingdom title progression
@@ -3385,7 +3385,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
         resources: newResources, provinces: newProvinces, armies: newArmies,
         kingdoms: newKingdoms, events: newEvents, battles: allBattles,
         technologies: newTechnologies, council: newCouncil,
-        log: allLogs, gameOver, gameOverReason, victory, victoryType,
+        log: allLogs, gameOver, gameOverReason, victory: false, victoryType: undefined, pendingVictory,
         activeTrades, activeSpyMission,
         achievements: newAchievements,
         lastTurnSummary: summary,
@@ -3425,6 +3425,26 @@ export const [GameProvider, useGame] = createContextHook(() => {
         regentHolderName: regentHolderName || undefined,
       } as GameState;
       saveMutation.mutate(newState);
+      if (gameOver) {
+        const record = buildPrestigeRecord(newState, 'defeat', undefined, newState.gameOverReason);
+        savePrestigeRecord(record);
+      }
+      return newState;
+    });
+  }, [saveMutation]);
+
+  const declarePendingVictory = useCallback(() => {
+    setState(prev => {
+      if (!prev.pendingVictory) return prev;
+      const vt = prev.pendingVictory.victoryType;
+      const outcome = vt.includes('Conquest') ? 'conquest' as const
+        : vt.includes('Domination') ? 'domination' as const
+        : vt.includes('Cultural') ? 'cultural' as const
+        : 'faith' as const;
+      const newState: GameState = { ...prev, victory: true, victoryType: vt, pendingVictory: undefined };
+      saveMutation.mutate(newState);
+      const record = buildPrestigeRecord(newState, outcome, vt);
+      savePrestigeRecord(record);
       return newState;
     });
   }, [saveMutation]);
@@ -4744,7 +4764,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     arrangeMarriage, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
-    dismissReignChronicle, claimQuestReward, useDiplomaticHook,
+    dismissReignChronicle, claimQuestReward, useDiplomaticHook, declarePendingVictory,
     acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion, refuseTribute,
     assignLord, dismissLord, adjustLordTax, toggleWarTax,
   }), [
@@ -4758,7 +4778,7 @@ export const [GameProvider, useGame] = createContextHook(() => {
     arrangeMarriage, mergeArmies, educateHeir,
     visibilityMap, investigateRumor, dismissRumor,
     reduceCorruption, resolveNobleDispute, containPlague, setHeirPath,
-    dismissReignChronicle, claimQuestReward, useDiplomaticHook,
+    dismissReignChronicle, claimQuestReward, useDiplomaticHook, declarePendingVictory,
     acceptVassal, rejectVassal, declareIndependence, reduceWarExhaustion, refuseTribute,
     assignLord, dismissLord, adjustLordTax, toggleWarTax,
   ]);

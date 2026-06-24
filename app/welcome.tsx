@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
+import { Trophy } from "lucide-react-native";
 
 export default function WelcomeScreen() {
   const router = useRouter();
@@ -76,6 +77,18 @@ export default function WelcomeScreen() {
           >
             <Text style={s.forgeBtnText}>⚒  FORGE YOUR KINGDOM</Text>
           </LinearGradient>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={s.hofBtn}
+          onPress={() => {
+            if (Platform.OS !== 'web') Haptics.selectionAsync();
+            router.push('/hall-of-fame' as any);
+          }}
+          activeOpacity={0.7}
+        >
+          <Trophy size={14} color={Colors.gold.dim} />
+          <Text style={s.hofBtnText}>Dynasty Chronicles</Text>
         </TouchableOpacity>
       </View>
 
@@ -176,5 +189,24 @@ const s = StyleSheet.create({
     color: Colors.text.dim,
     letterSpacing: 3,
     paddingBottom: 16,
+  },
+  hofBtn: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    gap: 6,
+    marginTop: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.border.gold,
+    backgroundColor: Colors.gold.dim + '12',
+  },
+  hofBtnText: {
+    fontSize: 13,
+    fontWeight: "600" as const,
+    color: Colors.gold.dim,
+    letterSpacing: 0.5,
   },
 });
