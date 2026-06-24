@@ -147,16 +147,7 @@ function ArmyCard({ army, provinces, onMove, onAttack, onReinforce, onDisband, o
         {army.status === 'sieging' && (
           <TouchableOpacity
             style={s.assaultBtn}
-            onPress={() => {
-              Alert.alert(
-                '⚔️ Assault Now?',
-                `Launch an immediate assault on ${province?.name ?? 'the province'} instead of waiting for the siege to complete. You will command the battle directly.`,
-                [
-                  { text: 'Cancel', style: 'cancel' },
-                  { text: '⚔️ Assault', onPress: () => onAssault(army.id, army.location) },
-                ]
-              );
-            }}
+            onPress={() => onAssault(army.id, army.location)}
             activeOpacity={0.8}
           >
             <Swords size={13} color={Colors.crimson.bright} />
